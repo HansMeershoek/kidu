@@ -507,6 +507,116 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
 
+  Widget _buildBalanceMeter(
+    BuildContext context, {
+    required int myPaidCents,
+    required int otherPaidCents,
+    required int totalCents,
+    required String myName,
+    required String otherName,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    const barHeight = 8.0;
+    const barRadius = 4.0;
+
+    if (totalCents == 0) {
+      return Semantics(
+        label: 'Bijdragemeter: geen uitgaven',
+        child: Container(
+          height: barHeight,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest.withAlpha((0.5 * 255).round()),
+            borderRadius: BorderRadius.circular(barRadius),
+          ),
+        ),
+      );
+    }
+
+    final myPercent = totalCents > 0
+        ? ((myPaidCents / totalCents) * 100).round()
+        : 0;
+    final otherPercent = totalCents > 0
+        ? ((otherPaidCents / totalCents) * 100).round()
+        : 0;
+
+    return Semantics(
+      label: 'Bijdragemeter: $myName $myPercent%, $otherName $otherPercent%',
+      child: Row(
+        children: [
+          if (myPaidCents > 0)
+            Expanded(
+              flex: myPaidCents,
+              child: Container(
+                height: barHeight,
+                decoration: BoxDecoration(
+                  color: cs.primary.withAlpha((0.45 * 255).round()),
+                  borderRadius: BorderRadius.horizontal(
+                    left: const Radius.circular(barRadius),
+                    right: otherPaidCents > 0
+                        ? Radius.zero
+                        : const Radius.circular(barRadius),
+                  ),
+                ),
+              ),
+            ),
+          if (otherPaidCents > 0)
+            Expanded(
+              flex: otherPaidCents,
+              child: Container(
+                height: barHeight,
+                decoration: BoxDecoration(
+                  color: cs.secondary.withAlpha((0.45 * 255).round()),
+                  borderRadius: BorderRadius.horizontal(
+                    left: myPaidCents > 0
+                        ? Radius.zero
+                        : const Radius.circular(barRadius),
+                    right: const Radius.circular(barRadius),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettlementStatusChip(
+    BuildContext context, {
+    required int settlementCents,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final String label;
+    final Color chipColor;
+    if (settlementCents > 0) {
+      label = 'Jij krijgt terug';
+      chipColor = cs.primary.withAlpha((0.18 * 255).round());
+    } else if (settlementCents < 0) {
+      label = 'Jij betaalt';
+      chipColor = cs.secondary.withAlpha((0.18 * 255).round());
+    } else {
+      label = 'In balans';
+      chipColor = cs.surfaceContainerHighest.withAlpha((0.4 * 255).round());
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(chipColor, cs.surface),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: cs.outlineVariant.withAlpha((0.4 * 255).round()),
+        ),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurface.withAlpha((0.85 * 255).round()),
+            ),
+      ),
+    );
+  }
+
   void _showSnackBar(String message) {
     if (!mounted) {
       return;
@@ -1589,6 +1699,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                               label: otherName,
                                               value: _formatEur(otherPaidCents),
                                             ),
+                                            const SizedBox(height: 12),
+                                            _buildBalanceMeter(
+                                              context,
+                                              myPaidCents: myPaidCents,
+                                              otherPaidCents: otherPaidCents,
+                                              totalCents: totalCents,
+                                              myName: myName,
+                                              otherName: otherName,
+                                            ),
                                             const SizedBox(height: _cardGap),
                                             Divider(
                                               height: 1,
@@ -1609,6 +1728,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     ),
                                                     height: 1.35,
                                                   ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            _buildSettlementStatusChip(
+                                              context,
+                                              settlementCents: settlementCents,
                                             ),
                                           ],
                                         ),
