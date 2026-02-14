@@ -11,13 +11,27 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
     }
 
+    function sameHouseholdUser(targetUserId) {
+      let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      let targetUser = get(/databases/$(database)/documents/users/$(targetUserId));
+      return request.auth != null
+        && requesterUser != null
+        && targetUser != null
+        && 'householdId' in requesterUser.data
+        && requesterUser.data.householdId is string
+        && requesterUser.data.householdId.size() > 0
+        && 'householdId' in targetUser.data
+        && targetUser.data.householdId is string
+        && targetUser.data.householdId.size() > 0
+        && requesterUser.data.householdId == targetUser.data.householdId
+        && exists(/databases/$(database)/documents/households/$(requesterUser.data.householdId)/members/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/households/$(requesterUser.data.householdId)/members/$(targetUserId));
+    }
+
     function userHouseholdIdSafe() {
       return !('householdId' in request.resource.data)
         || request.resource.data.householdId == null
-        || (request.resource.data.householdId is string
-            && request.resource.data.householdId.size() == 0)
-        || (request.resource.data.householdId is string
-            && isHouseholdMember(request.resource.data.householdId));
+        || request.resource.data.householdId is string;
     }
 
     function userWriteValidKeys() {
@@ -33,7 +47,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && (request.auth.uid == userId || sameHouseholdUser(userId));
       allow create: if isSignedIn()
         && request.auth.uid == userId
         && request.resource.data.keys().size() <= 8
@@ -125,6 +139,8 @@ service cloud.firestore {
         && request.resource.data.householdId == resource.data.householdId
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy'])
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy', 'usedAt']))
         && (!('usedAt' in request.resource.data) || request.resource.data.usedAt == request.time);
       allow delete: if false;
     }

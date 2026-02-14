@@ -1590,13 +1590,68 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       TextOverflow
                                                                           .ellipsis,
                                                                 ),
-                                                                subtitle: Text(
-                                                                  subtitleText,
-                                                                  maxLines: 1,
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis,
-                                                                ),
+                                                                subtitle: createdBy !=
+                                                                        user.uid
+                                                                    ? Text(
+                                                                        subtitleText,
+                                                                        maxLines: 1,
+                                                                        overflow:
+                                                                            TextOverflow
+                                                                                .ellipsis,
+                                                                      )
+                                                                    : StreamBuilder<DocumentSnapshot<dynamic>>(
+                                                                        stream: FirebaseFirestore
+                                                                            .instance
+                                                                            .doc(
+                                                                              'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
+                                                                            )
+                                                                            .snapshots(),
+                                                                        builder:
+                                                                            (context, noteSnap) {
+                                                                          if (!noteSnap.hasData ||
+                                                                              noteSnap.hasError) {
+                                                                            return Text(
+                                                                              subtitleText,
+                                                                              maxLines: 1,
+                                                                              overflow:
+                                                                                  TextOverflow.ellipsis,
+                                                                            );
+                                                                          }
+                                                                          final noteData =
+                                                                              noteSnap.data?.data();
+                                                                          final note =
+                                                                              (noteData?['note'] as String?)?.trim();
+                                                                          if (note == null ||
+                                                                              note.isEmpty) {
+                                                                            return Text(
+                                                                              subtitleText,
+                                                                              maxLines: 1,
+                                                                              overflow:
+                                                                                  TextOverflow.ellipsis,
+                                                                            );
+                                                                          }
+                                                                          return Column(
+                                                                            crossAxisAlignment:
+                                                                                CrossAxisAlignment.start,
+                                                                            mainAxisSize:
+                                                                                MainAxisSize.min,
+                                                                            children: [
+                                                                              Text(
+                                                                                subtitleText,
+                                                                                maxLines: 1,
+                                                                                overflow:
+                                                                                    TextOverflow.ellipsis,
+                                                                              ),
+                                                                              Text(
+                                                                                note,
+                                                                                maxLines: 1,
+                                                                                overflow:
+                                                                                    TextOverflow.ellipsis,
+                                                                              ),
+                                                                            ],
+                                                                          );
+                                                                        },
+                                                                      ),
                                                                 trailing: Text(
                                                                   _formatEur(
                                                                     amountCents,
