@@ -10,7 +10,96 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'firebase_options.dart';
 
+/// Typed result for the private note edit dialog. No Firestore in dialog.
+sealed class PrivateNoteDialogResult {}
+
+class PrivateNoteDialogCancelled extends PrivateNoteDialogResult {}
+
+class PrivateNoteDialogDelete extends PrivateNoteDialogResult {}
+
+class PrivateNoteDialogSave extends PrivateNoteDialogResult {
+  PrivateNoteDialogSave(this.note);
+  final String note;
+}
+
+class _PrivateNoteDialogContent extends StatefulWidget {
+  const _PrivateNoteDialogContent({
+    required this.initialNote,
+    required this.hasInitialNote,
+  });
+
+  final String initialNote;
+  final bool hasInitialNote;
+
+  @override
+  State<_PrivateNoteDialogContent> createState() =>
+      _PrivateNoteDialogContentState();
+}
+
+class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
+  late String _draftNote;
+  bool _didPop = false;
+
+  void _safePop(PrivateNoteDialogResult result) {
+    if (_didPop) return;
+    _didPop = true;
+    Navigator.of(context, rootNavigator: false).pop(result);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _draftNote = widget.initialNote;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Notitie bewerken'),
+      content: TextFormField(
+        initialValue: widget.initialNote,
+        maxLength: 180,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (v) => _draftNote = v,
+        onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => _safePop(PrivateNoteDialogCancelled()),
+          child: const Text('Annuleren'),
+        ),
+        if (widget.hasInitialNote)
+          TextButton(
+            onPressed: () => _safePop(PrivateNoteDialogDelete()),
+            child: const Text('Verwijderen'),
+          ),
+        ElevatedButton(
+          onPressed: () {
+            final note = _draftNote.trim();
+            if (note.isEmpty) {
+              if (widget.hasInitialNote) {
+                _safePop(PrivateNoteDialogDelete());
+              } else {
+                _safePop(PrivateNoteDialogCancelled());
+              }
+            } else {
+              _safePop(PrivateNoteDialogSave(note));
+            }
+          },
+          child: const Text('Opslaan'),
+        ),
+      ],
+    );
+  }
+}
+
 final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+
+final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +116,7 @@ class KiDuApp extends StatelessWidget {
     return MaterialApp(
       title: 'KiDu',
       theme: ThemeData(useMaterial3: true),
+      scaffoldMessengerKey: appScaffoldMessengerKey,
       home: const AuthGate(),
     );
   }
@@ -393,9 +483,25 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _switchBusy = false;
   bool _expenseBusy = false;
   String? _inviteCode;
+  int _notesRefreshTick = 0;
+  bool _noteWriteInFlight = false;
 
   String? _namesCacheKey;
   Future<Map<String, String>>? _namesFuture;
+
+  Future<String?> _loadMyPrivateNote({
+    required String householdId,
+    required String expenseId,
+    required String uid,
+  }) async {
+    final snap = await FirebaseFirestore.instance
+        .doc('households/$householdId/expenses/$expenseId/privateNotes/$uid')
+        .get();
+    final data = snap.data();
+    final raw = (data?['note'] as String?)?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    return raw;
+  }
 
   static const double _pagePadding = 16;
   static const double _cardRadius = 18;
@@ -409,6 +515,72 @@ class _DashboardPageState extends State<DashboardPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  Future<void> _openEditPrivateNoteDialog({
+    required String householdId,
+    required String expenseId,
+    required String uid,
+    required String initialNote,
+  }) async {
+    if (_noteWriteInFlight) return;
+    _noteWriteInFlight = true;
+
+    try {
+      final result = await _showPrivateNoteDialog(
+        initialNote: initialNote,
+        hasInitialNote: initialNote.trim().isNotEmpty,
+      );
+
+      if (result is PrivateNoteDialogCancelled) {
+        return;
+      }
+
+      if (!mounted) return;
+
+      final ref = FirebaseFirestore.instance.doc(
+        'households/$householdId/expenses/$expenseId/privateNotes/$uid',
+      );
+
+      if (result is PrivateNoteDialogDelete) {
+        await ref.delete();
+      } else if (result is PrivateNoteDialogSave) {
+        await ref.set({
+          'note': result.note,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (!mounted) return;
+      setState(() => _notesRefreshTick++);
+      if (result is PrivateNoteDialogDelete) {
+        _showSnackBar('Notitie verwijderd.');
+      } else if (result is PrivateNoteDialogSave) {
+        _showSnackBar('Notitie opgeslagen.');
+      }
+    } catch (e) {
+      debugPrint('Note save error: $e');
+      if (mounted) _showSnackBar('Opslaan mislukt. Probeer opnieuw.');
+    } finally {
+      _noteWriteInFlight = false;
+    }
+  }
+
+  /// Dialog only collects input and returns typed result. No Firestore.
+  Future<PrivateNoteDialogResult> _showPrivateNoteDialog({
+    required String initialNote,
+    required bool hasInitialNote,
+  }) async {
+    final result = await showDialog<PrivateNoteDialogResult>(
+      context: context,
+      useRootNavigator: false,
+      barrierDismissible: true,
+      builder: (dialogContext) => _PrivateNoteDialogContent(
+        initialNote: initialNote,
+        hasInitialNote: hasInitialNote,
+      ),
+    );
+    return result ?? PrivateNoteDialogCancelled();
   }
 
   int? _tryParseEurToCents(String input) {
@@ -1575,98 +1747,118 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       return '$who • $shortDateTime';
                                                                     })();
 
-                                                              return ListTile(
-                                                                contentPadding:
-                                                                    EdgeInsets
-                                                                        .zero,
-                                                                dense: true,
-                                                                visualDensity:
-                                                                    VisualDensity
-                                                                        .compact,
-                                                                title: Text(
-                                                                  title,
-                                                                  maxLines: 1,
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis,
+                                                              if (createdBy != user.uid) {
+                                                                return ListTile(
+                                                                  contentPadding: EdgeInsets.zero,
+                                                                  dense: true,
+                                                                  visualDensity: VisualDensity.compact,
+                                                                  title: Text(
+                                                                    title,
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                  subtitle: Text(
+                                                                    subtitleText,
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                  trailing: Text(
+                                                                    _formatEur(amountCents),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight: FontWeight.w700,
+                                                                        ),
+                                                                  ),
+                                                                );
+                                                              }
+
+                                                              return FutureBuilder<String?>(
+                                                                key: ValueKey('note_${d.id}_$_notesRefreshTick'),
+                                                                future: _loadMyPrivateNote(
+                                                                  householdId: householdIdStr,
+                                                                  expenseId: d.id,
+                                                                  uid: user.uid,
                                                                 ),
-                                                                subtitle: createdBy !=
-                                                                        user.uid
-                                                                    ? Text(
-                                                                        subtitleText,
-                                                                        maxLines: 1,
-                                                                        overflow:
-                                                                            TextOverflow
-                                                                                .ellipsis,
-                                                                      )
-                                                                    : StreamBuilder<DocumentSnapshot<dynamic>>(
-                                                                        stream: FirebaseFirestore
-                                                                            .instance
-                                                                            .doc(
-                                                                              'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
-                                                                            )
-                                                                            .snapshots(),
-                                                                        builder:
-                                                                            (context, noteSnap) {
-                                                                          if (!noteSnap.hasData ||
-                                                                              noteSnap.hasError) {
-                                                                            return Text(
-                                                                              subtitleText,
-                                                                              maxLines: 1,
-                                                                              overflow:
-                                                                                  TextOverflow.ellipsis,
-                                                                            );
-                                                                          }
-                                                                          final noteData =
-                                                                              noteSnap.data?.data();
-                                                                          final note =
-                                                                              (noteData?['note'] as String?)?.trim();
-                                                                          if (note == null ||
-                                                                              note.isEmpty) {
-                                                                            return Text(
-                                                                              subtitleText,
-                                                                              maxLines: 1,
-                                                                              overflow:
-                                                                                  TextOverflow.ellipsis,
-                                                                            );
-                                                                          }
-                                                                          return Column(
-                                                                            crossAxisAlignment:
-                                                                                CrossAxisAlignment.start,
-                                                                            mainAxisSize:
-                                                                                MainAxisSize.min,
-                                                                            children: [
-                                                                              Text(
+                                                                builder: (context, noteSnap) {
+                                                                  final note = noteSnap.data;
+                                                                  final hasNote = note != null && note.isNotEmpty;
+
+                                                                  return ListTile(
+                                                                    contentPadding: EdgeInsets.zero,
+                                                                    dense: true,
+                                                                    visualDensity: VisualDensity.compact,
+                                                                    title: Text(
+                                                                      title,
+                                                                      maxLines: 1,
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                    ),
+                                                                    subtitle: (noteSnap.hasError || !noteSnap.hasData)
+                                                                        ? Text(
+                                                                            subtitleText,
+                                                                            maxLines: 1,
+                                                                            overflow: TextOverflow.ellipsis,
+                                                                          )
+                                                                        : (hasNote
+                                                                            ? Column(
+                                                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                                                mainAxisSize: MainAxisSize.min,
+                                                                                children: [
+                                                                                  Text(
+                                                                                    subtitleText,
+                                                                                    maxLines: 1,
+                                                                                    overflow: TextOverflow.ellipsis,
+                                                                                  ),
+                                                                                  Text(
+                                                                                    note,
+                                                                                    maxLines: 1,
+                                                                                    overflow: TextOverflow.ellipsis,
+                                                                                  ),
+                                                                                ],
+                                                                              )
+                                                                            : Text(
                                                                                 subtitleText,
                                                                                 maxLines: 1,
-                                                                                overflow:
-                                                                                    TextOverflow.ellipsis,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                              )),
+                                                                    trailing: Row(
+                                                                      mainAxisSize: MainAxisSize.min,
+                                                                      mainAxisAlignment: MainAxisAlignment.end,
+                                                                      children: [
+                                                                        IconButton(
+                                                                          icon: Icon(
+                                                                            hasNote ? Icons.edit_note : Icons.note_add_outlined,
+                                                                            size: 20,
+                                                                            color: cs.onSurface.withAlpha((0.6 * 255).round()),
+                                                                          ),
+                                                                          style: IconButton.styleFrom(
+                                                                            padding: EdgeInsets.zero,
+                                                                            minimumSize: const Size(36, 36),
+                                                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                                          ),
+                                                                          onPressed: () {
+                                                                            _openEditPrivateNoteDialog(
+                                                                              householdId: householdIdStr,
+                                                                              expenseId: d.id,
+                                                                              uid: user.uid,
+                                                                              initialNote: note ?? '',
+                                                                            );
+                                                                          },
+                                                                        ),
+                                                                        Text(
+                                                                          _formatEur(amountCents),
+                                                                          style: Theme.of(context)
+                                                                              .textTheme
+                                                                              .bodyMedium
+                                                                              ?.copyWith(
+                                                                                fontWeight: FontWeight.w700,
                                                                               ),
-                                                                              Text(
-                                                                                note,
-                                                                                maxLines: 1,
-                                                                                overflow:
-                                                                                    TextOverflow.ellipsis,
-                                                                              ),
-                                                                            ],
-                                                                          );
-                                                                        },
-                                                                      ),
-                                                                trailing: Text(
-                                                                  _formatEur(
-                                                                    amountCents,
-                                                                  ),
-                                                                  style: Theme.of(
-                                                                    context,
-                                                                  )
-                                                                      .textTheme
-                                                                      .bodyMedium
-                                                                      ?.copyWith(
-                                                                        fontWeight:
-                                                                            FontWeight
-                                                                                .w700,
-                                                                      ),
-                                                                ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  );
+                                                                },
                                                               );
                                                             },
                                                           ),
