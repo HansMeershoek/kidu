@@ -1,0 +1,24 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "kidu-dev-d69fb",
+          "appId": "1:64374292159:android:b6bc40f555f5c4a2e5100a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "kidu-dev-d69fb",
+          "configurations": {
+            "android": "1:64374292159:android:b6bc40f555f5c4a2e5100a"
+          }
+        }
+      }
+    }
+  }
+}

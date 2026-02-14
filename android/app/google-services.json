@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "64374292159",
+    "project_id": "kidu-dev-d69fb",
+    "storage_bucket": "kidu-dev-d69fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:64374292159:android:b6bc40f555f5c4a2e5100a",
+        "android_client_info": {
+          "package_name": "com.anne.kidu"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "64374292159-49bmgaorl0rctuokk3b0eml9v2111unp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anne.kidu",
+            "certificate_hash": "e2e770f85222b49a941e44fb2330a0ee470769fd"
+          }
+        },
+        {
+          "client_id": "64374292159-lobqfbhnnf22jksnipkui2qm49coi7ev.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPYS5CObSKKuqrJlfDRI_cu24qZz0nTro"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "64374292159-lobqfbhnnf22jksnipkui2qm49coi7ev.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "64374292159-hm1n0dnon5lfcd5ci4tcofr2ci4luaog.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.anne.kidu"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

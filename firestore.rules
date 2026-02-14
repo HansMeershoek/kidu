@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isHouseholdMember(householdId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
+    }
+
+    function userHouseholdIdSafe() {
+      return !('householdId' in request.resource.data)
+        || request.resource.data.householdId == null
+        || (request.resource.data.householdId is string
+            && request.resource.data.householdId.size() == 0)
+        || (request.resource.data.householdId is string
+            && isHouseholdMember(request.resource.data.householdId));
+    }
+
+    function userWriteValidKeys() {
+      let allowed = ['profileName', 'householdId', 'displayName', 'email', 'photoUrl', 'createdAt', 'updatedAt', 'setupCompletedAt'];
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      return affected.hasOnly(allowed);
+    }
+
+    function userNoPrivilegeKeys() {
+      return !('role' in request.resource.data)
+        && !('isAdmin' in request.resource.data)
+        && !('admin' in request.resource.data);
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().size() <= 8
+        && userHouseholdIdSafe()
+        && userNoPrivilegeKeys()
+        && (!('profileName' in request.resource.data)
+            || (request.resource.data.profileName is string
+                && request.resource.data.profileName.size() >= 0
+                && request.resource.data.profileName.size() <= 40))
+        && (!('householdId' in request.resource.data)
+            || request.resource.data.householdId == null
+            || (request.resource.data.householdId is string))
+        && (!('displayName' in request.resource.data)
+            || request.resource.data.displayName == null
+            || request.resource.data.displayName is string)
+        && (!('email' in request.resource.data)
+            || request.resource.data.email == null
+            || request.resource.data.email is string)
+        && (!('photoUrl' in request.resource.data)
+            || request.resource.data.photoUrl == null
+            || request.resource.data.photoUrl is string);
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && userWriteValidKeys()
+        && userHouseholdIdSafe()
+        && userNoPrivilegeKeys()
+        && (!('profileName' in request.resource.data)
+            || (request.resource.data.profileName is string
+                && request.resource.data.profileName.size() >= 0
+                && request.resource.data.profileName.size() <= 40))
+        && (!('householdId' in request.resource.data)
+            || request.resource.data.householdId == null
+            || (request.resource.data.householdId is string))
+        && (!('displayName' in request.resource.data)
+            || request.resource.data.displayName == null
+            || request.resource.data.displayName is string)
+        && (!('email' in request.resource.data)
+            || request.resource.data.email == null
+            || request.resource.data.email is string)
+        && (!('photoUrl' in request.resource.data)
+            || request.resource.data.photoUrl == null
+            || request.resource.data.photoUrl is string);
+      allow delete: if false;
+    }
+
+    match /households/{householdId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['createdAt', 'createdBy', 'name'])
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /households/{householdId}/members/{memberId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+      allow create: if isSignedIn()
+        && request.auth.uid == memberId
+        && request.resource.data.keys().hasOnly(['role', 'joinedAt'])
+        && request.resource.data.role is string;
+      allow update, delete: if false;
+    }
+
+    match /households/{householdId}/expenses/{expenseId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+      allow create: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['amountCents', 'currency', 'title', 'createdAt', 'createdBy'])
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents > 0
+        && request.resource.data.currency == 'EUR'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1
+        && request.resource.data.title.size() <= 80;
+      allow update, delete: if false;
+    }
+
+    match /invites/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['householdId', 'createdBy', 'usedBy', 'createdAt'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.usedBy == null
+        && isHouseholdMember(request.resource.data.householdId);
+      allow update: if isSignedIn()
+        && resource.data.usedBy == null
+        && request.resource.data.usedBy == request.auth.uid
+        && request.resource.data.householdId == resource.data.householdId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (!('usedAt' in request.resource.data) || request.resource.data.usedAt == request.time);
+      allow delete: if false;
+    }
+
+    match /households/{householdId}/expenses/{expenseId}/privateNotes/{uid} {
+      allow get: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId);
+      allow list: if false;
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId)
+        && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
+        && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['note', 'updatedAt'])
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 180
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId)
+        && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
+        && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid;
+    }
+  }
+}
