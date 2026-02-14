@@ -507,113 +507,92 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
 
-  Widget _buildBalanceMeter(
+  /// Rounds share to whole percent; other = 100 - my so labels sum to 100%.
+  static (int my, int other) _balancePercent(int myCents, int totalCents) {
+    if (totalCents <= 0) return (50, 50);
+    final my = ((myCents / totalCents) * 100).round().clamp(0, 100);
+    return (my, 100 - my);
+  }
+
+  Widget _buildBalanceStatusRow(
     BuildContext context, {
+    required int settlementCents,
     required int myPaidCents,
-    required int otherPaidCents,
     required int totalCents,
     required String myName,
     required String otherName,
   }) {
     final cs = Theme.of(context).colorScheme;
-    const barHeight = 8.0;
-    const barRadius = 4.0;
+    final textTheme = Theme.of(context).textTheme;
+    final progress = totalCents <= 0
+        ? 0.5
+        : (myPaidCents / totalCents).clamp(0.0, 1.0);
+    final (myPct, otherPct) = _balancePercent(myPaidCents, totalCents);
 
-    if (totalCents == 0) {
-      return Semantics(
-        label: 'Bijdragemeter: geen uitgaven',
-        child: Container(
-          height: barHeight,
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withAlpha((0.5 * 255).round()),
-            borderRadius: BorderRadius.circular(barRadius),
+    final String chipLabel;
+    if (settlementCents.abs() <= 100) {
+      chipLabel = 'In balans';
+    } else if (settlementCents > 100) {
+      chipLabel = 'Jij krijgt';
+    } else {
+      chipLabel = 'Jij betaalt';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Chip(
+              label: Text(chipLabel),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            ),
+            Text(
+              '50/50 doel',
+              style: textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withAlpha((0.55 * 255).round()),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            backgroundColor: cs.surfaceContainerHighest.withAlpha(
+              (0.5 * 255).round(),
+            ),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              cs.primary.withAlpha((0.7 * 255).round()),
+            ),
           ),
         ),
-      );
-    }
-
-    final myPercent = totalCents > 0
-        ? ((myPaidCents / totalCents) * 100).round()
-        : 0;
-    final otherPercent = totalCents > 0
-        ? ((otherPaidCents / totalCents) * 100).round()
-        : 0;
-
-    return Semantics(
-      label: 'Bijdragemeter: $myName $myPercent%, $otherName $otherPercent%',
-      child: Row(
-        children: [
-          if (myPaidCents > 0)
-            Expanded(
-              flex: myPaidCents,
-              child: Container(
-                height: barHeight,
-                decoration: BoxDecoration(
-                  color: cs.primary.withAlpha((0.45 * 255).round()),
-                  borderRadius: BorderRadius.horizontal(
-                    left: const Radius.circular(barRadius),
-                    right: otherPaidCents > 0
-                        ? Radius.zero
-                        : const Radius.circular(barRadius),
-                  ),
-                ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '$myName $myPct%',
+              style: textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withAlpha((0.7 * 255).round()),
               ),
+              overflow: TextOverflow.ellipsis,
             ),
-          if (otherPaidCents > 0)
-            Expanded(
-              flex: otherPaidCents,
-              child: Container(
-                height: barHeight,
-                decoration: BoxDecoration(
-                  color: cs.secondary.withAlpha((0.45 * 255).round()),
-                  borderRadius: BorderRadius.horizontal(
-                    left: myPaidCents > 0
-                        ? Radius.zero
-                        : const Radius.circular(barRadius),
-                    right: const Radius.circular(barRadius),
-                  ),
-                ),
+            Text(
+              '$otherName $otherPct%',
+              style: textTheme.bodySmall?.copyWith(
+                color: cs.onSurface.withAlpha((0.7 * 255).round()),
               ),
+              overflow: TextOverflow.ellipsis,
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettlementStatusChip(
-    BuildContext context, {
-    required int settlementCents,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    final String label;
-    final Color chipColor;
-    if (settlementCents > 0) {
-      label = 'Jij krijgt terug';
-      chipColor = cs.primary.withAlpha((0.18 * 255).round());
-    } else if (settlementCents < 0) {
-      label = 'Jij betaalt';
-      chipColor = cs.secondary.withAlpha((0.18 * 255).round());
-    } else {
-      label = 'In balans';
-      chipColor = cs.surfaceContainerHighest.withAlpha((0.4 * 255).round());
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(chipColor, cs.surface),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: cs.outlineVariant.withAlpha((0.4 * 255).round()),
+          ],
         ),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface.withAlpha((0.85 * 255).round()),
-            ),
-      ),
+      ],
     );
   }
 
@@ -1699,15 +1678,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                               label: otherName,
                                               value: _formatEur(otherPaidCents),
                                             ),
-                                            const SizedBox(height: 12),
-                                            _buildBalanceMeter(
-                                              context,
-                                              myPaidCents: myPaidCents,
-                                              otherPaidCents: otherPaidCents,
-                                              totalCents: totalCents,
-                                              myName: myName,
-                                              otherName: otherName,
-                                            ),
                                             const SizedBox(height: _cardGap),
                                             Divider(
                                               height: 1,
@@ -1729,10 +1699,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     height: 1.35,
                                                   ),
                                             ),
-                                            const SizedBox(height: 10),
-                                            _buildSettlementStatusChip(
+                                            const SizedBox(height: _cardGap),
+                                            _buildBalanceStatusRow(
                                               context,
                                               settlementCents: settlementCents,
+                                              myPaidCents: myPaidCents,
+                                              totalCents: totalCents,
+                                              myName: myName,
+                                              otherName: otherName,
                                             ),
                                           ],
                                         ),
