@@ -1231,6 +1231,7 @@ class _DashboardPageState extends State<DashboardPage> {
           'createdAt': FieldValue.serverTimestamp(),
           'createdBy': uid,
           'name': 'KiDu Household',
+          'isConnected': false,
         });
 
         final memberRef = householdRef.collection('members').doc(uid);
@@ -1628,6 +1629,8 @@ class _DashboardPageState extends State<DashboardPage> {
             }
 
             final canInvite = memberCount == 1;
+            final canAddExpenses =
+                otherUid != null && otherUid.trim().isNotEmpty;
             final namesFuture = _getNamesFuture(
               householdId: householdIdStr,
               myUid: user.uid,
@@ -1663,7 +1666,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ],
                   ),
                   floatingActionButton: FloatingActionButton(
-                    onPressed: _expenseBusy
+                    onPressed: _expenseBusy || !canAddExpenses
                         ? null
                         : () => _openAddExpenseDialog(householdIdStr),
                     child: const Icon(Icons.add),
@@ -1894,6 +1897,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           FontWeight.w700,
                                                     ),
                                               ),
+                                              if (!canAddExpenses) ...[
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Nog niet gekoppeld. Uitgaven toevoegen kan zodra je co-parent is verbonden.',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: cs.onSurface
+                                                            .withAlpha(
+                                                              (0.62 * 255)
+                                                                  .round(),
+                                                            ),
+                                                        height: 1.35,
+                                                      ),
+                                                ),
+                                              ],
                                               const SizedBox(height: 10),
                                               Expanded(
                                                 child: !expensesSnapshot.hasData
@@ -2352,6 +2372,12 @@ class _SetupPageState extends State<SetupPage> {
         if ((inviteRecheck.data()?['usedBy']) != null) {
           throw StateError('Code al gebruikt.');
         }
+
+        final targetHouseholdRef =
+            firestore.doc('households/$targetHouseholdId');
+        transaction.set(targetHouseholdRef, {
+          'isConnected': true,
+        }, SetOptions(merge: true));
 
         final targetMemberRef =
             firestore.doc('households/$targetHouseholdId/members/$uid');

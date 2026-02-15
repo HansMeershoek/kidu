@@ -96,9 +96,14 @@ service cloud.firestore {
     match /households/{householdId} {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
       allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly(['createdAt', 'createdBy', 'name'])
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if false;
+        && request.resource.data.keys().hasOnly(['createdAt', 'createdBy', 'name', 'isConnected'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.isConnected == false;
+      allow update: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isConnected'])
+        && request.resource.data.isConnected == true;
+      allow delete: if false;
     }
 
     match /households/{householdId}/members/{memberId} {
@@ -115,6 +120,8 @@ service cloud.firestore {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && ('isConnected' in get(/databases/$(database)/documents/households/$(householdId)).data)
+        && get(/databases/$(database)/documents/households/$(householdId)).data.isConnected == true
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly(['amountCents', 'currency', 'title', 'createdAt', 'createdBy'])
         && request.resource.data.amountCents is int
