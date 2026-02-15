@@ -1709,6 +1709,89 @@ class _DashboardPageState extends State<DashboardPage> {
                                               otherName: otherName,
                                             ),
                                             const SizedBox(height: _cardGap),
+                                            Builder(
+                                              builder: (context) {
+                                                final rawShare = totalCents <= 0
+                                                    ? 0.5
+                                                    : myPaidCents / totalCents;
+                                                final myShare = rawShare
+                                                    .clamp(0.0, 1.0)
+                                                    .toDouble();
+                                                final myPct =
+                                                    (myShare * 100).round();
+                                                final otherPct = 100 - myPct;
+
+                                                return Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                      child:
+                                                          LinearProgressIndicator(
+                                                        minHeight: 10,
+                                                        value: myShare,
+                                                        backgroundColor: cs
+                                                            .outlineVariant
+                                                            .withAlpha(
+                                                          (0.25 * 255).round(),
+                                                        ),
+                                                        valueColor:
+                                                            AlwaysStoppedAnimation<
+                                                                Color>(
+                                                          cs.primary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceBetween,
+                                                      children: [
+                                                        Text(
+                                                          '$myName $myPct%',
+                                                          style: Theme.of(
+                                                            context,
+                                                          )
+                                                              .textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                                color: cs
+                                                                    .onSurface
+                                                                    .withAlpha(
+                                                                  (0.72 * 255)
+                                                                      .round(),
+                                                                ),
+                                                              ),
+                                                        ),
+                                                        Text(
+                                                          '$otherName $otherPct%',
+                                                          style: Theme.of(
+                                                            context,
+                                                          )
+                                                              .textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                                color: cs
+                                                                    .onSurface
+                                                                    .withAlpha(
+                                                                  (0.72 * 255)
+                                                                      .round(),
+                                                                ),
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            ),
+                                            const SizedBox(height: _cardGap),
                                             Divider(
                                               height: 1,
                                               color: cs.outlineVariant.withAlpha(
