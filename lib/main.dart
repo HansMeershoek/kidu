@@ -2369,38 +2369,24 @@ class _SetupPageState extends State<SetupPage> {
 
       await firestore.runTransaction((transaction) async {
         final inviteRecheck = await transaction.get(inviteRef);
+        if (!inviteRecheck.exists) {
+          throw StateError('Invite code ongeldig.');
+        }
         if ((inviteRecheck.data()?['usedBy']) != null) {
           throw StateError('Code al gebruikt.');
         }
-
-        final targetHouseholdRef =
-            firestore.doc('households/$targetHouseholdId');
-        transaction.set(targetHouseholdRef, {
-          'isConnected': true,
-        }, SetOptions(merge: true));
+        final hId =
+            (inviteRecheck.data()?['householdId'] as String?)?.trim();
+        if (hId == null || hId.isEmpty) {
+          throw StateError('Invite is ongeldig.');
+        }
 
         final targetMemberRef =
-            firestore.doc('households/$targetHouseholdId/members/$uid');
+            firestore.doc('households/$hId/members/$uid');
         transaction.set(targetMemberRef, {
           'role': 'parent',
           'joinedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-
-        if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
-          final oldMemberRef = firestore
-              .doc('households/$currentHouseholdId/members/$uid');
-          transaction.delete(oldMemberRef);
-        }
-
-        transaction.set(
-          userRef,
-          {
-            'householdId': targetHouseholdId,
-            'setupCompletedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
 
         transaction.set(
           inviteRef,
@@ -2411,6 +2397,26 @@ class _SetupPageState extends State<SetupPage> {
           SetOptions(merge: true),
         );
       });
+
+      await firestore.doc('users/$uid').set({
+        'householdId': targetHouseholdId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // TODO(re-enable after rules alignment): old member delete requires
+      // allow delete on members; temporarily disabled to fix permission-denied.
+      // if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
+      //   final oldMemberRef = firestore
+      //       .doc('households/$currentHouseholdId/members/$uid');
+      //   await oldMemberRef.delete();
+      // }
+
+      // TODO(re-enable after rules alignment): household isConnected update
+      // requires allow update on households; temporarily disabled.
+      // await firestore.doc('households/$targetHouseholdId').set(
+      //   {'isConnected': true},
+      //   SetOptions(merge: true),
+      // );
 
       if (mounted) {
         setState(() => _joinOk = true);
