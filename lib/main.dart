@@ -1013,7 +1013,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }
     } catch (e) {
       debugPrint('Create expense error: $e');
-      _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _expenseBusy = false);
@@ -1231,6 +1231,7 @@ class _DashboardPageState extends State<DashboardPage> {
           'createdAt': FieldValue.serverTimestamp(),
           'createdBy': uid,
           'name': 'KiDu Household',
+          'isConnected': false,
         });
 
         final memberRef = householdRef.collection('members').doc(uid);
@@ -1628,6 +1629,8 @@ class _DashboardPageState extends State<DashboardPage> {
             }
 
             final canInvite = memberCount == 1;
+            final canAddExpenses =
+                otherUid != null && otherUid.trim().isNotEmpty;
             final namesFuture = _getNamesFuture(
               householdId: householdIdStr,
               myUid: user.uid,
@@ -1663,7 +1666,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ],
                   ),
                   floatingActionButton: FloatingActionButton(
-                    onPressed: _expenseBusy
+                    onPressed: _expenseBusy || !canAddExpenses
                         ? null
                         : () => _openAddExpenseDialog(householdIdStr),
                     child: const Icon(Icons.add),
@@ -1894,6 +1897,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           FontWeight.w700,
                                                     ),
                                               ),
+                                              if (!canAddExpenses) ...[
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Nog niet gekoppeld. Uitgaven toevoegen kan zodra je co-parent is verbonden.',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: cs.onSurface
+                                                            .withAlpha(
+                                                              (0.62 * 255)
+                                                                  .round(),
+                                                            ),
+                                                        height: 1.35,
+                                                      ),
+                                                ),
+                                              ],
                                               const SizedBox(height: 10),
                                               Expanded(
                                                 child: !expensesSnapshot.hasData
@@ -2349,32 +2369,24 @@ class _SetupPageState extends State<SetupPage> {
 
       await firestore.runTransaction((transaction) async {
         final inviteRecheck = await transaction.get(inviteRef);
+        if (!inviteRecheck.exists) {
+          throw StateError('Invite code ongeldig.');
+        }
         if ((inviteRecheck.data()?['usedBy']) != null) {
           throw StateError('Code al gebruikt.');
         }
+        final hId =
+            (inviteRecheck.data()?['householdId'] as String?)?.trim();
+        if (hId == null || hId.isEmpty) {
+          throw StateError('Invite is ongeldig.');
+        }
 
         final targetMemberRef =
-            firestore.doc('households/$targetHouseholdId/members/$uid');
+            firestore.doc('households/$hId/members/$uid');
         transaction.set(targetMemberRef, {
           'role': 'parent',
           'joinedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-
-        if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
-          final oldMemberRef = firestore
-              .doc('households/$currentHouseholdId/members/$uid');
-          transaction.delete(oldMemberRef);
-        }
-
-        transaction.set(
-          userRef,
-          {
-            'householdId': targetHouseholdId,
-            'setupCompletedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
 
         transaction.set(
           inviteRef,
@@ -2385,6 +2397,26 @@ class _SetupPageState extends State<SetupPage> {
           SetOptions(merge: true),
         );
       });
+
+      await firestore.doc('users/$uid').set({
+        'householdId': targetHouseholdId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // TODO(re-enable after rules alignment): old member delete requires
+      // allow delete on members; temporarily disabled to fix permission-denied.
+      // if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
+      //   final oldMemberRef = firestore
+      //       .doc('households/$currentHouseholdId/members/$uid');
+      //   await oldMemberRef.delete();
+      // }
+
+      // TODO(re-enable after rules alignment): household isConnected update
+      // requires allow update on households; temporarily disabled.
+      // await firestore.doc('households/$targetHouseholdId').set(
+      //   {'isConnected': true},
+      //   SetOptions(merge: true),
+      // );
 
       if (mounted) {
         setState(() => _joinOk = true);
