@@ -904,6 +904,24 @@ class _DashboardPageState extends State<DashboardPage> {
                         ],
                         const SizedBox(height: _cardGap),
                       ],
+                      if (householdId.isNotEmpty) ...[
+                        const SizedBox(height: _cardGap),
+                        SizedBox(
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const SetupPage(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.link, size: 20),
+                            label: const Text('Ik heb een invite-code'),
+                          ),
+                        ),
+                      ],
                       const Divider(height: 24),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -2283,35 +2301,77 @@ class _SetupPageState extends State<SetupPage> {
       final inviteRef = firestore.doc('invites/$code');
       final userRef = firestore.doc('users/$uid');
 
-      await firestore.runTransaction((transaction) async {
-        final inviteSnap = await transaction.get(inviteRef);
-        if (!inviteSnap.exists) {
-          throw StateError('Invite code ongeldig.');
-        }
+      final inviteSnap = await inviteRef.get();
+      if (!inviteSnap.exists) {
+        throw StateError('Invite code ongeldig.');
+      }
 
-        final inviteData = inviteSnap.data();
-        final usedBy = inviteData?['usedBy'];
-        if (usedBy != null) {
+      final inviteData = inviteSnap.data();
+      final usedBy = inviteData?['usedBy'];
+      if (usedBy != null) {
+        throw StateError('Code al gebruikt.');
+      }
+
+      final targetHouseholdId =
+          (inviteData?['householdId'] as String?)?.trim();
+      if (targetHouseholdId == null || targetHouseholdId.isEmpty) {
+        throw StateError('Invite is ongeldig.');
+      }
+
+      final userSnap = await userRef.get();
+      final userData = userSnap.data();
+      final currentHouseholdId =
+          (userData?['householdId'] as String?)?.trim();
+
+      if (targetHouseholdId == currentHouseholdId) {
+        throw StateError('Je zit al in dit household.');
+      }
+
+      if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
+        final membersSnap = await firestore
+            .collection('households/$currentHouseholdId/members')
+            .limit(2)
+            .get();
+        final expensesSnap = await firestore
+            .collection('households/$currentHouseholdId/expenses')
+            .limit(1)
+            .get();
+        if (membersSnap.docs.length != 1 ||
+            membersSnap.docs.first.id != uid) {
+          throw StateError(
+              'Wisselen kan alleen als je huidige household leeg is.');
+        }
+        if (expensesSnap.docs.isNotEmpty) {
+          throw StateError(
+              'Wisselen kan alleen als je huidige household leeg is.');
+        }
+      }
+
+      await firestore.runTransaction((transaction) async {
+        final inviteRecheck = await transaction.get(inviteRef);
+        if ((inviteRecheck.data()?['usedBy']) != null) {
           throw StateError('Code al gebruikt.');
         }
 
-        final householdId = (inviteData?['householdId'] as String?)?.trim();
-        if (householdId == null || householdId.isEmpty) {
-          throw StateError('Invite is ongeldig (geen householdId).');
-        }
-
-        final memberRef =
-            firestore.doc('households/$householdId/members/$uid');
-        transaction.set(memberRef, {
+        final targetMemberRef =
+            firestore.doc('households/$targetHouseholdId/members/$uid');
+        transaction.set(targetMemberRef, {
           'role': 'parent',
           'joinedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
+        if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
+          final oldMemberRef = firestore
+              .doc('households/$currentHouseholdId/members/$uid');
+          transaction.delete(oldMemberRef);
+        }
+
         transaction.set(
           userRef,
           {
-            'householdId': householdId,
+            'householdId': targetHouseholdId,
             'setupCompletedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
         );
@@ -2328,8 +2388,9 @@ class _SetupPageState extends State<SetupPage> {
 
       if (mounted) {
         setState(() => _joinOk = true);
+        _showSnackBar('Join gelukt.');
+        Navigator.of(context).pop();
       }
-      _showSnackBar('Join gelukt.');
     } catch (e) {
       debugPrint('Join household error: $e');
       final message =
@@ -2421,35 +2482,45 @@ class _SetupPageState extends State<SetupPage> {
                         'Voer een invite-code in om te koppelen aan het household van je co-parent.',
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 24),
                       if (hasHousehold) ...[
-                        const Text(
-                          'Je bent al verbonden. Ga terug naar Home.',
+                        const SizedBox(height: 12),
+                        Text(
+                          'Heb je al een household? Dan kun je hiermee veilig wisselen zolang je huidige household leeg is.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withAlpha((0.7 * 255).round()),
+                              ),
                           textAlign: TextAlign.center,
                         ),
-                      ] else ...[
-                        TextField(
-                          controller: _inviteController,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: const InputDecoration(
-                            labelText: 'Invite code',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _joinBusy ? null : _joinHousehold,
-                          child: Text(_joinBusy ? 'Bezig...' : 'Join household'),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _joinOk == null
-                              ? 'Join: ...'
-                              : (_joinOk == true
-                                  ? 'Join: OK'
-                                  : 'Join: ERROR'),
-                        ),
                       ],
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _inviteController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Invite code',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _joinBusy ? null : _joinHousehold,
+                        child: Text(
+                          _joinBusy
+                              ? 'Bezig...'
+                              : (hasHousehold ? 'Wissel household' : 'Join household'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _joinOk == null
+                            ? 'Join: ...'
+                            : (_joinOk == true
+                                ? 'Join: OK'
+                                : 'Join: ERROR'),
+                      ),
                       const SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context),
