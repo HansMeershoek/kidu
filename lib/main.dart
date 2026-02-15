@@ -10,6 +10,38 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'firebase_options.dart';
 
+/// Maps exceptions to user-friendly Dutch messages. Does not throw.
+String mapUserFacingError(Object e,
+    {String fallback = 'Er ging iets mis. Probeer opnieuw.'}) {
+  try {
+    if (e is FirebaseException) {
+      final code = e.code;
+      if (code == 'permission-denied' ||
+          (code.endsWith('/permission-denied'))) {
+        return 'Je hebt hiervoor geen toegang.';
+      }
+      if (code == 'unavailable') {
+        return 'Geen verbinding met server. Probeer opnieuw.';
+      }
+      if (code == 'network-request-failed') {
+        return 'Netwerkfout. Controleer je verbinding.';
+      }
+      if (code == 'failed-precondition') {
+        return 'Actie kan nu niet worden uitgevoerd.';
+      }
+    }
+    if (e is StateError) {
+      final msg = e.message;
+      if (msg.trim().isNotEmpty) {
+        return msg.trim();
+      }
+    }
+  } catch (_) {
+    // Mapper must not throw
+  }
+  return fallback;
+}
+
 /// Typed result for the private note edit dialog. No Firestore in dialog.
 sealed class PrivateNoteDialogResult {}
 
@@ -232,7 +264,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       );
     } catch (e) {
       debugPrint('Save profileName error: $e');
-      _showSnackBar('Opslaan mislukt. Probeer opnieuw.');
+      _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -380,7 +412,8 @@ class _LoginPageState extends State<LoginPage> {
         'email=${FirebaseAuth.instance.currentUser?.email}',
       );
     } on FirebaseAuthException catch (e) {
-      final message = e.message ?? 'Er ging iets mis. Probeer opnieuw.';
+      debugPrint('Google sign-in FirebaseAuthException: $e');
+      final message = mapUserFacingError(e);
       if (mounted) {
         setState(() => _error = message);
       }
@@ -392,7 +425,8 @@ class _LoginPageState extends State<LoginPage> {
           'PlatformException code=${e.code} message=${e.message} details=${e.details}',
         );
       }
-      const message = 'Google-inloggen mislukt. Probeer opnieuw.';
+      final message =
+          mapUserFacingError(e, fallback: 'Google-inloggen mislukt. Probeer opnieuw.');
       if (mounted) {
         setState(() => _error = message);
       }
@@ -670,7 +704,9 @@ class _DashboardPageState extends State<DashboardPage> {
       }
     } catch (e) {
       debugPrint('Note save error: $e');
-      if (mounted) _showSnackBar('Opslaan mislukt. Probeer opnieuw.');
+      if (mounted) {
+        _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
+      }
     } finally {
       _noteWriteInFlight = false;
     }
@@ -950,14 +986,16 @@ class _DashboardPageState extends State<DashboardPage> {
           _showSnackBar('Uitgave opgeslagen.');
         } catch (noteErr) {
           debugPrint('Private note write error: $noteErr');
-          _showSnackBar('Uitgave opgeslagen, notitie niet opgeslagen.');
+          _showSnackBar(
+            'Uitgave opgeslagen, ${mapUserFacingError(noteErr, fallback: 'notitie niet opgeslagen.')}',
+          );
         }
       } else {
         _showSnackBar('Uitgave opgeslagen.');
       }
     } catch (e) {
       debugPrint('Create expense error: $e');
-      _showSnackBar('Opslaan mislukt. Probeer opnieuw.');
+      _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
     } finally {
       if (mounted) {
         setState(() => _expenseBusy = false);
@@ -1064,7 +1102,8 @@ class _DashboardPageState extends State<DashboardPage> {
                               } catch (e) {
                                 debugPrint('Create expense (dialog) error: $e');
                                 _showSnackBar(
-                                  'Opslaan mislukt. Probeer opnieuw.',
+                                  mapUserFacingError(e,
+                                      fallback: 'Opslaan mislukt. Probeer opnieuw.'),
                                 );
                                 if (context.mounted) {
                                   setLocalState(() => saving = false);
@@ -1210,7 +1249,7 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     } catch (e) {
       debugPrint('Start setup error: $e');
-      _showSnackBar('Setup mislukt. Probeer opnieuw.');
+      _showSnackBar(mapUserFacingError(e, fallback: 'Setup mislukt. Probeer opnieuw.'));
     } finally {
       if (mounted) {
         setState(() => _setupBusy = false);
@@ -2293,13 +2332,8 @@ class _SetupPageState extends State<SetupPage> {
       _showSnackBar('Join gelukt.');
     } catch (e) {
       debugPrint('Join household error: $e');
-      final message = e is StateError
-          ? e.message
-          : (e is FirebaseException &&
-                  (e.code == 'permission-denied' ||
-                      e.code.endsWith('/permission-denied')))
-              ? 'Je hebt geen toegang tot dit household.'
-              : 'Join mislukt. Probeer opnieuw.';
+      final message =
+          mapUserFacingError(e, fallback: 'Join mislukt. Probeer opnieuw.');
       if (mounted) {
         setState(() => _joinOk = false);
       }
