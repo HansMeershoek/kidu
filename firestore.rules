@@ -120,8 +120,6 @@ service cloud.firestore {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
-        && ('isConnected' in get(/databases/$(database)/documents/households/$(householdId)).data)
-        && get(/databases/$(database)/documents/households/$(householdId)).data.isConnected == true
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly(['amountCents', 'currency', 'title', 'createdAt', 'createdBy'])
         && request.resource.data.amountCents is int

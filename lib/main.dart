@@ -1013,7 +1013,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }
     } catch (e) {
       debugPrint('Create expense error: $e');
-      _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _expenseBusy = false);
