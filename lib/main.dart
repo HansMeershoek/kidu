@@ -969,6 +969,7 @@ class _DashboardPageState extends State<DashboardPage> {
     required String title,
     required int amountCents,
     String? note,
+    String? coparentNameForPendingMessage,
   }) async {
     if (_expenseBusy) {
       return;
@@ -991,6 +992,7 @@ class _DashboardPageState extends State<DashboardPage> {
             'createdAt': FieldValue.serverTimestamp(),
             'createdBy': uid,
           });
+      String? noteErrMsg;
       final noteTrimmed = note?.trim();
       if (noteTrimmed != null && noteTrimmed.isNotEmpty) {
         try {
@@ -1001,15 +1003,25 @@ class _DashboardPageState extends State<DashboardPage> {
                 'note': noteTrimmed,
                 'updatedAt': FieldValue.serverTimestamp(),
               });
-          _showSnackBar('Uitgave opgeslagen.');
         } catch (noteErr) {
           debugPrint('Private note write error: $noteErr');
-          _showSnackBar(
-            'Uitgave opgeslagen, ${mapUserFacingError(noteErr, fallback: 'notitie niet opgeslagen.')}',
-          );
+          noteErrMsg = mapUserFacingError(noteErr, fallback: 'notitie niet opgeslagen.');
         }
+      }
+      final expenseSnap =
+          await ref.get(const GetOptions(source: Source.cache));
+      final isPending = expenseSnap.metadata.hasPendingWrites;
+      if (isPending) {
+        final naam = (coparentNameForPendingMessage?.trim().isNotEmpty ?? false)
+            ? coparentNameForPendingMessage!.trim()
+            : 'je co-parent';
+        _showSnackBar(
+          'Uitgave wordt opgeslagen en is pas zichtbaar voor $naam zodra je weer online bent.',
+        );
       } else {
-        _showSnackBar('Uitgave opgeslagen.');
+        _showSnackBar(noteErrMsg != null
+            ? 'Uitgave opgeslagen, $noteErrMsg'
+            : 'Uitgave opgeslagen.');
       }
     } catch (e) {
       debugPrint('Create expense error: $e');
@@ -1021,7 +1033,10 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _openAddExpenseDialog(String householdId) async {
+  Future<void> _openAddExpenseDialog(
+    String householdId, {
+    String? coparentName,
+  }) async {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final noteController = TextEditingController();
@@ -1116,6 +1131,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   note: noteController.text.trim().isEmpty
                                       ? null
                                       : noteController.text.trim(),
+                                  coparentNameForPendingMessage: coparentName,
                                 );
                                 if (context.mounted) {
                                   Navigator.of(context).pop();
@@ -1655,7 +1671,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   floatingActionButton: FloatingActionButton(
                     onPressed: _expenseBusy || !canAddExpenses
                         ? null
-                        : () => _openAddExpenseDialog(householdIdStr),
+                        : () => _openAddExpenseDialog(householdIdStr, coparentName: otherName),
                     child: const Icon(Icons.add),
                   ),
                   body: SafeArea(
@@ -1674,7 +1690,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     .collection('households/$householdIdStr/expenses')
                                     .orderBy('createdAt', descending: true)
                                     .limit(20)
-                                    .snapshots(),
+                                    .snapshots(includeMetadataChanges: true),
                                 builder: (context, expensesSnapshot) {
                                   if (expensesSnapshot.hasError) {
                                     return const Text('Kon uitgaven niet laden.');
@@ -1970,6 +1986,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               otherUid)
                                                                       ? otherName
                                                                       : 'Co-parent';
+                                                              final isPending =
+                                                                  d.metadata.hasPendingWrites;
                                                               final createdAtRaw =
                                                                   e['createdAt'];
                                                               DateTime?
@@ -2033,14 +2051,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     maxLines: 1,
                                                                     overflow: TextOverflow.ellipsis,
                                                                   ),
-                                                                  trailing: Text(
-                                                                    _formatEur(amountCents),
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodyMedium
-                                                                        ?.copyWith(
-                                                                          fontWeight: FontWeight.w700,
+                                                                  trailing: Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      if (isPending)
+                                                                        Tooltip(
+                                                                          message: 'Nog niet gesynchroniseerd',
+                                                                          child: Icon(
+                                                                            Icons.cloud_off,
+                                                                            size: 16,
+                                                                            color: cs.onSurface.withAlpha((0.5 * 255).round()),
+                                                                          ),
                                                                         ),
+                                                                      if (isPending) const SizedBox(width: 4),
+                                                                      Text(
+                                                                        _formatEur(amountCents),
+                                                                        style: Theme.of(context)
+                                                                            .textTheme
+                                                                            .bodyMedium
+                                                                            ?.copyWith(
+                                                                              fontWeight: FontWeight.w700,
+                                                                            ),
+                                                                      ),
+                                                                    ],
                                                                   ),
                                                                 );
                                                               }
@@ -2097,6 +2130,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       mainAxisSize: MainAxisSize.min,
                                                                       mainAxisAlignment: MainAxisAlignment.end,
                                                                       children: [
+                                                                        if (isPending)
+                                                                          Tooltip(
+                                                                            message: 'Nog niet gesynchroniseerd',
+                                                                            child: Icon(
+                                                                              Icons.cloud_off,
+                                                                              size: 16,
+                                                                              color: cs.onSurface.withAlpha((0.5 * 255).round()),
+                                                                            ),
+                                                                          ),
+                                                                        if (isPending) const SizedBox(width: 4),
                                                                         IconButton(
                                                                           icon: Icon(
                                                                             hasNote ? Icons.edit_note : Icons.note_add_outlined,
