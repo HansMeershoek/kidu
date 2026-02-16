@@ -87,53 +87,84 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      title: const Text('Notitie bewerken'),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 260),
-        child: SingleChildScrollView(
-          child: TextFormField(
-            initialValue: widget.initialNote,
-            maxLength: 180,
-            minLines: 3,
-            maxLines: 6,
-            textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              counterText: '',
-            ),
-            onChanged: (v) => _draftNote = v,
-            onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
-          ),
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxH = constraints.maxHeight * 0.85;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 560, maxHeight: maxH),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Notitie bewerken',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: TextFormField(
+                          initialValue: widget.initialNote,
+                          maxLength: 180,
+                          minLines: 3,
+                          maxLines: 8,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            counterText: '',
+                          ),
+                          onChanged: (v) => _draftNote = v,
+                          onFieldSubmitted: (_) =>
+                              FocusScope.of(context).unfocus(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              _safePop(PrivateNoteDialogCancelled()),
+                          child: const Text('Annuleren'),
+                        ),
+                        if (widget.hasInitialNote)
+                          TextButton(
+                            onPressed: () =>
+                                _safePop(PrivateNoteDialogDelete()),
+                            child: const Text('Verwijderen'),
+                          ),
+                        FilledButton(
+                          onPressed: () {
+                            final note = _draftNote.trim();
+                            if (note.isEmpty) {
+                              if (widget.hasInitialNote) {
+                                _safePop(PrivateNoteDialogDelete());
+                              } else {
+                                _safePop(PrivateNoteDialogCancelled());
+                              }
+                            } else {
+                              _safePop(PrivateNoteDialogSave(note));
+                            }
+                          },
+                          child: const Text('Opslaan'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => _safePop(PrivateNoteDialogCancelled()),
-          child: const Text('Annuleren'),
-        ),
-        if (widget.hasInitialNote)
-          TextButton(
-            onPressed: () => _safePop(PrivateNoteDialogDelete()),
-            child: const Text('Verwijderen'),
-          ),
-        ElevatedButton(
-          onPressed: () {
-            final note = _draftNote.trim();
-            if (note.isEmpty) {
-              if (widget.hasInitialNote) {
-                _safePop(PrivateNoteDialogDelete());
-              } else {
-                _safePop(PrivateNoteDialogCancelled());
-              }
-            } else {
-              _safePop(PrivateNoteDialogSave(note));
-            }
-          },
-          child: const Text('Opslaan'),
-        ),
-      ],
     );
   }
 }
