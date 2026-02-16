@@ -2383,20 +2383,20 @@ class _SetupPageState extends State<SetupPage> {
           },
           SetOptions(merge: true),
         );
+
+        if (currentHouseholdId != null &&
+            currentHouseholdId.isNotEmpty &&
+            currentHouseholdId != targetHouseholdId) {
+          final oldMemberRef = firestore
+              .doc('households/$currentHouseholdId/members/$uid');
+          transaction.delete(oldMemberRef);
+        }
       });
 
       await firestore.doc('users/$uid').set({
         'householdId': targetHouseholdId,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      // TODO(re-enable after rules alignment): old member delete requires
-      // allow delete on members; temporarily disabled to fix permission-denied.
-      // if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
-      //   final oldMemberRef = firestore
-      //       .doc('households/$currentHouseholdId/members/$uid');
-      //   await oldMemberRef.delete();
-      // }
 
       // TODO(re-enable after rules alignment): household isConnected update
       // requires allow update on households; temporarily disabled.
