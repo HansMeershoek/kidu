@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -1031,6 +1032,7 @@ class _DashboardPageState extends State<DashboardPage> {
       await showDialog<void>(
         context: context,
         useSafeArea: true,
+        barrierDismissible: false,
         builder: (context) {
           return StatefulBuilder(
             builder: (context, setLocalState) {
@@ -1116,6 +1118,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                   note: noteController.text.trim().isEmpty
                                       ? null
                                       : noteController.text.trim(),
+                                ).timeout(const Duration(seconds: 12));
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                              } on TimeoutException catch (_) {
+                                _showSnackBar(
+                                  'Opslaan duurt te lang. Controleer je verbinding en probeer opnieuw.',
                                 );
                               } catch (e) {
                                 debugPrint('Create expense (dialog) error: $e');
@@ -1123,13 +1132,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                   mapUserFacingError(e,
                                       fallback: 'Opslaan mislukt. Probeer opnieuw.'),
                                 );
+                              } finally {
                                 if (context.mounted) {
                                   setLocalState(() => saving = false);
                                 }
-                                return;
-                              }
-                              if (context.mounted) {
-                                Navigator.of(context).pop();
                               }
                             },
                       child: Text(saving ? 'Bezig...' : 'Opslaan'),
