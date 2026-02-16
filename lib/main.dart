@@ -2085,7 +2085,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           paidByName: who,
                                                                           createdAt: createdAtDateTime,
                                                                           isPending: isPending,
-                                                                          hasNote: false,
                                                                           onManageNote: null,
                                                                         ),
                                                                       ),
@@ -2140,11 +2139,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   final hasNote = note != null && note.isNotEmpty;
 
                                                                   Future<void> openNoteFlow() async {
+                                                                    final snap = await FirebaseFirestore.instance
+                                                                        .doc('households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}')
+                                                                        .get();
+                                                                    final latestNote = ((snap.data()?['note'] as String?) ?? '').trim();
                                                                     await _openEditPrivateNoteDialog(
                                                                       householdId: householdIdStr,
                                                                       expenseId: d.id,
                                                                       uid: user.uid,
-                                                                      initialNote: note ?? '',
+                                                                      initialNote: latestNote,
                                                                     );
                                                                   }
 
@@ -2164,7 +2167,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             paidByName: who,
                                                                             createdAt: createdAtDateTime,
                                                                             isPending: isPending,
-                                                                            hasNote: hasNote,
                                                                             onManageNote: openNoteFlow,
                                                                           ),
                                                                         ),
@@ -2279,7 +2281,6 @@ class _ExpenseDetailPage extends StatelessWidget {
     required this.paidByName,
     required this.createdAt,
     required this.isPending,
-    required this.hasNote,
     this.onManageNote,
   });
 
@@ -2291,7 +2292,6 @@ class _ExpenseDetailPage extends StatelessWidget {
   final String paidByName;
   final DateTime? createdAt;
   final bool isPending;
-  final bool hasNote;
   final Future<void> Function()? onManageNote;
 
   static String _formatEur(int cents) {
@@ -2359,23 +2359,30 @@ class _ExpenseDetailPage extends StatelessWidget {
                   builder: (context, snap) {
                     final data = snap.data?.data();
                     final note = (data?['note'] as String?)?.trim() ?? '';
-                    if (note.isEmpty) return const SizedBox.shrink();
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Notitie'),
-                      subtitle: Text(note),
+                    final hasNoteLive = note.isNotEmpty;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (hasNoteLive)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Notitie'),
+                            subtitle: Text(note),
+                          ),
+                        if (onManageNote != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: FilledButton.icon(
+                              onPressed: () async => await onManageNote!(),
+                              icon: Icon(hasNoteLive ? Icons.edit_note : Icons.note_add_outlined),
+                              label: Text(hasNoteLive ? 'Notitie wijzigen' : 'Notitie toevoegen'),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),
-                if (onManageNote != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: FilledButton.icon(
-                      onPressed: () async => await onManageNote!(),
-                      icon: Icon(hasNote ? Icons.edit_note : Icons.note_add_outlined),
-                      label: Text(hasNote ? 'Notitie wijzigen' : 'Notitie toevoegen'),
-                    ),
-                  ),
               ],
             ),
           ),
