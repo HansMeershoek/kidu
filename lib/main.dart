@@ -592,7 +592,7 @@ class _DashboardPageState extends State<DashboardPage> {
     required String otherName,
   }) {
     final cs = Theme.of(context).colorScheme;
-    const barHeight = 8.0;
+    const barHeight = 14.0;
     const barRadius = 4.0;
 
     if (totalCents == 0) {
@@ -1863,27 +1863,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       CrossAxisAlignment
                                                           .stretch,
                                                   children: [
-                                                    ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        999,
-                                                      ),
-                                                      child:
-                                                          LinearProgressIndicator(
-                                                        minHeight: 10,
-                                                        value: myShare,
-                                                        backgroundColor: cs
-                                                            .outlineVariant
-                                                            .withAlpha(
-                                                          (0.25 * 255).round(),
-                                                        ),
-                                                        valueColor:
-                                                            AlwaysStoppedAnimation<
-                                                                Color>(
-                                                          cs.primary,
-                                                        ),
-                                                      ),
-                                                    ),
                                                     const SizedBox(height: 8),
                                                     Row(
                                                       mainAxisAlignment:
