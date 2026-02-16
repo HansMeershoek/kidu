@@ -2077,6 +2077,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     Navigator.of(context).push(
                                                                       MaterialPageRoute<void>(
                                                                         builder: (context) => _ExpenseDetailPage(
+                                                                          householdId: householdIdStr,
+                                                                          expenseId: d.id,
+                                                                          uid: user.uid,
                                                                           title: title,
                                                                           amountCents: amountCents,
                                                                           paidByName: who,
@@ -2153,6 +2156,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       Navigator.of(context).push(
                                                                         MaterialPageRoute<void>(
                                                                           builder: (context) => _ExpenseDetailPage(
+                                                                            householdId: householdIdStr,
+                                                                            expenseId: d.id,
+                                                                            uid: user.uid,
                                                                             title: title,
                                                                             amountCents: amountCents,
                                                                             paidByName: who,
@@ -2265,6 +2271,9 @@ Widget _balanceRow({required String label, required String value}) {
 
 class _ExpenseDetailPage extends StatelessWidget {
   const _ExpenseDetailPage({
+    required this.householdId,
+    required this.expenseId,
+    required this.uid,
     required this.title,
     required this.amountCents,
     required this.paidByName,
@@ -2274,6 +2283,9 @@ class _ExpenseDetailPage extends StatelessWidget {
     this.onManageNote,
   });
 
+  final String householdId;
+  final String expenseId;
+  final String uid;
   final String title;
   final int amountCents;
   final String paidByName;
@@ -2339,6 +2351,21 @@ class _ExpenseDetailPage extends StatelessWidget {
                           ],
                         )
                       : const Text('Gesynchroniseerd'),
+                ),
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .doc('households/$householdId/expenses/$expenseId/privateNotes/$uid')
+                      .snapshots(includeMetadataChanges: true),
+                  builder: (context, snap) {
+                    final data = snap.data?.data();
+                    final note = (data?['note'] as String?)?.trim() ?? '';
+                    if (note.isEmpty) return const SizedBox.shrink();
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Notitie'),
+                      subtitle: Text(note),
+                    );
+                  },
                 ),
                 if (onManageNote != null)
                   Padding(
