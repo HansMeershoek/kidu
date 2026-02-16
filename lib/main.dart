@@ -2082,6 +2082,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           paidByName: who,
                                                                           createdAt: createdAtDateTime,
                                                                           isPending: isPending,
+                                                                          hasNote: false,
+                                                                          onManageNote: null,
                                                                         ),
                                                                       ),
                                                                     );
@@ -2134,6 +2136,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   final note = noteSnap.data;
                                                                   final hasNote = note != null && note.isNotEmpty;
 
+                                                                  Future<void> openNoteFlow() async {
+                                                                    await _openEditPrivateNoteDialog(
+                                                                      householdId: householdIdStr,
+                                                                      expenseId: d.id,
+                                                                      uid: user.uid,
+                                                                      initialNote: note ?? '',
+                                                                    );
+                                                                  }
+
                                                                   return ListTile(
                                                                     contentPadding: EdgeInsets.zero,
                                                                     dense: true,
@@ -2147,6 +2158,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             paidByName: who,
                                                                             createdAt: createdAtDateTime,
                                                                             isPending: isPending,
+                                                                            hasNote: hasNote,
+                                                                            onManageNote: openNoteFlow,
                                                                           ),
                                                                         ),
                                                                       );
@@ -2209,14 +2222,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             minimumSize: const Size(36, 36),
                                                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                                                           ),
-                                                                          onPressed: () {
-                                                                            _openEditPrivateNoteDialog(
-                                                                              householdId: householdIdStr,
-                                                                              expenseId: d.id,
-                                                                              uid: user.uid,
-                                                                              initialNote: note ?? '',
-                                                                            );
-                                                                          },
+                                                                          onPressed: openNoteFlow,
                                                                         ),
                                                                         Text(
                                                                           _formatEur(amountCents),
@@ -2277,6 +2283,8 @@ class _ExpenseDetailPage extends StatelessWidget {
     required this.paidByName,
     required this.createdAt,
     required this.isPending,
+    required this.hasNote,
+    this.onManageNote,
   });
 
   final String title;
@@ -2284,6 +2292,8 @@ class _ExpenseDetailPage extends StatelessWidget {
   final String paidByName;
   final DateTime? createdAt;
   final bool isPending;
+  final bool hasNote;
+  final Future<void> Function()? onManageNote;
 
   static String _formatEur(int cents) {
     final value = (cents / 100.0).toStringAsFixed(2);
@@ -2343,6 +2353,15 @@ class _ExpenseDetailPage extends StatelessWidget {
                         )
                       : const Text('Gesynchroniseerd'),
                 ),
+                if (onManageNote != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: FilledButton.icon(
+                      onPressed: () async => await onManageNote!(),
+                      icon: Icon(hasNote ? Icons.edit_note : Icons.note_add_outlined),
+                      label: Text(hasNote ? 'Notitie wijzigen' : 'Notitie toevoegen'),
+                    ),
+                  ),
               ],
             ),
           ),
