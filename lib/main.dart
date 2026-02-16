@@ -2395,6 +2395,9 @@ class _SetupPageState extends State<SetupPage> {
 
       await firestore.doc('users/$uid').set({
         'householdId': targetHouseholdId,
+        'displayName': FirebaseAuth.instance.currentUser!.displayName,
+        'email': FirebaseAuth.instance.currentUser!.email,
+        'photoUrl': FirebaseAuth.instance.currentUser!.photoURL,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
