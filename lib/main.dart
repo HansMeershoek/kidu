@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'firebase_options.dart';
 
@@ -86,44 +88,84 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Notitie bewerken'),
-      content: TextFormField(
-        initialValue: widget.initialNote,
-        maxLength: 180,
-        textInputAction: TextInputAction.done,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-        ),
-        onChanged: (v) => _draftNote = v,
-        onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => _safePop(PrivateNoteDialogCancelled()),
-          child: const Text('Annuleren'),
-        ),
-        if (widget.hasInitialNote)
-          TextButton(
-            onPressed: () => _safePop(PrivateNoteDialogDelete()),
-            child: const Text('Verwijderen'),
-          ),
-        ElevatedButton(
-          onPressed: () {
-            final note = _draftNote.trim();
-            if (note.isEmpty) {
-              if (widget.hasInitialNote) {
-                _safePop(PrivateNoteDialogDelete());
-              } else {
-                _safePop(PrivateNoteDialogCancelled());
-              }
-            } else {
-              _safePop(PrivateNoteDialogSave(note));
-            }
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxH = constraints.maxHeight * 0.85;
+            return ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 560, maxHeight: maxH),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Notitie bewerken',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: TextFormField(
+                          initialValue: widget.initialNote,
+                          maxLength: 180,
+                          minLines: 3,
+                          maxLines: 8,
+                          textInputAction: TextInputAction.done,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            counterText: '',
+                          ),
+                          onChanged: (v) => _draftNote = v,
+                          onFieldSubmitted: (_) =>
+                              FocusScope.of(context).unfocus(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: () =>
+                              _safePop(PrivateNoteDialogCancelled()),
+                          child: const Text('Annuleren'),
+                        ),
+                        if (widget.hasInitialNote)
+                          TextButton(
+                            onPressed: () =>
+                                _safePop(PrivateNoteDialogDelete()),
+                            child: const Text('Verwijderen'),
+                          ),
+                        FilledButton(
+                          onPressed: () {
+                            final note = _draftNote.trim();
+                            if (note.isEmpty) {
+                              if (widget.hasInitialNote) {
+                                _safePop(PrivateNoteDialogDelete());
+                              } else {
+                                _safePop(PrivateNoteDialogCancelled());
+                              }
+                            } else {
+                              _safePop(PrivateNoteDialogSave(note));
+                            }
+                          },
+                          child: const Text('Opslaan'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
           },
-          child: const Text('Opslaan'),
         ),
-      ],
+      ),
     );
   }
 }
@@ -137,6 +179,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _googleSignIn.initialize();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const KiDuApp());
 }
 
@@ -550,7 +593,7 @@ class _DashboardPageState extends State<DashboardPage> {
     required String otherName,
   }) {
     final cs = Theme.of(context).colorScheme;
-    const barHeight = 8.0;
+    const barHeight = 14.0;
     const barRadius = 4.0;
 
     if (totalCents == 0) {
@@ -720,6 +763,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final result = await showDialog<PrivateNoteDialogResult>(
       context: context,
       useRootNavigator: false,
+      useSafeArea: true,
       barrierDismissible: true,
       builder: (dialogContext) => _PrivateNoteDialogContent(
         initialNote: initialNote,
@@ -901,6 +945,13 @@ class _DashboardPageState extends State<DashboardPage> {
                               _showSnackBar('Invite code gekopieerd.');
                             },
                           ),
+                          const SizedBox(height: 8),
+                          FilledButton.icon(
+                            onPressed: () =>
+                                _shareInviteCode(_inviteCode!),
+                            icon: const Icon(Icons.share),
+                            label: const Text('Delen'),
+                          ),
                         ],
                         const SizedBox(height: _cardGap),
                       ],
@@ -964,11 +1015,26 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Future<bool> _canWriteExpenseNow() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      await FirebaseFirestore.instance
+          .doc('users/$uid')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 2));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _createExpense({
     required String householdId,
     required String title,
     required int amountCents,
     String? note,
+    String? coparentNameForPendingMessage,
   }) async {
     if (_expenseBusy) {
       return;
@@ -991,6 +1057,7 @@ class _DashboardPageState extends State<DashboardPage> {
             'createdAt': FieldValue.serverTimestamp(),
             'createdBy': uid,
           });
+      String? noteErrMsg;
       final noteTrimmed = note?.trim();
       if (noteTrimmed != null && noteTrimmed.isNotEmpty) {
         try {
@@ -1001,15 +1068,25 @@ class _DashboardPageState extends State<DashboardPage> {
                 'note': noteTrimmed,
                 'updatedAt': FieldValue.serverTimestamp(),
               });
-          _showSnackBar('Uitgave opgeslagen.');
         } catch (noteErr) {
           debugPrint('Private note write error: $noteErr');
-          _showSnackBar(
-            'Uitgave opgeslagen, ${mapUserFacingError(noteErr, fallback: 'notitie niet opgeslagen.')}',
-          );
+          noteErrMsg = mapUserFacingError(noteErr, fallback: 'notitie niet opgeslagen.');
         }
+      }
+      final expenseSnap =
+          await ref.get(const GetOptions(source: Source.cache));
+      final isPending = expenseSnap.metadata.hasPendingWrites;
+      if (isPending) {
+        final naam = (coparentNameForPendingMessage?.trim().isNotEmpty ?? false)
+            ? coparentNameForPendingMessage!.trim()
+            : 'je co-parent';
+        _showSnackBar(
+          'Uitgave wordt opgeslagen en is pas zichtbaar voor $naam zodra je weer online bent.',
+        );
       } else {
-        _showSnackBar('Uitgave opgeslagen.');
+        _showSnackBar(noteErrMsg != null
+            ? 'Uitgave opgeslagen, $noteErrMsg'
+            : 'Uitgave opgeslagen.');
       }
     } catch (e) {
       debugPrint('Create expense error: $e');
@@ -1021,7 +1098,10 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _openAddExpenseDialog(String householdId) async {
+  Future<void> _openAddExpenseDialog(
+    String householdId, {
+    String? coparentName,
+  }) async {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final noteController = TextEditingController();
@@ -1108,6 +1188,15 @@ class _DashboardPageState extends State<DashboardPage> {
                               }
 
                               setLocalState(() => saving = true);
+                              if (!await _canWriteExpenseNow()) {
+                                _showSnackBar(
+                                  'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
+                                );
+                                if (context.mounted) {
+                                  setLocalState(() => saving = false);
+                                }
+                                return;
+                              }
                               try {
                                 await _createExpense(
                                   householdId: householdId,
@@ -1116,20 +1205,21 @@ class _DashboardPageState extends State<DashboardPage> {
                                   note: noteController.text.trim().isEmpty
                                       ? null
                                       : noteController.text.trim(),
+                                  coparentNameForPendingMessage: coparentName,
                                 );
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
                               } catch (e) {
                                 debugPrint('Create expense (dialog) error: $e');
                                 _showSnackBar(
                                   mapUserFacingError(e,
                                       fallback: 'Opslaan mislukt. Probeer opnieuw.'),
                                 );
+                              } finally {
                                 if (context.mounted) {
                                   setLocalState(() => saving = false);
                                 }
-                                return;
-                              }
-                              if (context.mounted) {
-                                Navigator.of(context).pop();
                               }
                             },
                       child: Text(saving ? 'Bezig...' : 'Opslaan'),
@@ -1160,8 +1250,6 @@ class _DashboardPageState extends State<DashboardPage> {
       final uid = currentUser.uid;
       final docRef = FirebaseFirestore.instance.doc('users/$uid');
       final snapshot = await docRef.get();
-      final existingHouseholdId =
-          (snapshot.data()?['householdId'] as String?)?.trim();
 
       final data = {
         'displayName': currentUser.displayName,
@@ -1172,17 +1260,6 @@ class _DashboardPageState extends State<DashboardPage> {
       };
 
       await docRef.set(data, SetOptions(merge: true));
-
-      // Mini-migratie: maak roles gelijkwaardig voor bestaande data.
-      if (existingHouseholdId != null && existingHouseholdId.isNotEmpty) {
-        try {
-          await FirebaseFirestore.instance
-              .doc('households/$existingHouseholdId/members/$uid')
-              .set({'role': 'parent'}, SetOptions(merge: true));
-        } catch (e) {
-          debugPrint('ensureUserDoc role migration error: $e');
-        }
-      }
     } catch (e) {
       debugPrint('ensureUserDoc error: $e');
     }
@@ -1352,6 +1429,21 @@ class _DashboardPageState extends State<DashboardPage> {
       if (mounted) {
         setState(() => _inviteBusy = false);
       }
+    }
+  }
+
+  Future<void> _shareInviteCode(String code) async {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) {
+      _showSnackBar('Geen invite code beschikbaar.');
+      return;
+    }
+    try {
+      final text =
+          'Koppel met mij in KiDu.\nGebruik deze invite code: $trimmed';
+      await Share.share(text);
+    } catch (_) {
+      _showSnackBar('Delen mislukt. Probeer opnieuw.');
     }
   }
 
@@ -1668,7 +1760,15 @@ class _DashboardPageState extends State<DashboardPage> {
                   floatingActionButton: FloatingActionButton(
                     onPressed: _expenseBusy || !canAddExpenses
                         ? null
-                        : () => _openAddExpenseDialog(householdIdStr),
+                        : () async {
+                            if (!await _canWriteExpenseNow()) {
+                              _showSnackBar(
+                                'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                              );
+                              return;
+                            }
+                            _openAddExpenseDialog(householdIdStr, coparentName: otherName);
+                          },
                     child: const Icon(Icons.add),
                   ),
                   body: SafeArea(
@@ -1687,7 +1787,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     .collection('households/$householdIdStr/expenses')
                                     .orderBy('createdAt', descending: true)
                                     .limit(20)
-                                    .snapshots(),
+                                    .snapshots(includeMetadataChanges: true),
                                 builder: (context, expensesSnapshot) {
                                   if (expensesSnapshot.hasError) {
                                     return const Text('Kon uitgaven niet laden.');
@@ -1786,27 +1886,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       CrossAxisAlignment
                                                           .stretch,
                                                   children: [
-                                                    ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                        999,
-                                                      ),
-                                                      child:
-                                                          LinearProgressIndicator(
-                                                        minHeight: 10,
-                                                        value: myShare,
-                                                        backgroundColor: cs
-                                                            .outlineVariant
-                                                            .withAlpha(
-                                                          (0.25 * 255).round(),
-                                                        ),
-                                                        valueColor:
-                                                            AlwaysStoppedAnimation<
-                                                                Color>(
-                                                          cs.primary,
-                                                        ),
-                                                      ),
-                                                    ),
                                                     const SizedBox(height: 8),
                                                     Row(
                                                       mainAxisAlignment:
@@ -1983,6 +2062,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               otherUid)
                                                                       ? otherName
                                                                       : 'Co-parent';
+                                                              final isPending =
+                                                                  d.metadata.hasPendingWrites;
                                                               final createdAtRaw =
                                                                   e['createdAt'];
                                                               DateTime?
@@ -2036,6 +2117,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   contentPadding: EdgeInsets.zero,
                                                                   dense: true,
                                                                   visualDensity: VisualDensity.compact,
+                                                                  onTap: () {
+                                                                    Navigator.of(context).push(
+                                                                      MaterialPageRoute<void>(
+                                                                        builder: (context) => _ExpenseDetailPage(
+                                                                          householdId: householdIdStr,
+                                                                          expenseId: d.id,
+                                                                          uid: user.uid,
+                                                                          title: title,
+                                                                          amountCents: amountCents,
+                                                                          paidByName: who,
+                                                                          createdAt: createdAtDateTime,
+                                                                          isPending: isPending,
+                                                                          onManageNote: null,
+                                                                        ),
+                                                                      ),
+                                                                    );
+                                                                  },
                                                                   title: Text(
                                                                     title,
                                                                     maxLines: 1,
@@ -2046,14 +2144,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     maxLines: 1,
                                                                     overflow: TextOverflow.ellipsis,
                                                                   ),
-                                                                  trailing: Text(
-                                                                    _formatEur(amountCents),
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodyMedium
-                                                                        ?.copyWith(
-                                                                          fontWeight: FontWeight.w700,
+                                                                  trailing: Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    children: [
+                                                                      if (isPending)
+                                                                        Tooltip(
+                                                                          message: 'Nog niet gesynchroniseerd',
+                                                                          child: Icon(
+                                                                            Icons.cloud_off,
+                                                                            size: 16,
+                                                                            color: cs.onSurface.withAlpha((0.5 * 255).round()),
+                                                                          ),
                                                                         ),
+                                                                      if (isPending) const SizedBox(width: 4),
+                                                                      Text(
+                                                                        _formatEur(amountCents),
+                                                                        style: Theme.of(context)
+                                                                            .textTheme
+                                                                            .bodyMedium
+                                                                            ?.copyWith(
+                                                                              fontWeight: FontWeight.w700,
+                                                                            ),
+                                                                      ),
+                                                                    ],
                                                                   ),
                                                                 );
                                                               }
@@ -2069,10 +2182,40 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   final note = noteSnap.data;
                                                                   final hasNote = note != null && note.isNotEmpty;
 
+                                                                  Future<void> openNoteFlow() async {
+                                                                    final snap = await FirebaseFirestore.instance
+                                                                        .doc('households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}')
+                                                                        .get();
+                                                                    final latestNote = ((snap.data()?['note'] as String?) ?? '').trim();
+                                                                    await _openEditPrivateNoteDialog(
+                                                                      householdId: householdIdStr,
+                                                                      expenseId: d.id,
+                                                                      uid: user.uid,
+                                                                      initialNote: latestNote,
+                                                                    );
+                                                                  }
+
                                                                   return ListTile(
                                                                     contentPadding: EdgeInsets.zero,
                                                                     dense: true,
                                                                     visualDensity: VisualDensity.compact,
+                                                                    onTap: () {
+                                                                      Navigator.of(context).push(
+                                                                        MaterialPageRoute<void>(
+                                                                          builder: (context) => _ExpenseDetailPage(
+                                                                            householdId: householdIdStr,
+                                                                            expenseId: d.id,
+                                                                            uid: user.uid,
+                                                                            title: title,
+                                                                            amountCents: amountCents,
+                                                                            paidByName: who,
+                                                                            createdAt: createdAtDateTime,
+                                                                            isPending: isPending,
+                                                                            onManageNote: openNoteFlow,
+                                                                          ),
+                                                                        ),
+                                                                      );
+                                                                    },
                                                                     title: Text(
                                                                       title,
                                                                       maxLines: 1,
@@ -2110,26 +2253,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       mainAxisSize: MainAxisSize.min,
                                                                       mainAxisAlignment: MainAxisAlignment.end,
                                                                       children: [
-                                                                        IconButton(
-                                                                          icon: Icon(
-                                                                            hasNote ? Icons.edit_note : Icons.note_add_outlined,
-                                                                            size: 20,
-                                                                            color: cs.onSurface.withAlpha((0.6 * 255).round()),
+                                                                        if (isPending)
+                                                                          Tooltip(
+                                                                            message: 'Nog niet gesynchroniseerd',
+                                                                            child: Icon(
+                                                                              Icons.cloud_off,
+                                                                              size: 16,
+                                                                              color: cs.onSurface.withAlpha((0.5 * 255).round()),
+                                                                            ),
                                                                           ),
-                                                                          style: IconButton.styleFrom(
-                                                                            padding: EdgeInsets.zero,
-                                                                            minimumSize: const Size(36, 36),
-                                                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                                          ),
-                                                                          onPressed: () {
-                                                                            _openEditPrivateNoteDialog(
-                                                                              householdId: householdIdStr,
-                                                                              expenseId: d.id,
-                                                                              uid: user.uid,
-                                                                              initialNote: note ?? '',
-                                                                            );
-                                                                          },
-                                                                        ),
+                                                                        if (isPending) const SizedBox(width: 4),
                                                                         Text(
                                                                           _formatEur(amountCents),
                                                                           style: Theme.of(context)
@@ -2180,6 +2313,127 @@ Widget _balanceRow({required String label, required String value}) {
       Text(value),
     ],
   );
+}
+
+class _ExpenseDetailPage extends StatelessWidget {
+  const _ExpenseDetailPage({
+    required this.householdId,
+    required this.expenseId,
+    required this.uid,
+    required this.title,
+    required this.amountCents,
+    required this.paidByName,
+    required this.createdAt,
+    required this.isPending,
+    this.onManageNote,
+  });
+
+  final String householdId;
+  final String expenseId;
+  final String uid;
+  final String title;
+  final int amountCents;
+  final String paidByName;
+  final DateTime? createdAt;
+  final bool isPending;
+  final Future<void> Function()? onManageNote;
+
+  static String _formatEur(int cents) {
+    final value = (cents / 100.0).toStringAsFixed(2);
+    return '€$value';
+  }
+
+  static String _formatDateTime(DateTime? dt) {
+    if (dt == null) return '—';
+    const nlMonths = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+    return '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Uitgave'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Titel'),
+                  subtitle: Text(title),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Bedrag'),
+                  subtitle: Text(_formatEur(amountCents)),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Betaald door'),
+                  subtitle: Text(paidByName),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Datum/tijd'),
+                  subtitle: Text(_formatDateTime(createdAt)),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Status'),
+                  subtitle: isPending
+                      ? Row(
+                          children: [
+                            Icon(Icons.cloud_off, size: 18, color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round())),
+                            const SizedBox(width: 8),
+                            const Text('Nog niet gesynchroniseerd'),
+                          ],
+                        )
+                      : const Text('Gesynchroniseerd'),
+                ),
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .doc('households/$householdId/expenses/$expenseId/privateNotes/$uid')
+                      .snapshots(includeMetadataChanges: true),
+                  builder: (context, snap) {
+                    final data = snap.data?.data();
+                    final note = (data?['note'] as String?)?.trim() ?? '';
+                    final hasNoteLive = note.isNotEmpty;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (hasNoteLive)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Notitie'),
+                            subtitle: Text(note),
+                          ),
+                        if (onManageNote != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: FilledButton.icon(
+                              onPressed: () async => await onManageNote!(),
+                              icon: Icon(hasNoteLive ? Icons.edit_note : Icons.note_add_outlined),
+                              label: Text(hasNoteLive ? 'Notitie wijzigen' : 'Notitie toevoegen'),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class KiduCard extends StatelessWidget {
@@ -2396,20 +2650,23 @@ class _SetupPageState extends State<SetupPage> {
           },
           SetOptions(merge: true),
         );
+
+        if (currentHouseholdId != null &&
+            currentHouseholdId.isNotEmpty &&
+            currentHouseholdId != targetHouseholdId) {
+          final oldMemberRef = firestore
+              .doc('households/$currentHouseholdId/members/$uid');
+          transaction.delete(oldMemberRef);
+        }
       });
 
       await firestore.doc('users/$uid').set({
         'householdId': targetHouseholdId,
+        'displayName': FirebaseAuth.instance.currentUser!.displayName,
+        'email': FirebaseAuth.instance.currentUser!.email,
+        'photoUrl': FirebaseAuth.instance.currentUser!.photoURL,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      // TODO(re-enable after rules alignment): old member delete requires
-      // allow delete on members; temporarily disabled to fix permission-denied.
-      // if (currentHouseholdId != null && currentHouseholdId.isNotEmpty) {
-      //   final oldMemberRef = firestore
-      //       .doc('households/$currentHouseholdId/members/$uid');
-      //   await oldMemberRef.delete();
-      // }
 
       // TODO(re-enable after rules alignment): household isConnected update
       // requires allow update on households; temporarily disabled.
