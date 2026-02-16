@@ -88,18 +88,24 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      scrollable: true,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       title: const Text('Notitie bewerken'),
-      content: SingleChildScrollView(
-        child: TextFormField(
-          initialValue: widget.initialNote,
-          maxLength: 180,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 260),
+        child: SingleChildScrollView(
+          child: TextFormField(
+            initialValue: widget.initialNote,
+            maxLength: 180,
+            minLines: 3,
+            maxLines: 6,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              counterText: '',
+            ),
+            onChanged: (v) => _draftNote = v,
+            onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
           ),
-          onChanged: (v) => _draftNote = v,
-          onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
         ),
       ),
       actions: [
