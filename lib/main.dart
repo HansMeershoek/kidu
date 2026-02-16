@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -964,6 +965,20 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Future<bool> _canWriteExpenseNow() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      await FirebaseFirestore.instance
+          .doc('users/$uid')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 2));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _createExpense({
     required String householdId,
     required String title,
@@ -1123,6 +1138,15 @@ class _DashboardPageState extends State<DashboardPage> {
                               }
 
                               setLocalState(() => saving = true);
+                              if (!await _canWriteExpenseNow()) {
+                                _showSnackBar(
+                                  'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
+                                );
+                                if (context.mounted) {
+                                  setLocalState(() => saving = false);
+                                }
+                                return;
+                              }
                               try {
                                 await _createExpense(
                                   householdId: householdId,
@@ -1671,7 +1695,15 @@ class _DashboardPageState extends State<DashboardPage> {
                   floatingActionButton: FloatingActionButton(
                     onPressed: _expenseBusy || !canAddExpenses
                         ? null
-                        : () => _openAddExpenseDialog(householdIdStr, coparentName: otherName),
+                        : () async {
+                            if (!await _canWriteExpenseNow()) {
+                              _showSnackBar(
+                                'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                              );
+                              return;
+                            }
+                            _openAddExpenseDialog(householdIdStr, coparentName: otherName);
+                          },
                     child: const Icon(Icons.add),
                   ),
                   body: SafeArea(
