@@ -1118,7 +1118,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       : noteController.text.trim(),
                                 );
                                 if (context.mounted) {
-                                  Navigator.of(context, rootNavigator: true).maybePop();
+                                  Navigator.of(context).pop();
                                 }
                               } catch (e) {
                                 debugPrint('Create expense (dialog) error: $e');
