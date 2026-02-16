@@ -2211,19 +2211,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             ),
                                                                           ),
                                                                         if (isPending) const SizedBox(width: 4),
-                                                                        IconButton(
-                                                                          icon: Icon(
-                                                                            hasNote ? Icons.edit_note : Icons.note_add_outlined,
-                                                                            size: 20,
-                                                                            color: cs.onSurface.withAlpha((0.6 * 255).round()),
-                                                                          ),
-                                                                          style: IconButton.styleFrom(
-                                                                            padding: EdgeInsets.zero,
-                                                                            minimumSize: const Size(36, 36),
-                                                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                                          ),
-                                                                          onPressed: openNoteFlow,
-                                                                        ),
                                                                         Text(
                                                                           _formatEur(amountCents),
                                                                           style: Theme.of(context)
