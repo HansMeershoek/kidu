@@ -8,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'firebase_options.dart';
 
@@ -944,6 +945,13 @@ class _DashboardPageState extends State<DashboardPage> {
                               _showSnackBar('Invite code gekopieerd.');
                             },
                           ),
+                          const SizedBox(height: 8),
+                          FilledButton.icon(
+                            onPressed: () =>
+                                _shareInviteCode(_inviteCode!),
+                            icon: const Icon(Icons.share),
+                            label: const Text('Delen'),
+                          ),
                         ],
                         const SizedBox(height: _cardGap),
                       ],
@@ -1421,6 +1429,21 @@ class _DashboardPageState extends State<DashboardPage> {
       if (mounted) {
         setState(() => _inviteBusy = false);
       }
+    }
+  }
+
+  Future<void> _shareInviteCode(String code) async {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) {
+      _showSnackBar('Geen invite code beschikbaar.');
+      return;
+    }
+    try {
+      final text =
+          'Koppel met mij in KiDu.\nGebruik deze invite code: $trimmed';
+      await Share.share(text);
+    } catch (_) {
+      _showSnackBar('Delen mislukt. Probeer opnieuw.');
     }
   }
 
