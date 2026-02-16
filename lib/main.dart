@@ -2073,6 +2073,19 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   contentPadding: EdgeInsets.zero,
                                                                   dense: true,
                                                                   visualDensity: VisualDensity.compact,
+                                                                  onTap: () {
+                                                                    Navigator.of(context).push(
+                                                                      MaterialPageRoute<void>(
+                                                                        builder: (context) => _ExpenseDetailPage(
+                                                                          title: title,
+                                                                          amountCents: amountCents,
+                                                                          paidByName: who,
+                                                                          createdAt: createdAtDateTime,
+                                                                          isPending: isPending,
+                                                                        ),
+                                                                      ),
+                                                                    );
+                                                                  },
                                                                   title: Text(
                                                                     title,
                                                                     maxLines: 1,
@@ -2125,6 +2138,19 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     contentPadding: EdgeInsets.zero,
                                                                     dense: true,
                                                                     visualDensity: VisualDensity.compact,
+                                                                    onTap: () {
+                                                                      Navigator.of(context).push(
+                                                                        MaterialPageRoute<void>(
+                                                                          builder: (context) => _ExpenseDetailPage(
+                                                                            title: title,
+                                                                            amountCents: amountCents,
+                                                                            paidByName: who,
+                                                                            createdAt: createdAtDateTime,
+                                                                            isPending: isPending,
+                                                                          ),
+                                                                        ),
+                                                                      );
+                                                                    },
                                                                     title: Text(
                                                                       title,
                                                                       maxLines: 1,
@@ -2242,6 +2268,88 @@ Widget _balanceRow({required String label, required String value}) {
       Text(value),
     ],
   );
+}
+
+class _ExpenseDetailPage extends StatelessWidget {
+  const _ExpenseDetailPage({
+    required this.title,
+    required this.amountCents,
+    required this.paidByName,
+    required this.createdAt,
+    required this.isPending,
+  });
+
+  final String title;
+  final int amountCents;
+  final String paidByName;
+  final DateTime? createdAt;
+  final bool isPending;
+
+  static String _formatEur(int cents) {
+    final value = (cents / 100.0).toStringAsFixed(2);
+    return '€$value';
+  }
+
+  static String _formatDateTime(DateTime? dt) {
+    if (dt == null) return '—';
+    const nlMonths = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+    return '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Uitgave'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Titel'),
+                  subtitle: Text(title),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Bedrag'),
+                  subtitle: Text(_formatEur(amountCents)),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Betaald door'),
+                  subtitle: Text(paidByName),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Datum/tijd'),
+                  subtitle: Text(_formatDateTime(createdAt)),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Status'),
+                  subtitle: isPending
+                      ? Row(
+                          children: [
+                            Icon(Icons.cloud_off, size: 18, color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round())),
+                            const SizedBox(width: 8),
+                            const Text('Nog niet gesynchroniseerd'),
+                          ],
+                        )
+                      : const Text('Gesynchroniseerd'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class KiduCard extends StatelessWidget {
