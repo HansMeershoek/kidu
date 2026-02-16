@@ -1160,8 +1160,6 @@ class _DashboardPageState extends State<DashboardPage> {
       final uid = currentUser.uid;
       final docRef = FirebaseFirestore.instance.doc('users/$uid');
       final snapshot = await docRef.get();
-      final existingHouseholdId =
-          (snapshot.data()?['householdId'] as String?)?.trim();
 
       final data = {
         'displayName': currentUser.displayName,
@@ -1172,17 +1170,6 @@ class _DashboardPageState extends State<DashboardPage> {
       };
 
       await docRef.set(data, SetOptions(merge: true));
-
-      // Mini-migratie: maak roles gelijkwaardig voor bestaande data.
-      if (existingHouseholdId != null && existingHouseholdId.isNotEmpty) {
-        try {
-          await FirebaseFirestore.instance
-              .doc('households/$existingHouseholdId/members/$uid')
-              .set({'role': 'parent'}, SetOptions(merge: true));
-        } catch (e) {
-          debugPrint('ensureUserDoc role migration error: $e');
-        }
-      }
     } catch (e) {
       debugPrint('ensureUserDoc error: $e');
     }
