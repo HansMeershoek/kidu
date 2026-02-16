@@ -1,11 +1,12 @@
 # KiDu Day 9 — Release Build Evidence
 
 ## Build resultaat
+- App version: `0.1.0+2`
 - Build type: Android App Bundle (release)
 - Output bestand: `build/app/outputs/bundle/release/app-release.aab`
-- Bestandsgrootte: `45,481,902 bytes` (ongeveer 43.4 MB)
+- Bestandsgrootte: `45,481,903 bytes` (ongeveer 43.4 MB)
 - Build status: SUCCESS
-- Build datum/tijd (lokaal): `2026-02-16 22:05:41`
+- Build datum/tijd (lokaal): `2026-02-16 22:23:28`
 
 ## Signing verificatie
 - Release variant config: `release`
@@ -14,7 +15,7 @@
 - Conclusie: release build is gesigned met upload keystore (niet debug)
 
 ## SHA-256
-`dadc5c06dfe0388d3efeee8372e13b5b10cab56a4b02c1fbed16a6efd504ef00`
+`350d456254c23ed78ddfce860d9708d4b123d8078dc65bcb1a1a11d549139ab1`
 
 ## Veiligheidscheck
 - `android/key.properties` staat in ignore
