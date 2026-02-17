@@ -27,3 +27,13 @@ Bewijs dat de eerste release-gates voor Internal Testing gehaald zijn op `feat/d
 
 ## Tussenconclusie Day 11
 Gates 1 t/m 3 zijn groen. Volgende stap is handmatige functionele gate + Play Internal Testing upload.
+
+## Gate 4 — Handmatige functionele validatie (notes offline/online)
+- Detailpagina offline bereikbaar: PASS
+- Offline melding bij "Notitie wijzigen": PASS
+- Edit-dialoog opent niet offline: PASS
+- Geen wijziging in notitie (detail + dashboard) wanneer offline: PASS
+- Crash/rood scherm: GEEN
+- Extra observatie: app voelt snappy en stabiel
+
+Gate 4 is groen. Notes-gedrag is nu consistent en production-safe voor offline scenario's.
