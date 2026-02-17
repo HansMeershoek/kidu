@@ -725,6 +725,13 @@ class _DashboardPageState extends State<DashboardPage> {
 
       if (!mounted) return;
 
+      if (!await _canWriteExpenseNow()) {
+        if (mounted) {
+          _showSnackBar('Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.');
+        }
+        return;
+      }
+
       final ref = FirebaseFirestore.instance.doc(
         'households/$householdId/expenses/$expenseId/privateNotes/$uid',
       );
@@ -2183,6 +2190,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   final hasNote = note != null && note.isNotEmpty;
 
                                                                   Future<void> openNoteFlow() async {
+                                                                    if (!await _canWriteExpenseNow()) {
+                                                                      if (mounted) {
+                                                                        final msg = hasNote
+                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
+                                                                        _showSnackBar(msg);
+                                                                      }
+                                                                      return;
+                                                                    }
                                                                     final snap = await FirebaseFirestore.instance
                                                                         .doc('households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}')
                                                                         .get();
