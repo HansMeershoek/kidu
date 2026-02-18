@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
 
@@ -520,19 +521,13 @@ class _LoginPageState extends State<LoginPage> {
                   SizedBox(
                     width: double.infinity,
                     height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: _busy ? null : _signInWithGoogle,
-                      icon: _busy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.login),
-                      label: Text(_busy ? 'Bezig...' : 'Doorgaan met Google'),
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    child: IgnorePointer(
+                      ignoring: _busy,
+                      child: Opacity(
+                        opacity: _busy ? 0.6 : 1.0,
+                        child: SignInButton(
+                          Buttons.google,
+                          onPressed: _signInWithGoogle,
                         ),
                       ),
                     ),
@@ -2550,7 +2545,24 @@ class SetupPage extends StatefulWidget {
 class _SetupPageState extends State<SetupPage> {
   final _inviteController = TextEditingController();
   bool _joinBusy = false;
-  bool? _joinOk;
+
+  Future<void> _showJoinSuccessAndClose() async {
+    if (!mounted) return;
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Join success',
+      transitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, a1, a2) => const _JoinSuccessOverlay(),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+
+    // Close overlay, then close setup page.
+    Navigator.of(context, rootNavigator: true).pop();
+    Navigator.of(context).pop();
+  }
 
   void _showSnackBar(String message) {
     if (!mounted) {
@@ -2570,20 +2582,17 @@ class _SetupPageState extends State<SetupPage> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       _showSnackBar('Niet ingelogd.');
-      setState(() => _joinOk = false);
       return;
     }
 
     final code = _inviteController.text.trim().toUpperCase();
     if (code.isEmpty) {
       _showSnackBar('Vul een invite code in.');
-      setState(() => _joinOk = false);
       return;
     }
 
     setState(() {
       _joinBusy = true;
-      _joinOk = null;
     });
 
     try {
@@ -2692,17 +2701,12 @@ class _SetupPageState extends State<SetupPage> {
       // );
 
       if (mounted) {
-        setState(() => _joinOk = true);
-        _showSnackBar('Join gelukt.');
-        Navigator.of(context).pop();
+        await _showJoinSuccessAndClose();
       }
     } catch (e) {
       debugPrint('Join household error: $e');
       final message =
           mapUserFacingError(e, fallback: 'Join mislukt. Probeer opnieuw.');
-      if (mounted) {
-        setState(() => _joinOk = false);
-      }
       _showSnackBar(message);
     } finally {
       if (mounted) {
@@ -2787,25 +2791,12 @@ class _SetupPageState extends State<SetupPage> {
                         'Voer een invite-code in om te koppelen aan het household van je co-parent.',
                         textAlign: TextAlign.center,
                       ),
-                      if (hasHousehold) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          'Heb je al een household? Dan kun je hiermee veilig wisselen zolang je huidige household leeg is.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withAlpha((0.7 * 255).round()),
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
                       const SizedBox(height: 24),
                       TextField(
                         controller: _inviteController,
                         textCapitalization: TextCapitalization.characters,
                         decoration: const InputDecoration(
-                          labelText: 'Invite code',
+                          labelText: 'Koppelcode',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -2815,16 +2806,8 @@ class _SetupPageState extends State<SetupPage> {
                         child: Text(
                           _joinBusy
                               ? 'Bezig...'
-                              : (hasHousehold ? 'Wissel household' : 'Join household'),
+                              : (hasHousehold ? 'Verbinden' : 'Koppelen'),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _joinOk == null
-                            ? 'Join: ...'
-                            : (_joinOk == true
-                                ? 'Join: OK'
-                                : 'Join: ERROR'),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
@@ -2835,6 +2818,27 @@ class _SetupPageState extends State<SetupPage> {
                   );
                 },
               ),
+      ),
+    );
+  }
+}
+
+class _JoinSuccessOverlay extends StatelessWidget {
+  const _JoinSuccessOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: Material(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: const Center(
+          child: Icon(
+            Icons.check_circle_rounded,
+            size: 96,
+            color: Colors.green,
+          ),
+        ),
       ),
     );
   }

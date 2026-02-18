@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(_host(const LoginPage()));
 
     expect(find.text('Log in met Google om verder te gaan'), findsOneWidget);
-    expect(find.text('Doorgaan met Google'), findsOneWidget);
+    expect(find.text('Sign in with Google'), findsOneWidget);
   });
 
   // TODO: enable when pages are decoupled from direct Firebase singleton access or test seams are added.
