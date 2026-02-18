@@ -59,10 +59,10 @@ Na een geslaagde build en signing (Day 11) is het doel van Day 12 om de eerste i
 
 | Stap | Resultaat (PASS/FAIL) | Tijd (lokale tijd) | Bewijs (screenshot/beschrijving) |
 |------|------------------------|---------------------|----------------------------------|
-| Pre-flight gate | | | |
-| AAB upload | | | |
-| Release aangemaakt | | | |
-| Rollout gestart | | | |
+| Pre-flight gate | PASS | 2026-02-17 17:14 | flutter analyze: No issues; flutter test: passed (2 skipped); AAB aanwezig; signingReport release alias kidu_upload; git status clean |
+| AAB upload | PASS | 2026-02-17 [VUL_IN] | AAB geüpload & verwerkt in Internal testing release (bundle 2 / 0.1.0) |
+| Release aangemaakt | PASS | 2026-02-17 [VUL_IN] | Release notes opgeslagen (nl-NL + en-US) |
+| Rollout gestart | FAIL (BLOCKED) | 2026-02-17 [VUL_IN] | Account verification in progress: "There are issues with your account…" |
 | Tester toegevoegd | | | |
 | Installatie bevestigd | | | |
 
