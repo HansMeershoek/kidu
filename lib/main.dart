@@ -229,7 +229,9 @@ class AuthGate extends StatelessWidget {
           future: FirebaseFirestore.instance.doc('users/${user.uid}').get(),
           builder: (context, userDocSnapshot) {
             if (userDocSnapshot.connectionState == ConnectionState.waiting) {
-              return const DashboardPage();
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
 
             if (userDocSnapshot.hasError) {
@@ -2712,6 +2714,14 @@ class _SetupPageState extends State<SetupPage> {
           throw StateError('Invite is ongeldig.');
         }
 
+        transaction.set(userRef, {
+          'householdId': hId,
+          'displayName': FirebaseAuth.instance.currentUser!.displayName,
+          'email': FirebaseAuth.instance.currentUser!.email,
+          'photoUrl': FirebaseAuth.instance.currentUser!.photoURL,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
         final targetMemberRef =
             firestore.doc('households/$hId/members/$uid');
         transaction.set(targetMemberRef, {
@@ -2736,14 +2746,6 @@ class _SetupPageState extends State<SetupPage> {
           transaction.delete(oldMemberRef);
         }
       });
-
-      await firestore.doc('users/$uid').set({
-        'householdId': targetHouseholdId,
-        'displayName': FirebaseAuth.instance.currentUser!.displayName,
-        'email': FirebaseAuth.instance.currentUser!.email,
-        'photoUrl': FirebaseAuth.instance.currentUser!.photoURL,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
 
       // TODO(re-enable after rules alignment): household isConnected update
       // requires allow update on households; temporarily disabled.
