@@ -485,54 +485,106 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F6F4),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset('assets/images/kidu_logo.png', width: 180),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Log in met Google om verder te gaan',
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
-                    textAlign: TextAlign.center,
+              padding: const EdgeInsets.only(top: 10, bottom: 38),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFEBE5),
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                  const SizedBox(height: 32),
-                  if (_error != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        border: Border.all(color: Colors.red.shade200),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.red),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset('assets/images/kidu_logo.png', width: 180),
+                      const SizedBox(height: 32),
+                      Text(
+                        'Rust in gedeelde kosten',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: -0.2,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                            ) ??
+                            TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: -0.2,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                            ),
                         textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: IgnorePointer(
-                      ignoring: _busy,
-                      child: Opacity(
-                        opacity: _busy ? 0.6 : 1.0,
-                        child: SignInButton(
-                          Buttons.google,
-                          onPressed: _signInWithGoogle,
+                      const SizedBox(height: 40),
+                      if (_error != null) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            border: Border.all(color: Colors.red.shade200),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(color: Colors.red),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      IgnorePointer(
+                        ignoring: _busy,
+                        child: Opacity(
+                          opacity: _busy ? 0.6 : 1.0,
+                          child: SizedBox(
+                            height: 64,
+                            width: double.infinity,
+                            child: Transform.scale(
+                              scale: 1.08,
+                              alignment: Alignment.center,
+                              child: SignInButton(
+                                Buttons.google,
+                                onPressed: _signInWithGoogle,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_outline,
+                            size: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Veilig inloggen via Google',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
