@@ -10,7 +10,7 @@ Na een geslaagde build en signing (Day 11) is het doel van Day 12 om de eerste i
 - **Laatste baseline commit:** aa10ae3
 - **App version:** 0.1.0+2
 - **AAB pad:** build/app/outputs/bundle/release/app-release.aab
-- **AAB SHA-256:** 350d456254c23ed78ddfce860d9708d4b123d8078dc65bcb1a1a11d549139ab1
+- **AAB SHA-256:** DD41B972EF39170BA0185002726F33D002C53CF8EF20746C463B108072C5BCB2
 - **Release signing alias:** kidu_upload
 
 ## Pre-flight gate (moet groen)
@@ -59,7 +59,7 @@ Na een geslaagde build en signing (Day 11) is het doel van Day 12 om de eerste i
 
 | Stap | Resultaat (PASS/FAIL) | Tijd (lokale tijd) | Bewijs (screenshot/beschrijving) |
 |------|------------------------|---------------------|----------------------------------|
-| Pre-flight gate | PASS | 2026-02-17 17:14 | flutter analyze: No issues; flutter test: passed (2 skipped); AAB aanwezig; signingReport release alias kidu_upload; git status clean |
+| Pre-flight gate | PASS | 2026-02-17 17:14; build 2026-02-19 18:05 | flutter analyze: No issues; flutter test: passed (2 skipped); AAB aanwezig; signingReport release alias kidu_upload; git status clean. Release AAB rebuilt 2026-02-19, release-built today. AAB SHA-256: DD41B972EF39170BA0185002726F33D002C53CF8EF20746C463B108072C5BCB2. Release AAB rebuilt after UI/login polish + atomic users/$uid write in join transaction + no dashboard flash + last activity indicator. |
 | AAB upload | PASS | 2026-02-17 [VUL_IN] | AAB geüpload & verwerkt in Internal testing release (bundle 2 / 0.1.0) |
 | Release aangemaakt | PASS | 2026-02-17 [VUL_IN] | Release notes opgeslagen (nl-NL + en-US) |
 | Rollout gestart | FAIL (BLOCKED) | 2026-02-17 [VUL_IN] | Account verification in progress: "There are issues with your account…" |
