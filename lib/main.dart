@@ -860,6 +860,17 @@ class _DashboardPageState extends State<DashboardPage> {
     return '€$value';
   }
 
+  String _formatRelativeNl(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inSeconds < 60) return 'zojuist';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min geleden';
+    if (diff.inHours < 24) return '${diff.inHours} uur geleden';
+    if (diff.inDays == 1) return 'gisteren';
+    if (diff.inDays < 7) return '${diff.inDays} dagen geleden';
+    return '${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}';
+  }
+
   Future<Map<String, String>> _fetchUserNames({
     required String myUid,
     required String? otherUid,
@@ -1882,10 +1893,44 @@ class _DashboardPageState extends State<DashboardPage> {
                                           ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
                                           : 'Jullie zijn in balans';
 
+                                  String? lastActivityText;
+                                  if (docs.isNotEmpty) {
+                                    final first = docs.first;
+                                    final e = first.data();
+                                    final createdBy =
+                                        (e['createdBy'] as String?)?.trim();
+                                    final createdAt =
+                                        e['createdAt'] as Timestamp?;
+                                    final name = createdBy == user.uid
+                                        ? myName
+                                        : otherName;
+                                    final timeStr = createdAt == null
+                                        ? 'zojuist'
+                                        : _formatRelativeNl(
+                                            createdAt.toDate());
+                                    lastActivityText =
+                                        'Laatste activiteit: $name · $timeStr';
+                                  }
+
                                   return Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
+                                      if (lastActivityText != null) ...[
+                                        Text(
+                                          lastActivityText,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withValues(alpha: 0.60),
+                                              ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
                                       KiduCard(
                                         child: Column(
                                           crossAxisAlignment:
