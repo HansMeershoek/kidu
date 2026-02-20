@@ -12,10 +12,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
+import 'package:kidu/theme/kidu_theme.dart';
 
 /// Maps exceptions to user-friendly Dutch messages. Does not throw.
-String mapUserFacingError(Object e,
-    {String fallback = 'Er ging iets mis. Probeer opnieuw.'}) {
+String mapUserFacingError(
+  Object e, {
+  String fallback = 'Er ging iets mis. Probeer opnieuw.',
+}) {
   try {
     if (e is FirebaseException) {
       final code = e.code;
@@ -105,7 +108,10 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                   children: [
                     const Text(
                       'Notitie bewerken',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Flexible(
@@ -191,7 +197,7 @@ class KiDuApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'KiDu',
-      theme: ThemeData(useMaterial3: true),
+      theme: buildKiduTheme(),
       scaffoldMessengerKey: appScaffoldMessengerKey,
       home: const AuthGate(),
     );
@@ -268,7 +274,9 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _save() async {
@@ -297,10 +305,9 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       }
 
       final uid = stillUser.uid;
-      await FirebaseFirestore.instance.doc('users/$uid').set(
-        {'profileName': name},
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance.doc('users/$uid').set({
+        'profileName': name,
+      }, SetOptions(merge: true));
 
       if (!mounted) {
         return;
@@ -310,7 +317,9 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       );
     } catch (e) {
       debugPrint('Save profileName error: $e');
-      _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
+      _showSnackBar(
+        mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'),
+      );
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -379,9 +388,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                 maxLength: 20,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _busy ? null : _save(),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -447,9 +454,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       // d) Create Firebase credential
-      final credential = GoogleAuthProvider.credential(
-        idToken: idToken,
-      );
+      final credential = GoogleAuthProvider.credential(idToken: idToken);
 
       // e) Sign in to Firebase
       await FirebaseAuth.instance.signInWithCredential(credential);
@@ -471,8 +476,10 @@ class _LoginPageState extends State<LoginPage> {
           'PlatformException code=${e.code} message=${e.message} details=${e.details}',
         );
       }
-      final message =
-          mapUserFacingError(e, fallback: 'Google-inloggen mislukt. Probeer opnieuw.');
+      final message = mapUserFacingError(
+        e,
+        fallback: 'Google-inloggen mislukt. Probeer opnieuw.',
+      );
       if (mounted) {
         setState(() => _error = message);
       }
@@ -487,7 +494,6 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F6F4),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -497,9 +503,14 @@ class _LoginPageState extends State<LoginPage> {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEFEBE5),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Column(
@@ -509,16 +520,17 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 32),
                       Text(
                         'Rust in gedeelde kosten',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        style:
+                            Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w500,
                               letterSpacing: -0.2,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                              color: onSurface(context, a85),
                             ) ??
                             TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w500,
                               letterSpacing: -0.2,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.85),
+                              color: onSurface(context, a85),
                             ),
                         textAlign: TextAlign.center,
                       ),
@@ -528,13 +540,21 @@ class _LoginPageState extends State<LoginPage> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            border: Border.all(color: Colors.red.shade200),
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.error.withValues(alpha: 0.35),
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             _error!,
-                            style: const TextStyle(color: Colors.red),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
+                            ),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -569,7 +589,7 @@ class _LoginPageState extends State<LoginPage> {
                           Icon(
                             Icons.lock_outline,
                             size: 16,
-                            color: Colors.grey.shade600,
+                            color: onSurface(context, a60),
                           ),
                           const SizedBox(width: 8),
                           Flexible(
@@ -577,7 +597,7 @@ class _LoginPageState extends State<LoginPage> {
                               'Veilig inloggen via Google',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey.shade600,
+                                color: onSurface(context, a60),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -651,7 +671,7 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Container(
           height: barHeight,
           decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withAlpha((0.5 * 255).round()),
+            color: cs.surfaceContainerHighest.withValues(alpha: a50),
             borderRadius: BorderRadius.circular(barRadius),
           ),
         ),
@@ -675,7 +695,7 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Container(
                 height: barHeight,
                 decoration: BoxDecoration(
-                  color: cs.primary.withAlpha((0.45 * 255).round()),
+                  color: cs.primary.withValues(alpha: a45),
                   borderRadius: BorderRadius.horizontal(
                     left: const Radius.circular(barRadius),
                     right: otherPaidCents > 0
@@ -691,7 +711,7 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Container(
                 height: barHeight,
                 decoration: BoxDecoration(
-                  color: cs.secondary.withAlpha((0.45 * 255).round()),
+                  color: cs.secondary.withValues(alpha: a45),
                   borderRadius: BorderRadius.horizontal(
                     left: myPaidCents > 0
                         ? Radius.zero
@@ -715,13 +735,13 @@ class _DashboardPageState extends State<DashboardPage> {
     final Color chipColor;
     if (settlementCents > 0) {
       label = 'Jij krijgt terug';
-      chipColor = cs.primary.withAlpha((0.18 * 255).round());
+      chipColor = cs.primary.withValues(alpha: a18);
     } else if (settlementCents < 0) {
       label = 'Jij betaalt';
-      chipColor = cs.secondary.withAlpha((0.18 * 255).round());
+      chipColor = cs.secondary.withValues(alpha: a18);
     } else {
       label = 'In balans';
-      chipColor = cs.surfaceContainerHighest.withAlpha((0.4 * 255).round());
+      chipColor = cs.surfaceContainerHighest.withValues(alpha: a40);
     }
 
     return Container(
@@ -729,16 +749,14 @@ class _DashboardPageState extends State<DashboardPage> {
       decoration: BoxDecoration(
         color: Color.alphaBlend(chipColor, cs.surface),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: cs.outlineVariant.withAlpha((0.4 * 255).round()),
-        ),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: a40)),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface.withAlpha((0.85 * 255).round()),
-            ),
+          fontWeight: FontWeight.w600,
+          color: onSurface(context, a85),
+        ),
       ),
     );
   }
@@ -748,9 +766,9 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openEditPrivateNoteDialog({
@@ -776,7 +794,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
       if (!await _canWriteExpenseNow()) {
         if (mounted) {
-          _showSnackBar('Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.');
+          _showSnackBar(
+            'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+          );
         }
         return;
       }
@@ -804,7 +824,9 @@ class _DashboardPageState extends State<DashboardPage> {
     } catch (e) {
       debugPrint('Note save error: $e');
       if (mounted) {
-        _showSnackBar(mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'));
+        _showSnackBar(
+          mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'),
+        );
       }
     } finally {
       _noteWriteInFlight = false;
@@ -887,14 +909,13 @@ class _DashboardPageState extends State<DashboardPage> {
         final displayName = (data?['displayName'] as String?)?.trim();
         final email = (data?['email'] as String?)?.trim();
 
-        final effective =
-            (profileName != null && profileName.isNotEmpty)
-                ? profileName
-                : (displayName != null && displayName.isNotEmpty)
-                    ? displayName
-                    : (email != null && email.isNotEmpty)
-                        ? email
-                        : fallback;
+        final effective = (profileName != null && profileName.isNotEmpty)
+            ? profileName
+            : (displayName != null && displayName.isNotEmpty)
+            ? displayName
+            : (email != null && email.isNotEmpty)
+            ? email
+            : fallback;
         result[uid] = effective;
       } catch (e) {
         debugPrint('Fetch user name error (uid=$uid): $e');
@@ -945,8 +966,8 @@ class _DashboardPageState extends State<DashboardPage> {
           builder: (context, setModalState) {
             final effectiveOtherName =
                 (otherName != null && otherName.trim().isNotEmpty)
-                    ? otherName.trim()
-                    : 'Co-parent';
+                ? otherName.trim()
+                : 'Co-parent';
 
             return SafeArea(
               child: SingleChildScrollView(
@@ -954,7 +975,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   left: _pagePadding,
                   right: _pagePadding,
                   top: 8,
-                  bottom: _pagePadding + MediaQuery.of(context).viewInsets.bottom,
+                  bottom:
+                      _pagePadding + MediaQuery.of(context).viewInsets.bottom,
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
@@ -965,19 +987,16 @@ class _DashboardPageState extends State<DashboardPage> {
                       Text(
                         'Instellingen',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Text(
                         'Verbonden met: $effectiveOtherName',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurface
-                                  .withAlpha((0.68 * 255).round()),
-                              height: 1.35,
-                            ),
+                          color: onSurface(context, a68),
+                          height: 1.35,
+                        ),
                       ),
                       const SizedBox(height: _cardGap),
                       if (canInvite) ...[
@@ -994,9 +1013,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     }
                                   },
                             child: Text(
-                              _inviteBusy
-                                  ? 'Bezig...'
-                                  : 'Genereer invite code',
+                              _inviteBusy ? 'Bezig...' : 'Genereer invite code',
                             ),
                           ),
                         ),
@@ -1014,8 +1031,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           const SizedBox(height: 8),
                           FilledButton.icon(
-                            onPressed: () =>
-                                _shareInviteCode(_inviteCode!),
+                            onPressed: () => _shareInviteCode(_inviteCode!),
                             icon: const Icon(Icons.share),
                             label: const Text('Delen'),
                           ),
@@ -1049,7 +1065,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             ? null
                             : () {
                                 Navigator.of(context).pop();
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
                                   if (!mounted) {
                                     return;
                                   }
@@ -1128,20 +1146,19 @@ class _DashboardPageState extends State<DashboardPage> {
       final noteTrimmed = note?.trim();
       if (noteTrimmed != null && noteTrimmed.isNotEmpty) {
         try {
-          await ref
-              .collection('privateNotes')
-              .doc(uid)
-              .set({
-                'note': noteTrimmed,
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
+          await ref.collection('privateNotes').doc(uid).set({
+            'note': noteTrimmed,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
         } catch (noteErr) {
           debugPrint('Private note write error: $noteErr');
-          noteErrMsg = mapUserFacingError(noteErr, fallback: 'notitie niet opgeslagen.');
+          noteErrMsg = mapUserFacingError(
+            noteErr,
+            fallback: 'notitie niet opgeslagen.',
+          );
         }
       }
-      final expenseSnap =
-          await ref.get(const GetOptions(source: Source.cache));
+      final expenseSnap = await ref.get(const GetOptions(source: Source.cache));
       final isPending = expenseSnap.metadata.hasPendingWrites;
       if (isPending) {
         final naam = (coparentNameForPendingMessage?.trim().isNotEmpty ?? false)
@@ -1151,9 +1168,11 @@ class _DashboardPageState extends State<DashboardPage> {
           'Uitgave wordt opgeslagen en is pas zichtbaar voor $naam zodra je weer online bent.',
         );
       } else {
-        _showSnackBar(noteErrMsg != null
-            ? 'Uitgave opgeslagen, $noteErrMsg'
-            : 'Uitgave opgeslagen.');
+        _showSnackBar(
+          noteErrMsg != null
+              ? 'Uitgave opgeslagen, $noteErrMsg'
+              : 'Uitgave opgeslagen.',
+        );
       }
     } catch (e) {
       debugPrint('Create expense error: $e');
@@ -1235,7 +1254,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   actions: [
                     TextButton(
-                      onPressed: saving ? null : () => Navigator.of(context).pop(),
+                      onPressed: saving
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       child: const Text('Annuleren'),
                     ),
                     ElevatedButton(
@@ -1243,8 +1264,9 @@ class _DashboardPageState extends State<DashboardPage> {
                           ? null
                           : () async {
                               final title = titleController.text.trim();
-                              final amountCents =
-                                  _tryParseEurToCents(amountController.text);
+                              final amountCents = _tryParseEurToCents(
+                                amountController.text,
+                              );
                               if (title.isEmpty) {
                                 _showSnackBar('Vul een titel in.');
                                 return;
@@ -1280,8 +1302,11 @@ class _DashboardPageState extends State<DashboardPage> {
                               } catch (e) {
                                 debugPrint('Create expense (dialog) error: $e');
                                 _showSnackBar(
-                                  mapUserFacingError(e,
-                                      fallback: 'Opslaan mislukt. Probeer opnieuw.'),
+                                  mapUserFacingError(
+                                    e,
+                                    fallback:
+                                        'Opslaan mislukt. Probeer opnieuw.',
+                                  ),
                                 );
                               } finally {
                                 if (context.mounted) {
@@ -1360,14 +1385,11 @@ class _DashboardPageState extends State<DashboardPage> {
       ) async {
         final userSnap = await transaction.get(userRef);
         final userData = userSnap.data();
-        final existingHouseholdId =
-            (userData?['householdId'] as String?)?.trim();
+        final existingHouseholdId = (userData?['householdId'] as String?)
+            ?.trim();
 
         if (existingHouseholdId != null && existingHouseholdId.isNotEmpty) {
-          return {
-            'alreadyExists': true,
-            'householdId': existingHouseholdId,
-          };
+          return {'alreadyExists': true, 'householdId': existingHouseholdId};
         }
 
         final householdRef = firestore.collection('households').doc();
@@ -1384,19 +1406,12 @@ class _DashboardPageState extends State<DashboardPage> {
           'joinedAt': FieldValue.serverTimestamp(),
         });
 
-        transaction.set(
-          userRef,
-          {
-            'householdId': householdRef.id,
-            'setupCompletedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-
-        return {
-          'alreadyExists': false,
+        transaction.set(userRef, {
           'householdId': householdRef.id,
-        };
+          'setupCompletedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        return {'alreadyExists': false, 'householdId': householdRef.id};
       });
 
       final alreadyExists = result['alreadyExists'] == true;
@@ -1412,7 +1427,9 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     } catch (e) {
       debugPrint('Start setup error: $e');
-      _showSnackBar(mapUserFacingError(e, fallback: 'Setup mislukt. Probeer opnieuw.'));
+      _showSnackBar(
+        mapUserFacingError(e, fallback: 'Setup mislukt. Probeer opnieuw.'),
+      );
     } finally {
       if (mounted) {
         setState(() => _setupBusy = false);
@@ -1423,7 +1440,10 @@ class _DashboardPageState extends State<DashboardPage> {
   String _randomInviteCode(int length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final rnd = Random.secure();
-    return List.generate(length, (_) => chars[rnd.nextInt(chars.length)]).join();
+    return List.generate(
+      length,
+      (_) => chars[rnd.nextInt(chars.length)],
+    ).join();
   }
 
   Future<void> _generateInvite(String householdId) async {
@@ -1551,15 +1571,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(
-      const SnackBar(content: Text('Uitgelogd. Kies een ander Google-account.')),
+      const SnackBar(
+        content: Text('Uitgelogd. Kies een ander Google-account.'),
+      ),
     );
   }
 
   Future<void> _signOut(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signOut();
-    } catch (_) {
-    }
+    } catch (_) {}
     try {
       await _googleSignIn.signOut();
     } catch (_) {
@@ -1591,7 +1612,6 @@ class _DashboardPageState extends State<DashboardPage> {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.doc('users/${user.uid}').snapshots(),
       builder: (context, snapshot) {
-        final cs = Theme.of(context).colorScheme;
         final data = snapshot.data?.data();
         final myProfileName = (data?['profileName'] as String?)?.trim();
         final householdId = (data?['householdId'] as String?)?.trim();
@@ -1600,21 +1620,15 @@ class _DashboardPageState extends State<DashboardPage> {
 
         final myFallbackName =
             (myProfileName != null && myProfileName.isNotEmpty)
-                ? myProfileName
-                : (user.displayName != null && user.displayName!.trim().isNotEmpty)
-                    ? user.displayName!.trim()
-                    : (user.email != null && user.email!.trim().isNotEmpty)
-                        ? user.email!.trim()
-                        : 'Jij';
-
-        final background = Color.alphaBlend(
-          cs.primary.withAlpha((0.05 * 255).round()),
-          cs.surface,
-        );
+            ? myProfileName
+            : (user.displayName != null && user.displayName!.trim().isNotEmpty)
+            ? user.displayName!.trim()
+            : (user.email != null && user.email!.trim().isNotEmpty)
+            ? user.email!.trim()
+            : 'Jij';
 
         if (snapshot.hasError) {
           return Scaffold(
-            backgroundColor: background,
             appBar: AppBar(
               title: const Text('KiDu'),
               actions: [
@@ -1639,14 +1653,17 @@ class _DashboardPageState extends State<DashboardPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('Accountgegevens konden niet worden geladen.'),
+                        const Text(
+                          'Accountgegevens konden niet worden geladen.',
+                        ),
                         const SizedBox(height: 16),
                         SizedBox(
                           height: 48,
                           width: double.infinity,
                           child: OutlinedButton(
-                            onPressed:
-                                _switchBusy ? null : () => _switchAccount(context),
+                            onPressed: _switchBusy
+                                ? null
+                                : () => _switchAccount(context),
                             child: const Text('Wissel account'),
                           ),
                         ),
@@ -1661,7 +1678,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
         if (!hasHousehold) {
           return Scaffold(
-            backgroundColor: background,
             appBar: AppBar(
               title: const Text('KiDu'),
               actions: [
@@ -1689,17 +1705,15 @@ class _DashboardPageState extends State<DashboardPage> {
                         children: [
                           Text(
                             'Nog niet gekoppeld',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             'Koppel door te starten of met een invite-code.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: cs.onSurface.withAlpha(
-                                    (0.66 * 255).round(),
-                                  ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a66),
                                   height: 1.35,
                                 ),
                           ),
@@ -1710,9 +1724,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Text(
                                   'Acties',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
+                                  style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: _cardGap),
@@ -1725,8 +1737,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                             HapticFeedback.selectionClick();
                                             _startSetup();
                                           },
-                                    child:
-                                        Text(_setupBusy ? 'Bezig...' : 'Start setup'),
+                                    child: Text(
+                                      _setupBusy ? 'Bezig...' : 'Start setup',
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: _cardGap),
@@ -1751,7 +1764,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ? null
                                         : () => _switchAccount(context),
                                     child: Text(
-                                      _switchBusy ? 'Bezig...' : 'Wissel account',
+                                      _switchBusy
+                                          ? 'Bezig...'
+                                          : 'Wissel account',
                                     ),
                                   ),
                                 ),
@@ -1808,7 +1823,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     : (names[otherUid] ?? 'Co-parent');
 
                 return Scaffold(
-                  backgroundColor: background,
                   appBar: AppBar(
                     title: const Text('KiDu'),
                     actions: [
@@ -1834,7 +1848,10 @@ class _DashboardPageState extends State<DashboardPage> {
                               );
                               return;
                             }
-                            _openAddExpenseDialog(householdIdStr, coparentName: otherName);
+                            _openAddExpenseDialog(
+                              householdIdStr,
+                              coparentName: otherName,
+                            );
                           },
                     child: const Icon(Icons.add),
                   ),
@@ -1848,16 +1865,19 @@ class _DashboardPageState extends State<DashboardPage> {
                             child: SizedBox(
                               width: min(constraints.maxWidth, 520.0),
                               height: constraints.maxHeight,
-                              child: StreamBuilder<
-                                  QuerySnapshot<Map<String, dynamic>>>(
+                              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                                 stream: FirebaseFirestore.instance
-                                    .collection('households/$householdIdStr/expenses')
+                                    .collection(
+                                      'households/$householdIdStr/expenses',
+                                    )
                                     .orderBy('createdAt', descending: true)
                                     .limit(20)
                                     .snapshots(includeMetadataChanges: true),
                                 builder: (context, expensesSnapshot) {
                                   if (expensesSnapshot.hasError) {
-                                    return const Text('Kon uitgaven niet laden.');
+                                    return const Text(
+                                      'Kon uitgaven niet laden.',
+                                    );
                                   }
 
                                   final docs =
@@ -1868,7 +1888,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   for (final d in docs) {
                                     final e = d.data();
                                     final amountCents =
-                                        (e['amountCents'] as num?)?.toInt() ?? 0;
+                                        (e['amountCents'] as num?)?.toInt() ??
+                                        0;
                                     totalCents += amountCents;
                                     final createdBy =
                                         (e['createdBy'] as String?)?.trim();
@@ -1876,22 +1897,25 @@ class _DashboardPageState extends State<DashboardPage> {
                                       myPaidCents += amountCents;
                                     }
                                   }
-                                  final otherPaidCents = totalCents - myPaidCents;
+                                  final otherPaidCents =
+                                      totalCents - myPaidCents;
                                   final halfFloor = totalCents ~/ 2;
                                   final remainder = totalCents % 2;
-                                  final expectedMy = halfFloor +
+                                  final expectedMy =
+                                      halfFloor +
                                       ((remainder == 1 &&
                                               myPaidCents < otherPaidCents)
                                           ? 1
                                           : 0);
-                                  final settlementCents = myPaidCents - expectedMy;
+                                  final settlementCents =
+                                      myPaidCents - expectedMy;
 
                                   final absSettlement = settlementCents.abs();
                                   final settlementText = settlementCents > 0
                                       ? '$otherName betaalt jou ${_formatEur(absSettlement)}'
                                       : settlementCents < 0
-                                          ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
-                                          : 'Jullie zijn in balans';
+                                      ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
+                                      : 'Jullie zijn in balans';
 
                                   String? lastActivityText;
                                   if (docs.isNotEmpty) {
@@ -1906,8 +1930,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         : otherName;
                                     final timeStr = createdAt == null
                                         ? 'zojuist'
-                                        : _formatRelativeNl(
-                                            createdAt.toDate());
+                                        : _formatRelativeNl(createdAt.toDate());
                                     lastActivityText =
                                         'Laatste activiteit: $name · $timeStr';
                                   }
@@ -1923,10 +1946,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                               .textTheme
                                               .bodySmall
                                               ?.copyWith(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurface
-                                                    .withValues(alpha: 0.60),
+                                                color: onSurface(context, a60),
                                               ),
                                         ),
                                         const SizedBox(height: 8),
@@ -1978,8 +1998,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 final myShare = rawShare
                                                     .clamp(0.0, 1.0)
                                                     .toDouble();
-                                                final myPct =
-                                                    (myShare * 100).round();
+                                                final myPct = (myShare * 100)
+                                                    .round();
                                                 final otherPct = 100 - myPct;
 
                                                 return Column(
@@ -1995,34 +2015,28 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       children: [
                                                         Text(
                                                           '$myName $myPct%',
-                                                          style: Theme.of(
-                                                            context,
-                                                          )
+                                                          style: Theme.of(context)
                                                               .textTheme
                                                               .bodySmall
                                                               ?.copyWith(
-                                                                color: cs
-                                                                    .onSurface
-                                                                    .withAlpha(
-                                                                  (0.72 * 255)
-                                                                      .round(),
-                                                                ),
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a72,
+                                                                    ),
                                                               ),
                                                         ),
                                                         Text(
                                                           '$otherName $otherPct%',
-                                                          style: Theme.of(
-                                                            context,
-                                                          )
+                                                          style: Theme.of(context)
                                                               .textTheme
                                                               .bodySmall
                                                               ?.copyWith(
-                                                                color: cs
-                                                                    .onSurface
-                                                                    .withAlpha(
-                                                                  (0.72 * 255)
-                                                                      .round(),
-                                                                ),
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a72,
+                                                                    ),
                                                               ),
                                                         ),
                                                       ],
@@ -2034,9 +2048,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             const SizedBox(height: _cardGap),
                                             Divider(
                                               height: 1,
-                                              color: cs.outlineVariant.withAlpha(
-                                                (0.45 * 255).round(),
-                                              ),
+                                              color: outlineV(context, a45),
                                             ),
                                             const SizedBox(height: _cardGap),
                                             Text(
@@ -2046,8 +2058,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   .bodyMedium
                                                   ?.copyWith(
                                                     fontWeight: FontWeight.w500,
-                                                    color: cs.onSurface.withAlpha(
-                                                      (0.84 * 255).round(),
+                                                    color: onSurface(
+                                                      context,
+                                                      a84,
                                                     ),
                                                     height: 1.35,
                                                   ),
@@ -2085,11 +2098,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       .textTheme
                                                       .bodySmall
                                                       ?.copyWith(
-                                                        color: cs.onSurface
-                                                            .withAlpha(
-                                                              (0.62 * 255)
-                                                                  .round(),
-                                                            ),
+                                                        color: onSurface(
+                                                          context,
+                                                          a62,
+                                                        ),
                                                         height: 1.35,
                                                       ),
                                                 ),
@@ -2102,99 +2114,96 @@ class _DashboardPageState extends State<DashboardPage> {
                                                             CircularProgressIndicator(),
                                                       )
                                                     : docs.isEmpty
-                                                        ? Align(
-                                                            alignment:
-                                                                Alignment.topLeft,
-                                                            child: Text(
-                                                              'Nog geen uitgaven. Voeg er een toe met +.',
-                                                              style: Theme.of(context)
-                                                                  .textTheme
-                                                                  .bodyMedium
-                                                                  ?.copyWith(
-                                                                    color: cs
-                                                                        .onSurface
-                                                                        .withAlpha(
-                                                                      (0.62 * 255)
-                                                                          .round(),
+                                                    ? Align(
+                                                        alignment:
+                                                            Alignment.topLeft,
+                                                        child: Text(
+                                                          'Nog geen uitgaven. Voeg er een toe met +.',
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .bodyMedium
+                                                              ?.copyWith(
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a62,
                                                                     ),
-                                                                    height: 1.35,
-                                                                  ),
-                                                            ),
-                                                          )
-                                                        : ListView.separated(
-                                                            itemCount: docs.length,
-                                                            separatorBuilder:
-                                                                (context, index) =>
-                                                                    Divider(
-                                                              height: 16,
-                                                              color: cs
-                                                                  .outlineVariant
-                                                                  .withAlpha(
-                                                                (0.40 * 255)
-                                                                    .round(),
+                                                                height: 1.35,
                                                               ),
-                                                            ),
-                                                            itemBuilder:
-                                                                (context, index) {
-                                                              final d =
-                                                                  docs[index];
-                                                              final e = d.data();
-                                                              final title =
-                                                                  (e['title']
-                                                                              as String?)
-                                                                          ?.trim() ??
-                                                                      '(zonder)';
-                                                              final amountCents =
-                                                                  (e['amountCents']
-                                                                              as num?)
-                                                                          ?.toInt() ??
-                                                                      0;
-                                                              final createdBy =
-                                                                  (e['createdBy']
-                                                                          as String?)
-                                                                      ?.trim();
+                                                        ),
+                                                      )
+                                                    : ListView.separated(
+                                                        itemCount: docs.length,
+                                                        separatorBuilder:
+                                                            (context, index) =>
+                                                                Divider(
+                                                                  height: 16,
+                                                                  color:
+                                                                      outlineV(
+                                                                        context,
+                                                                        a40,
+                                                                      ),
+                                                                ),
+                                                        itemBuilder: (context, index) {
+                                                          final d = docs[index];
+                                                          final e = d.data();
+                                                          final title =
+                                                              (e['title']
+                                                                      as String?)
+                                                                  ?.trim() ??
+                                                              '(zonder)';
+                                                          final amountCents =
+                                                              (e['amountCents']
+                                                                      as num?)
+                                                                  ?.toInt() ??
+                                                              0;
+                                                          final createdBy =
+                                                              (e['createdBy']
+                                                                      as String?)
+                                                                  ?.trim();
 
-                                                              final who = createdBy ==
-                                                                      user.uid
-                                                                  ? myName
-                                                                  : (otherUid !=
-                                                                              null &&
-                                                                          createdBy ==
-                                                                              otherUid)
-                                                                      ? otherName
-                                                                      : 'Co-parent';
-                                                              final isPending =
-                                                                  d.metadata.hasPendingWrites;
-                                                              final createdAtRaw =
-                                                                  e['createdAt'];
-                                                              DateTime?
-                                                              createdAtDateTime;
-                                                              if (createdAtRaw
-                                                                  is Timestamp) {
-                                                                createdAtDateTime =
-                                                                    createdAtRaw
-                                                                        .toDate()
-                                                                        .toLocal();
-                                                              } else if (createdAtRaw
-                                                                  is DateTime) {
-                                                                createdAtDateTime =
-                                                                    createdAtRaw
-                                                                        .toLocal();
-                                                              }
-                                                              final subtitleText =
-                                                                  createdAtDateTime ==
-                                                                      null
-                                                                  ? who
-                                                                  : (() {
-                                                                      final dt =
-                                                                          createdAtDateTime;
-                                                                      if (dt ==
-                                                                          null) {
-                                                                        return who;
-                                                                      }
-                                                                      const nlMonths = <
-                                                                        String
-                                                                      >[
+                                                          final who =
+                                                              createdBy ==
+                                                                  user.uid
+                                                              ? myName
+                                                              : (otherUid !=
+                                                                        null &&
+                                                                    createdBy ==
+                                                                        otherUid)
+                                                              ? otherName
+                                                              : 'Co-parent';
+                                                          final isPending = d
+                                                              .metadata
+                                                              .hasPendingWrites;
+                                                          final createdAtRaw =
+                                                              e['createdAt'];
+                                                          DateTime?
+                                                          createdAtDateTime;
+                                                          if (createdAtRaw
+                                                              is Timestamp) {
+                                                            createdAtDateTime =
+                                                                createdAtRaw
+                                                                    .toDate()
+                                                                    .toLocal();
+                                                          } else if (createdAtRaw
+                                                              is DateTime) {
+                                                            createdAtDateTime =
+                                                                createdAtRaw
+                                                                    .toLocal();
+                                                          }
+                                                          final subtitleText =
+                                                              createdAtDateTime ==
+                                                                  null
+                                                              ? who
+                                                              : (() {
+                                                                  final dt =
+                                                                      createdAtDateTime;
+                                                                  if (dt ==
+                                                                      null) {
+                                                                    return who;
+                                                                  }
+                                                                  const nlMonths =
+                                                                      <String>[
                                                                         'jan',
                                                                         'feb',
                                                                         'mrt',
@@ -2208,187 +2217,289 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         'nov',
                                                                         'dec',
                                                                       ];
-                                                                      final shortDateTime =
-                                                                          '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                                                                      return '$who • $shortDateTime';
-                                                                    })();
+                                                                  final shortDateTime =
+                                                                      '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                                                                  return '$who • $shortDateTime';
+                                                                })();
 
-                                                              if (createdBy != user.uid) {
-                                                                return ListTile(
-                                                                  contentPadding: EdgeInsets.zero,
-                                                                  dense: true,
-                                                                  visualDensity: VisualDensity.compact,
-                                                                  onTap: () {
-                                                                    Navigator.of(context).push(
-                                                                      MaterialPageRoute<void>(
-                                                                        builder: (context) => _ExpenseDetailPage(
-                                                                          householdId: householdIdStr,
-                                                                          expenseId: d.id,
-                                                                          uid: user.uid,
-                                                                          title: title,
-                                                                          amountCents: amountCents,
-                                                                          paidByName: who,
-                                                                          createdAt: createdAtDateTime,
-                                                                          isPending: isPending,
-                                                                          onManageNote: null,
+                                                          if (createdBy !=
+                                                              user.uid) {
+                                                            return ListTile(
+                                                              contentPadding:
+                                                                  EdgeInsets
+                                                                      .zero,
+                                                              dense: true,
+                                                              visualDensity:
+                                                                  VisualDensity
+                                                                      .compact,
+                                                              onTap: () {
+                                                                Navigator.of(
+                                                                  context,
+                                                                ).push(
+                                                                  MaterialPageRoute<
+                                                                    void
+                                                                  >(
+                                                                    builder: (context) => _ExpenseDetailPage(
+                                                                      householdId:
+                                                                          householdIdStr,
+                                                                      expenseId:
+                                                                          d.id,
+                                                                      uid: user
+                                                                          .uid,
+                                                                      title:
+                                                                          title,
+                                                                      amountCents:
+                                                                          amountCents,
+                                                                      paidByName:
+                                                                          who,
+                                                                      createdAt:
+                                                                          createdAtDateTime,
+                                                                      isPending:
+                                                                          isPending,
+                                                                      onManageNote:
+                                                                          null,
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              },
+                                                              title: Text(
+                                                                title,
+                                                                maxLines: 1,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                              ),
+                                                              subtitle: Text(
+                                                                subtitleText,
+                                                                maxLines: 1,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                              ),
+                                                              trailing: Row(
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                children: [
+                                                                  if (isPending)
+                                                                    Tooltip(
+                                                                      message:
+                                                                          'Nog niet gesynchroniseerd',
+                                                                      child: Icon(
+                                                                        Icons
+                                                                            .cloud_off,
+                                                                        size:
+                                                                            16,
+                                                                        color: onSurface(
+                                                                          context,
+                                                                          a50,
                                                                         ),
                                                                       ),
+                                                                    ),
+                                                                  if (isPending)
+                                                                    const SizedBox(
+                                                                      width: 4,
+                                                                    ),
+                                                                  Text(
+                                                                    _formatEur(
+                                                                      amountCents,
+                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w700,
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            );
+                                                          }
+
+                                                          return FutureBuilder<
+                                                            String?
+                                                          >(
+                                                            key: ValueKey(
+                                                              'note_${d.id}_$_notesRefreshTick',
+                                                            ),
+                                                            future: _loadMyPrivateNote(
+                                                              householdId:
+                                                                  householdIdStr,
+                                                              expenseId: d.id,
+                                                              uid: user.uid,
+                                                            ),
+                                                            builder: (context, noteSnap) {
+                                                              final note =
+                                                                  noteSnap.data;
+                                                              final hasNote =
+                                                                  note !=
+                                                                      null &&
+                                                                  note.isNotEmpty;
+
+                                                              Future<void>
+                                                              openNoteFlow() async {
+                                                                if (!await _canWriteExpenseNow()) {
+                                                                  if (mounted) {
+                                                                    final msg =
+                                                                        hasNote
+                                                                        ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                        : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
+                                                                    _showSnackBar(
+                                                                      msg,
                                                                     );
-                                                                  },
-                                                                  title: Text(
-                                                                    title,
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                  subtitle: Text(
-                                                                    subtitleText,
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                  trailing: Row(
-                                                                    mainAxisSize: MainAxisSize.min,
-                                                                    children: [
-                                                                      if (isPending)
-                                                                        Tooltip(
-                                                                          message: 'Nog niet gesynchroniseerd',
-                                                                          child: Icon(
-                                                                            Icons.cloud_off,
-                                                                            size: 16,
-                                                                            color: cs.onSurface.withAlpha((0.5 * 255).round()),
-                                                                          ),
-                                                                        ),
-                                                                      if (isPending) const SizedBox(width: 4),
-                                                                      Text(
-                                                                        _formatEur(amountCents),
-                                                                        style: Theme.of(context)
-                                                                            .textTheme
-                                                                            .bodyMedium
-                                                                            ?.copyWith(
-                                                                              fontWeight: FontWeight.w700,
-                                                                            ),
-                                                                      ),
-                                                                    ],
-                                                                  ),
+                                                                  }
+                                                                  return;
+                                                                }
+                                                                final snap =
+                                                                    await FirebaseFirestore
+                                                                        .instance
+                                                                        .doc(
+                                                                          'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
+                                                                        )
+                                                                        .get();
+                                                                final latestNote =
+                                                                    ((snap.data()?['note']
+                                                                                as String?) ??
+                                                                            '')
+                                                                        .trim();
+                                                                await _openEditPrivateNoteDialog(
+                                                                  householdId:
+                                                                      householdIdStr,
+                                                                  expenseId:
+                                                                      d.id,
+                                                                  uid: user.uid,
+                                                                  initialNote:
+                                                                      latestNote,
                                                                 );
                                                               }
 
-                                                              return FutureBuilder<String?>(
-                                                                key: ValueKey('note_${d.id}_$_notesRefreshTick'),
-                                                                future: _loadMyPrivateNote(
-                                                                  householdId: householdIdStr,
-                                                                  expenseId: d.id,
-                                                                  uid: user.uid,
-                                                                ),
-                                                                builder: (context, noteSnap) {
-                                                                  final note = noteSnap.data;
-                                                                  final hasNote = note != null && note.isNotEmpty;
-
-                                                                  Future<void> openNoteFlow() async {
-                                                                    if (!await _canWriteExpenseNow()) {
-                                                                      if (mounted) {
-                                                                        final msg = hasNote
-                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
-                                                                        _showSnackBar(msg);
-                                                                      }
-                                                                      return;
-                                                                    }
-                                                                    final snap = await FirebaseFirestore.instance
-                                                                        .doc('households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}')
-                                                                        .get();
-                                                                    final latestNote = ((snap.data()?['note'] as String?) ?? '').trim();
-                                                                    await _openEditPrivateNoteDialog(
-                                                                      householdId: householdIdStr,
-                                                                      expenseId: d.id,
-                                                                      uid: user.uid,
-                                                                      initialNote: latestNote,
-                                                                    );
-                                                                  }
-
-                                                                  return ListTile(
-                                                                    contentPadding: EdgeInsets.zero,
-                                                                    dense: true,
-                                                                    visualDensity: VisualDensity.compact,
-                                                                    onTap: () {
-                                                                      Navigator.of(context).push(
-                                                                        MaterialPageRoute<void>(
-                                                                          builder: (context) => _ExpenseDetailPage(
-                                                                            householdId: householdIdStr,
-                                                                            expenseId: d.id,
-                                                                            uid: user.uid,
-                                                                            title: title,
-                                                                            amountCents: amountCents,
-                                                                            paidByName: who,
-                                                                            createdAt: createdAtDateTime,
-                                                                            isPending: isPending,
-                                                                            onManageNote: openNoteFlow,
-                                                                          ),
-                                                                        ),
-                                                                      );
-                                                                    },
-                                                                    title: Text(
-                                                                      title,
-                                                                      maxLines: 1,
-                                                                      overflow: TextOverflow.ellipsis,
-                                                                    ),
-                                                                    subtitle: (noteSnap.hasError || !noteSnap.hasData)
-                                                                        ? Text(
-                                                                            subtitleText,
-                                                                            maxLines: 1,
-                                                                            overflow: TextOverflow.ellipsis,
-                                                                          )
-                                                                        : (hasNote
-                                                                            ? Column(
-                                                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                                                mainAxisSize: MainAxisSize.min,
-                                                                                children: [
-                                                                                  Text(
-                                                                                    subtitleText,
-                                                                                    maxLines: 1,
-                                                                                    overflow: TextOverflow.ellipsis,
-                                                                                  ),
-                                                                                  Text(
-                                                                                    note,
-                                                                                    maxLines: 1,
-                                                                                    overflow: TextOverflow.ellipsis,
-                                                                                  ),
-                                                                                ],
-                                                                              )
-                                                                            : Text(
-                                                                                subtitleText,
-                                                                                maxLines: 1,
-                                                                                overflow: TextOverflow.ellipsis,
-                                                                              )),
-                                                                    trailing: Row(
-                                                                      mainAxisSize: MainAxisSize.min,
-                                                                      mainAxisAlignment: MainAxisAlignment.end,
-                                                                      children: [
-                                                                        if (isPending)
-                                                                          Tooltip(
-                                                                            message: 'Nog niet gesynchroniseerd',
-                                                                            child: Icon(
-                                                                              Icons.cloud_off,
-                                                                              size: 16,
-                                                                              color: cs.onSurface.withAlpha((0.5 * 255).round()),
-                                                                            ),
-                                                                          ),
-                                                                        if (isPending) const SizedBox(width: 4),
-                                                                        Text(
-                                                                          _formatEur(amountCents),
-                                                                          style: Theme.of(context)
-                                                                              .textTheme
-                                                                              .bodyMedium
-                                                                              ?.copyWith(
-                                                                                fontWeight: FontWeight.w700,
-                                                                              ),
-                                                                        ),
-                                                                      ],
+                                                              return ListTile(
+                                                                contentPadding:
+                                                                    EdgeInsets
+                                                                        .zero,
+                                                                dense: true,
+                                                                visualDensity:
+                                                                    VisualDensity
+                                                                        .compact,
+                                                                onTap: () {
+                                                                  Navigator.of(
+                                                                    context,
+                                                                  ).push(
+                                                                    MaterialPageRoute<
+                                                                      void
+                                                                    >(
+                                                                      builder: (context) => _ExpenseDetailPage(
+                                                                        householdId:
+                                                                            householdIdStr,
+                                                                        expenseId:
+                                                                            d.id,
+                                                                        uid: user
+                                                                            .uid,
+                                                                        title:
+                                                                            title,
+                                                                        amountCents:
+                                                                            amountCents,
+                                                                        paidByName:
+                                                                            who,
+                                                                        createdAt:
+                                                                            createdAtDateTime,
+                                                                        isPending:
+                                                                            isPending,
+                                                                        onManageNote:
+                                                                            openNoteFlow,
+                                                                      ),
                                                                     ),
                                                                   );
                                                                 },
+                                                                title: Text(
+                                                                  title,
+                                                                  maxLines: 1,
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                ),
+                                                                subtitle:
+                                                                    (noteSnap
+                                                                            .hasError ||
+                                                                        !noteSnap
+                                                                            .hasData)
+                                                                    ? Text(
+                                                                        subtitleText,
+                                                                        maxLines:
+                                                                            1,
+                                                                        overflow:
+                                                                            TextOverflow.ellipsis,
+                                                                      )
+                                                                    : (hasNote
+                                                                          ? Column(
+                                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                                              mainAxisSize: MainAxisSize.min,
+                                                                              children: [
+                                                                                Text(
+                                                                                  subtitleText,
+                                                                                  maxLines: 1,
+                                                                                  overflow: TextOverflow.ellipsis,
+                                                                                ),
+                                                                                Text(
+                                                                                  note,
+                                                                                  maxLines: 1,
+                                                                                  overflow: TextOverflow.ellipsis,
+                                                                                ),
+                                                                              ],
+                                                                            )
+                                                                          : Text(
+                                                                              subtitleText,
+                                                                              maxLines: 1,
+                                                                              overflow: TextOverflow.ellipsis,
+                                                                            )),
+                                                                trailing: Row(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  mainAxisAlignment:
+                                                                      MainAxisAlignment
+                                                                          .end,
+                                                                  children: [
+                                                                    if (isPending)
+                                                                      Tooltip(
+                                                                        message:
+                                                                            'Nog niet gesynchroniseerd',
+                                                                        child: Icon(
+                                                                          Icons
+                                                                              .cloud_off,
+                                                                          size:
+                                                                              16,
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a50,
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    if (isPending)
+                                                                      const SizedBox(
+                                                                        width:
+                                                                            4,
+                                                                      ),
+                                                                    Text(
+                                                                      _formatEur(
+                                                                        amountCents,
+                                                                      ),
+                                                                      style: Theme.of(context)
+                                                                          .textTheme
+                                                                          .bodyMedium
+                                                                          ?.copyWith(
+                                                                            fontWeight:
+                                                                                FontWeight.w700,
+                                                                          ),
+                                                                    ),
+                                                                  ],
+                                                                ),
                                                               );
                                                             },
-                                                          ),
+                                                          );
+                                                        },
+                                                      ),
                                               ),
                                             ],
                                           ),
@@ -2455,16 +2566,27 @@ class _ExpenseDetailPage extends StatelessWidget {
 
   static String _formatDateTime(DateTime? dt) {
     if (dt == null) return '—';
-    const nlMonths = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+    const nlMonths = [
+      'jan',
+      'feb',
+      'mrt',
+      'apr',
+      'mei',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec',
+    ];
     return '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Uitgave'),
-      ),
+      appBar: AppBar(title: const Text('Uitgave')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Card(
@@ -2499,7 +2621,11 @@ class _ExpenseDetailPage extends StatelessWidget {
                   subtitle: isPending
                       ? Row(
                           children: [
-                            Icon(Icons.cloud_off, size: 18, color: Theme.of(context).colorScheme.onSurface.withAlpha((0.6 * 255).round())),
+                            Icon(
+                              Icons.cloud_off,
+                              size: 18,
+                              color: onSurface(context, a60),
+                            ),
                             const SizedBox(width: 8),
                             const Text('Nog niet gesynchroniseerd'),
                           ],
@@ -2508,7 +2634,9 @@ class _ExpenseDetailPage extends StatelessWidget {
                 ),
                 StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: FirebaseFirestore.instance
-                      .doc('households/$householdId/expenses/$expenseId/privateNotes/$uid')
+                      .doc(
+                        'households/$householdId/expenses/$expenseId/privateNotes/$uid',
+                      )
                       .snapshots(includeMetadataChanges: true),
                   builder: (context, snap) {
                     final data = snap.data?.data();
@@ -2529,8 +2657,16 @@ class _ExpenseDetailPage extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 16),
                             child: FilledButton.icon(
                               onPressed: () async => await onManageNote!(),
-                              icon: Icon(hasNoteLive ? Icons.edit_note : Icons.note_add_outlined),
-                              label: Text(hasNoteLive ? 'Notitie wijzigen' : 'Notitie toevoegen'),
+                              icon: Icon(
+                                hasNoteLive
+                                    ? Icons.edit_note
+                                    : Icons.note_add_outlined,
+                              ),
+                              label: Text(
+                                hasNoteLive
+                                    ? 'Notitie wijzigen'
+                                    : 'Notitie toevoegen',
+                              ),
                             ),
                           ),
                       ],
@@ -2566,8 +2702,7 @@ class KiduCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final surface = backgroundColor ?? cs.surface;
-    final effectiveBorderColor =
-        borderColor ?? cs.outlineVariant.withAlpha((0.55 * 255).round());
+    final effectiveBorderColor = borderColor ?? outlineV(context, a55);
 
     return Material(
       color: surface,
@@ -2599,14 +2734,9 @@ class KiduCodePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          cs.primary.withAlpha((0.06 * 255).round()),
-          cs.surface,
-        ),
+        color: Color.alphaBlend(cs.primary.withValues(alpha: a06), cs.surface),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: cs.outlineVariant.withAlpha((0.45 * 255).round()),
-        ),
+        border: Border.all(color: outlineV(context, a45)),
       ),
       child: Row(
         children: [
@@ -2668,9 +2798,9 @@ class _SetupPageState extends State<SetupPage> {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _joinHousehold() async {
@@ -2710,16 +2840,14 @@ class _SetupPageState extends State<SetupPage> {
         throw StateError('Code al gebruikt.');
       }
 
-      final targetHouseholdId =
-          (inviteData?['householdId'] as String?)?.trim();
+      final targetHouseholdId = (inviteData?['householdId'] as String?)?.trim();
       if (targetHouseholdId == null || targetHouseholdId.isEmpty) {
         throw StateError('Invite is ongeldig.');
       }
 
       final userSnap = await userRef.get();
       final userData = userSnap.data();
-      final currentHouseholdId =
-          (userData?['householdId'] as String?)?.trim();
+      final currentHouseholdId = (userData?['householdId'] as String?)?.trim();
 
       if (targetHouseholdId == currentHouseholdId) {
         throw StateError('Je zit al in dit household.');
@@ -2734,14 +2862,15 @@ class _SetupPageState extends State<SetupPage> {
             .collection('households/$currentHouseholdId/expenses')
             .limit(1)
             .get();
-        if (membersSnap.docs.length != 1 ||
-            membersSnap.docs.first.id != uid) {
+        if (membersSnap.docs.length != 1 || membersSnap.docs.first.id != uid) {
           throw StateError(
-              'Wisselen kan alleen als je huidige household leeg is.');
+            'Wisselen kan alleen als je huidige household leeg is.',
+          );
         }
         if (expensesSnap.docs.isNotEmpty) {
           throw StateError(
-              'Wisselen kan alleen als je huidige household leeg is.');
+            'Wisselen kan alleen als je huidige household leeg is.',
+          );
         }
       }
 
@@ -2753,8 +2882,7 @@ class _SetupPageState extends State<SetupPage> {
         if ((inviteRecheck.data()?['usedBy']) != null) {
           throw StateError('Code al gebruikt.');
         }
-        final hId =
-            (inviteRecheck.data()?['householdId'] as String?)?.trim();
+        final hId = (inviteRecheck.data()?['householdId'] as String?)?.trim();
         if (hId == null || hId.isEmpty) {
           throw StateError('Invite is ongeldig.');
         }
@@ -2767,27 +2895,23 @@ class _SetupPageState extends State<SetupPage> {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        final targetMemberRef =
-            firestore.doc('households/$hId/members/$uid');
+        final targetMemberRef = firestore.doc('households/$hId/members/$uid');
         transaction.set(targetMemberRef, {
           'role': 'parent',
           'joinedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        transaction.set(
-          inviteRef,
-          {
-            'usedBy': uid,
-            'usedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
+        transaction.set(inviteRef, {
+          'usedBy': uid,
+          'usedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
         if (currentHouseholdId != null &&
             currentHouseholdId.isNotEmpty &&
             currentHouseholdId != targetHouseholdId) {
-          final oldMemberRef = firestore
-              .doc('households/$currentHouseholdId/members/$uid');
+          final oldMemberRef = firestore.doc(
+            'households/$currentHouseholdId/members/$uid',
+          );
           transaction.delete(oldMemberRef);
         }
       });
@@ -2804,8 +2928,10 @@ class _SetupPageState extends State<SetupPage> {
       }
     } catch (e) {
       debugPrint('Join household error: $e');
-      final message =
-          mapUserFacingError(e, fallback: 'Join mislukt. Probeer opnieuw.');
+      final message = mapUserFacingError(
+        e,
+        fallback: 'Join mislukt. Probeer opnieuw.',
+      );
       _showSnackBar(message);
     } finally {
       if (mounted) {
@@ -2831,10 +2957,7 @@ class _SetupPageState extends State<SetupPage> {
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'Niet ingelogd.',
-                    textAlign: TextAlign.center,
-                  ),
+                  const Text('Niet ingelogd.', textAlign: TextAlign.center),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
@@ -2931,11 +3054,11 @@ class _JoinSuccessOverlay extends StatelessWidget {
       canPop: false,
       child: Material(
         color: Theme.of(context).scaffoldBackgroundColor,
-        child: const Center(
+        child: Center(
           child: Icon(
             Icons.check_circle_rounded,
             size: 96,
-            color: Colors.green,
+            color: Theme.of(context).colorScheme.tertiary,
           ),
         ),
       ),
