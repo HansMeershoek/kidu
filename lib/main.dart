@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // ignore: depend_on_referenced_packages
@@ -12,7 +13,58 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
-import 'package:kidu/theme/kidu_theme.dart';
+
+// ------------------------------------------------------------
+// Color/alpha helpers (single-file)
+// ------------------------------------------------------------
+// Common semantic opacities used across the UI.
+const double a06 = 0.06;
+const double a18 = 0.18;
+const double a40 = 0.40;
+const double a45 = 0.45;
+const double a50 = 0.50;
+const double a55 = 0.55;
+const double a60 = 0.60;
+const double a62 = 0.62;
+const double a66 = 0.66;
+const double a68 = 0.68;
+const double a72 = 0.72;
+const double a84 = 0.84;
+const double a85 = 0.85;
+
+/// Calm green for success overlays (e.g. join/connect confirmation).
+const Color _kSuccessGreen = Color(0xFF2E7D32);
+
+Color onSurface(BuildContext context, double alpha) =>
+    Theme.of(context).colorScheme.onSurface.withValues(alpha: alpha);
+
+Color outlineV(BuildContext context, double alpha) =>
+    Theme.of(context).colorScheme.outlineVariant.withValues(alpha: alpha);
+
+ThemeData buildKiduTheme() {
+  // Keep it warm + premium, no purple defaults.
+  const appBg = Color(0xFFF7F6F4);
+  const seed = Color(0xFF2F3E46); // warm/dark slate
+
+  final cs = ColorScheme.fromSeed(
+    seedColor: seed,
+    brightness: Brightness.light,
+  ).copyWith(
+    surface: Colors.white,
+    surfaceTint: Colors.transparent,
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: cs,
+    scaffoldBackgroundColor: appBg,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: appBg,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+  );
+}
 
 /// Maps exceptions to user-friendly Dutch messages. Does not throw.
 String mapUserFacingError(
@@ -268,6 +320,7 @@ class ProfileNamePage extends StatefulWidget {
 class _ProfileNamePageState extends State<ProfileNamePage> {
   final _controller = TextEditingController();
   bool _busy = false;
+  String? _nameInlineHint;
 
   void _showSnackBar(String message) {
     if (!mounted) {
@@ -286,13 +339,12 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _showSnackBar('Niet ingelogd.');
       return;
     }
 
     final name = _controller.text.trim();
     if (name.length < 2) {
-      _showSnackBar('Naam moet minimaal 2 tekens zijn.');
+      setState(() => _nameInlineHint = 'Naam moet minimaal 2 tekens zijn.');
       return;
     }
 
@@ -300,7 +352,6 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     try {
       final stillUser = FirebaseAuth.instance.currentUser;
       if (stillUser == null) {
-        _showSnackBar('Niet ingelogd.');
         return;
       }
 
@@ -316,7 +367,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
         MaterialPageRoute(builder: (_) => const DashboardPage()),
       );
     } catch (e) {
-      debugPrint('Save profileName error: $e');
+      if (kDebugMode) debugPrint('Save profileName error: $e');
       _showSnackBar(
         mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'),
       );
@@ -338,7 +389,16 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('KiDu')),
+        appBar: AppBar(
+          centerTitle: true,
+          title: Text(
+            'KiDu',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -368,7 +428,16 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('KiDu')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'KiDu',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -376,11 +445,20 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 24),
-              const Text(
-                'Hoe mogen we je noemen?',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              Text(
+                'Welke naam wil je gebruiken?',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
-              Text('Ingelogd als: ${user.email ?? '(geen)'}'),
+              const SizedBox(height: 8),
+              Text(
+                'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: onSurface(context, a62),
+                      height: 1.35,
+                    ),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _controller,
@@ -388,8 +466,21 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                 maxLength: 20,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _busy ? null : _save(),
+                onChanged: (_) {
+                  if (_nameInlineHint != null) setState(() => _nameInlineHint = null);
+                },
                 decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
+              if (_nameInlineHint != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _nameInlineHint!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: onSurface(context, a62),
+                    height: 1.35,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               SizedBox(
                 height: 48,
@@ -653,79 +744,6 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
 
-  Widget _buildBalanceMeter(
-    BuildContext context, {
-    required int myPaidCents,
-    required int otherPaidCents,
-    required int totalCents,
-    required String myName,
-    required String otherName,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    const barHeight = 14.0;
-    const barRadius = 4.0;
-
-    if (totalCents == 0) {
-      return Semantics(
-        label: 'Bijdragemeter: geen uitgaven',
-        child: Container(
-          height: barHeight,
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withValues(alpha: a50),
-            borderRadius: BorderRadius.circular(barRadius),
-          ),
-        ),
-      );
-    }
-
-    final myPercent = totalCents > 0
-        ? ((myPaidCents / totalCents) * 100).round()
-        : 0;
-    final otherPercent = totalCents > 0
-        ? ((otherPaidCents / totalCents) * 100).round()
-        : 0;
-
-    return Semantics(
-      label: 'Bijdragemeter: $myName $myPercent%, $otherName $otherPercent%',
-      child: Row(
-        children: [
-          if (myPaidCents > 0)
-            Expanded(
-              flex: myPaidCents,
-              child: Container(
-                height: barHeight,
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: a45),
-                  borderRadius: BorderRadius.horizontal(
-                    left: const Radius.circular(barRadius),
-                    right: otherPaidCents > 0
-                        ? Radius.zero
-                        : const Radius.circular(barRadius),
-                  ),
-                ),
-              ),
-            ),
-          if (otherPaidCents > 0)
-            Expanded(
-              flex: otherPaidCents,
-              child: Container(
-                height: barHeight,
-                decoration: BoxDecoration(
-                  color: cs.secondary.withValues(alpha: a45),
-                  borderRadius: BorderRadius.horizontal(
-                    left: myPaidCents > 0
-                        ? Radius.zero
-                        : const Radius.circular(barRadius),
-                    right: const Radius.circular(barRadius),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSettlementStatusChip(
     BuildContext context, {
     required int settlementCents,
@@ -964,10 +982,11 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final effectiveOtherName =
-                (otherName != null && otherName.trim().isNotEmpty)
-                ? otherName.trim()
-                : 'Co-parent';
+            final trimmedOther = (otherName ?? '').trim();
+            final isPaired = trimmedOther.isNotEmpty;
+            final hasHousehold = householdId.trim().isNotEmpty;
+            final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
+            final email = FirebaseAuth.instance.currentUser?.email?.trim();
 
             return SafeArea(
               child: SingleChildScrollView(
@@ -985,21 +1004,43 @@ class _DashboardPageState extends State<DashboardPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Instellingen',
+                        isPaired ? 'Instellingen' : 'Koppel met co-parent',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Text(
-                        'Verbonden met: $effectiveOtherName',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: onSurface(context, a68),
-                          height: 1.35,
+                      if (email != null && email.isNotEmpty)
+                        Text(
+                          'Ingelogd als: $email',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a62),
+                                height: 1.35,
+                              ),
                         ),
-                      ),
+                      if (isPaired)
+                        Text(
+                          'Verbonden met: $effectiveOtherName',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: onSurface(context, a68),
+                                    height: 1.35,
+                                  ),
+                        )
+                      else
+                        Text(
+                          'Koppel met je co-parent om samen kosten te delen.',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: onSurface(context, a68),
+                                    height: 1.35,
+                                  ),
+                        ),
                       const SizedBox(height: _cardGap),
-                      if (canInvite) ...[
+                      if (!isPaired && hasHousehold && canInvite) ...[
                         SizedBox(
                           height: 48,
                           child: ElevatedButton(
@@ -1038,8 +1079,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         ],
                         const SizedBox(height: _cardGap),
                       ],
-                      if (householdId.isNotEmpty) ...[
-                        const SizedBox(height: _cardGap),
+                      if (!isPaired) ...[
                         SizedBox(
                           height: 48,
                           child: OutlinedButton.icon(
@@ -1127,7 +1167,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      _showSnackBar('Niet ingelogd.');
       return;
     }
 
@@ -1151,7 +1190,7 @@ class _DashboardPageState extends State<DashboardPage> {
             'updatedAt': FieldValue.serverTimestamp(),
           });
         } catch (noteErr) {
-          debugPrint('Private note write error: $noteErr');
+          if (kDebugMode) debugPrint('Private note write error: $noteErr');
           noteErrMsg = mapUserFacingError(
             noteErr,
             fallback: 'notitie niet opgeslagen.',
@@ -1175,7 +1214,7 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       }
     } catch (e) {
-      debugPrint('Create expense error: $e');
+      if (kDebugMode) debugPrint('Create expense error: $e');
       rethrow;
     } finally {
       if (mounted) {
@@ -1370,7 +1409,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      _showSnackBar('Niet ingelogd.');
       return;
     }
 
@@ -1415,18 +1453,12 @@ class _DashboardPageState extends State<DashboardPage> {
       });
 
       final alreadyExists = result['alreadyExists'] == true;
-      final householdId = result['householdId'] as String?;
 
       if (alreadyExists) {
-        _showSnackBar('Setup bestaat al');
         return;
       }
-
-      _showSnackBar(
-        householdId == null ? 'Setup gestart.' : 'Setup gestart: $householdId',
-      );
     } catch (e) {
-      debugPrint('Start setup error: $e');
+      if (kDebugMode) debugPrint('Start setup error: $e');
       _showSnackBar(
         mapUserFacingError(e, fallback: 'Setup mislukt. Probeer opnieuw.'),
       );
@@ -1453,7 +1485,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      _showSnackBar('Niet ingelogd.');
       return;
     }
 
@@ -1500,7 +1531,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }
 
       if (createdCode == null) {
-        debugPrint('Generate invite error: $lastError');
+        if (kDebugMode) debugPrint('Generate invite error: $lastError');
         _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
         return;
       }
@@ -1510,7 +1541,7 @@ class _DashboardPageState extends State<DashboardPage> {
       }
       _showSnackBar('Invite code gegenereerd.');
     } catch (e) {
-      debugPrint('Generate invite error: $e');
+      if (kDebugMode) debugPrint('Generate invite error: $e');
       _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
     } finally {
       if (mounted) {
@@ -1531,6 +1562,84 @@ class _DashboardPageState extends State<DashboardPage> {
       await Share.share(text);
     } catch (_) {
       _showSnackBar('Delen mislukt. Probeer opnieuw.');
+    }
+  }
+
+  void _openInviteSheetOnly(BuildContext context, String code) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: _pagePadding,
+              right: _pagePadding,
+              top: 8,
+              bottom: _pagePadding + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Uitnodigingscode',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: _cardGap),
+                  KiduCodePill(
+                    code: code,
+                    onCopy: () async {
+                      await Clipboard.setData(ClipboardData(text: code));
+                      _showSnackBar('Invite code gekopieerd.');
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: () => _shareInviteCode(code),
+                    icon: const Icon(Icons.share),
+                    label: const Text('Delen'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _onCoParentUitnodigen(String householdIdStr) async {
+    if (_inviteBusy || _setupBusy) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return;
+    }
+
+    String effectiveHouseholdId = householdIdStr;
+
+    if (effectiveHouseholdId.isEmpty) {
+      await _startSetup();
+      if (!mounted) return;
+      final userSnap = await FirebaseFirestore.instance.doc('users/$uid').get();
+      final data = userSnap.data();
+      effectiveHouseholdId =
+          (data?['householdId'] as String?)?.trim() ?? '';
+      if (effectiveHouseholdId.isEmpty) {
+        _showSnackBar('Kon geen huishouden aanmaken. Probeer opnieuw.');
+        return;
+      }
+    }
+
+    await _generateInvite(effectiveHouseholdId);
+    if (!mounted) return;
+    if (_inviteCode != null && _inviteCode!.trim().isNotEmpty) {
+      _openInviteSheetOnly(context, _inviteCode!.trim());
     }
   }
 
@@ -1630,7 +1739,14 @@ class _DashboardPageState extends State<DashboardPage> {
         if (snapshot.hasError) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('KiDu'),
+              centerTitle: true,
+              title: Text(
+                'KiDu',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
               actions: [
                 IconButton(
                   onPressed: () => _openMenuSheet(
@@ -1676,122 +1792,67 @@ class _DashboardPageState extends State<DashboardPage> {
           );
         }
 
-        if (!hasHousehold) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('KiDu'),
-              actions: [
-                IconButton(
-                  onPressed: () => _openMenuSheet(
-                    householdId: '',
-                    myUid: user.uid,
-                    otherName: null,
-                    canInvite: false,
+        final householdIdStr =
+            hasHousehold ? householdId.trim() : '';
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>?>(
+          stream: hasHousehold
+              ? FirebaseFirestore.instance
+                  .collection('households/$householdIdStr/members')
+                  .limit(2)
+                  .snapshots()
+              : Stream.value(null),
+          builder: (context, membersSnapshot) {
+            // Prevent "not linked" UI flash while member list is still loading
+            // after re-login (hasHousehold=true but snapshot not ready yet).
+            if (hasHousehold && membersSnapshot.hasError) {
+              return Scaffold(
+                appBar: AppBar(
+                  centerTitle: true,
+                  title: Text(
+                    'KiDu',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
                   ),
-                  icon: const Icon(Icons.more_horiz),
-                  tooltip: 'Menu',
                 ),
-              ],
-            ),
-            body: SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(_pagePadding),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Nog niet gekoppeld',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                body: SafeArea(
+                  child: Center(
+                    child: Text(
+                      'Kon koppeling niet laden.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: onSurface(context, a62),
+                            height: 1.35,
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Koppel door te starten of met een invite-code.',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: onSurface(context, a66),
-                                  height: 1.35,
-                                ),
-                          ),
-                          const SizedBox(height: _cardGap),
-                          KiduCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Acties',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                                const SizedBox(height: _cardGap),
-                                SizedBox(
-                                  height: 48,
-                                  child: ElevatedButton(
-                                    onPressed: _setupBusy
-                                        ? null
-                                        : () {
-                                            HapticFeedback.selectionClick();
-                                            _startSetup();
-                                          },
-                                    child: Text(
-                                      _setupBusy ? 'Bezig...' : 'Start setup',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: _cardGap),
-                                SizedBox(
-                                  height: 48,
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) => const SetupPage(),
-                                        ),
-                                      );
-                                    },
-                                    child: const Text('Join household'),
-                                  ),
-                                ),
-                                const SizedBox(height: _cardGap),
-                                SizedBox(
-                                  height: 48,
-                                  child: OutlinedButton(
-                                    onPressed: _switchBusy
-                                        ? null
-                                        : () => _switchAccount(context),
-                                    child: Text(
-                                      _switchBusy
-                                          ? 'Bezig...'
-                                          : 'Wissel account',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-          );
-        }
+              );
+            }
+            if (hasHousehold && !membersSnapshot.hasData) {
+              return Scaffold(
+                appBar: AppBar(
+                  centerTitle: true,
+                  title: Text(
+                    'KiDu',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
+                  ),
+                ),
+                body: const SafeArea(
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+              );
+            }
 
-        final householdIdStr = householdId.trim();
-
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('households/$householdIdStr/members')
-              .limit(2)
-              .snapshots(),
-          builder: (context, membersSnapshot) {
-            final memberDocs = membersSnapshot.data?.docs ?? const [];
+            final memberDocs = hasHousehold && membersSnapshot.hasData
+                ? membersSnapshot.data!.docs
+                : <QueryDocumentSnapshot<Map<String, dynamic>>>[];
             final memberCount = memberDocs.length;
 
             String? otherUid;
@@ -1805,6 +1866,92 @@ class _DashboardPageState extends State<DashboardPage> {
             final canInvite = memberCount == 1;
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
+
+            if (!canAddExpenses) {
+              return Scaffold(
+                appBar: AppBar(
+                  centerTitle: true,
+                  title: Text(
+                    'KiDu',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                floatingActionButton: null,
+                body: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(_pagePadding),
+                    child: Center(
+                      child: KiduCard(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Je bent nog niet gekoppeld',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const SizedBox(height: _cardGap),
+                            SizedBox(
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: (_inviteBusy || _setupBusy)
+                                    ? null
+                                    : () {
+                                        HapticFeedback.selectionClick();
+                                        _onCoParentUitnodigen(householdIdStr);
+                                      },
+                                child: Text(
+                                  (_inviteBusy || _setupBusy)
+                                      ? 'Bezig...'
+                                      : 'Co-parent uitnodigen',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: _cardGap),
+                            SizedBox(
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SetupPage(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Ik heb een code'),
+                              ),
+                            ),
+                            if (kDebugMode) ...[
+                              const SizedBox(height: 12),
+                              Center(
+                                child: TextButton(
+                                  onPressed: _switchBusy
+                                      ? null
+                                      : () => _switchAccount(context),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: onSurface(context, a62),
+                                  ),
+                                  child: const Text('Wissel account'),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
             final namesFuture = _getNamesFuture(
               householdId: householdIdStr,
               myUid: user.uid,
@@ -1824,37 +1971,48 @@ class _DashboardPageState extends State<DashboardPage> {
 
                 return Scaffold(
                   appBar: AppBar(
-                    title: const Text('KiDu'),
-                    actions: [
-                      IconButton(
-                        onPressed: () => _openMenuSheet(
-                          householdId: householdIdStr,
-                          myUid: user.uid,
-                          otherName: otherName,
-                          canInvite: canInvite,
-                        ),
-                        icon: const Icon(Icons.more_horiz),
-                        tooltip: 'Menu',
+                    centerTitle: true,
+                    title: Text(
+                      'KiDu',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
                       ),
-                    ],
+                    ),
+                    actions: canAddExpenses
+                        ? [
+                            IconButton(
+                              onPressed: () => _openMenuSheet(
+                                householdId: householdIdStr,
+                                myUid: user.uid,
+                                otherName: otherName,
+                                canInvite: canInvite,
+                              ),
+                              icon: const Icon(Icons.more_horiz),
+                              tooltip: 'Menu',
+                            ),
+                          ]
+                        : [],
                   ),
-                  floatingActionButton: FloatingActionButton(
-                    onPressed: _expenseBusy || !canAddExpenses
-                        ? null
-                        : () async {
-                            if (!await _canWriteExpenseNow()) {
-                              _showSnackBar(
-                                'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
-                              );
-                              return;
-                            }
-                            _openAddExpenseDialog(
-                              householdIdStr,
-                              coparentName: otherName,
-                            );
-                          },
-                    child: const Icon(Icons.add),
-                  ),
+                  floatingActionButton: canAddExpenses
+                      ? FloatingActionButton(
+                          onPressed: _expenseBusy
+                              ? null
+                              : () async {
+                                  if (!await _canWriteExpenseNow()) {
+                                    _showSnackBar(
+                                      'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                                    );
+                                    return;
+                                  }
+                                  _openAddExpenseDialog(
+                                    householdIdStr,
+                                    coparentName: otherName,
+                                  );
+                                },
+                          child: const Icon(Icons.add),
+                        )
+                      : null,
                   body: SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.all(_pagePadding),
@@ -1980,71 +2138,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                               label: otherName,
                                               value: _formatEur(otherPaidCents),
                                             ),
-                                            const SizedBox(height: 12),
-                                            _buildBalanceMeter(
-                                              context,
-                                              myPaidCents: myPaidCents,
-                                              otherPaidCents: otherPaidCents,
-                                              totalCents: totalCents,
-                                              myName: myName,
-                                              otherName: otherName,
-                                            ),
-                                            const SizedBox(height: _cardGap),
-                                            Builder(
-                                              builder: (context) {
-                                                final rawShare = totalCents <= 0
-                                                    ? 0.5
-                                                    : myPaidCents / totalCents;
-                                                final myShare = rawShare
-                                                    .clamp(0.0, 1.0)
-                                                    .toDouble();
-                                                final myPct = (myShare * 100)
-                                                    .round();
-                                                final otherPct = 100 - myPct;
-
-                                                return Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    const SizedBox(height: 8),
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
-                                                      children: [
-                                                        Text(
-                                                          '$myName $myPct%',
-                                                          style: Theme.of(context)
-                                                              .textTheme
-                                                              .bodySmall
-                                                              ?.copyWith(
-                                                                color:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a72,
-                                                                    ),
-                                                              ),
-                                                        ),
-                                                        Text(
-                                                          '$otherName $otherPct%',
-                                                          style: Theme.of(context)
-                                                              .textTheme
-                                                              .bodySmall
-                                                              ?.copyWith(
-                                                                color:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a72,
-                                                                    ),
-                                                              ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                );
-                                              },
-                                            ),
                                             const SizedBox(height: _cardGap),
                                             Divider(
                                               height: 1,
@@ -2090,22 +2183,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           FontWeight.w700,
                                                     ),
                                               ),
-                                              if (!canAddExpenses) ...[
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Nog niet gekoppeld. Uitgaven toevoegen kan zodra je co-parent is verbonden.',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: onSurface(
-                                                          context,
-                                                          a62,
-                                                        ),
-                                                        height: 1.35,
-                                                      ),
-                                                ),
-                                              ],
                                               const SizedBox(height: 10),
                                               Expanded(
                                                 child: !expensesSnapshot.hasData
@@ -2118,7 +2195,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         alignment:
                                                             Alignment.topLeft,
                                                         child: Text(
-                                                          'Nog geen uitgaven. Voeg er een toe met +.',
+                                                          canAddExpenses
+                                                              ? 'Nog geen uitgaven. Voeg er een toe met +.'
+                                                              : 'Nog geen uitgaven.',
                                                           style: Theme.of(context)
                                                               .textTheme
                                                               .bodyMedium
@@ -2586,7 +2665,16 @@ class _ExpenseDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Uitgave')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Uitgave',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Card(
@@ -2774,6 +2862,7 @@ class SetupPage extends StatefulWidget {
 class _SetupPageState extends State<SetupPage> {
   final _inviteController = TextEditingController();
   bool _joinBusy = false;
+  String? _joinInlineHint;
 
   Future<void> _showJoinSuccessAndClose() async {
     if (!mounted) return;
@@ -2793,16 +2882,6 @@ class _SetupPageState extends State<SetupPage> {
     Navigator.of(context).pop();
   }
 
-  void _showSnackBar(String message) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   Future<void> _joinHousehold() async {
     if (_joinBusy) {
       return;
@@ -2810,13 +2889,12 @@ class _SetupPageState extends State<SetupPage> {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      _showSnackBar('Niet ingelogd.');
       return;
     }
 
     final code = _inviteController.text.trim().toUpperCase();
     if (code.isEmpty) {
-      _showSnackBar('Vul een invite code in.');
+      setState(() => _joinInlineHint = 'Vul een invite code in.');
       return;
     }
 
@@ -2927,12 +3005,23 @@ class _SetupPageState extends State<SetupPage> {
         await _showJoinSuccessAndClose();
       }
     } catch (e) {
-      debugPrint('Join household error: $e');
-      final message = mapUserFacingError(
-        e,
-        fallback: 'Join mislukt. Probeer opnieuw.',
-      );
-      _showSnackBar(message);
+      final errStr = e.toString();
+      if (errStr.contains('Je zit al in dit household')) {
+        if (mounted) {
+          setState(() {
+            _joinInlineHint =
+                'Je hoeft deze code niet zelf in te voeren. Deel \'m met je co-parent.';
+          });
+        }
+      } else {
+        if (kDebugMode) debugPrint('Join household error: $e');
+        if (mounted) {
+          setState(() {
+            _joinInlineHint =
+                'Koppelen lukt nu niet. Controleer de code en probeer opnieuw.';
+          });
+        }
+      }
     } finally {
       if (mounted) {
         setState(() => _joinBusy = false);
@@ -2950,7 +3039,16 @@ class _SetupPageState extends State<SetupPage> {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
-      appBar: AppBar(title: const Text('KiDu — Setup')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Koppelen',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: uid == null
@@ -3017,11 +3115,26 @@ class _SetupPageState extends State<SetupPage> {
                       TextField(
                         controller: _inviteController,
                         textCapitalization: TextCapitalization.characters,
+                        onChanged: (_) => setState(() => _joinInlineHint = null),
                         decoration: const InputDecoration(
                           labelText: 'Koppelcode',
                           border: OutlineInputBorder(),
                         ),
                       ),
+                      if (_joinInlineHint != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _joinInlineHint!,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a62),
+                                height: 1.35,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       ElevatedButton(
                         onPressed: _joinBusy ? null : _joinHousehold,
@@ -3053,12 +3166,12 @@ class _JoinSuccessOverlay extends StatelessWidget {
     return PopScope(
       canPop: false,
       child: Material(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: _kSuccessGreen,
         child: Center(
           child: Icon(
             Icons.check_circle_rounded,
             size: 96,
-            color: Theme.of(context).colorScheme.tertiary,
+            color: Colors.white,
           ),
         ),
       ),
