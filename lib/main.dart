@@ -310,6 +310,101 @@ class AuthGate extends StatelessWidget {
   }
 }
 
+const String _privacyPolicyFull = '''
+KiDu Privacybeleid / Privacy Policy
+Laatst bijgewerkt: 2026-02-18
+
+NL — Privacybeleid
+
+1. Wie zijn wij?
+KiDu is een app om gedeelde kind-uitgaven tussen co-parents bij te houden.
+Ontwikkelaar / contact (privacy): meershoek@gmail.com
+
+2. Welke gegevens verwerken we?
+Account (inloggen via Google)
+- Google-account gegevens die nodig zijn om in te loggen (bijv. e-mail, naam en profielfoto indien beschikbaar).
+
+App-gegevens die jij invoert
+- Huishouden (koppeling tussen co-parents).
+- Uitgaven (bedrag, omschrijving, datum, wie heeft betaald).
+- Invite codes (voor koppelen).
+- Privé notities (alleen zichtbaar voor de gebruiker die ze maakt).
+
+Technische gegevens
+- We gebruiken Google Firebase (Auth/Firestore) om de app te laten werken. Deze diensten kunnen technische informatie verwerken die nodig is voor werking en beveiliging van de dienst.
+
+3. Waarvoor gebruiken we deze gegevens?
+- Inloggen en accountbeheer.
+- Koppelen van co-parents binnen één huishouden.
+- Opslaan en tonen van uitgaven, balans en privé notities.
+- Beveiliging (toegangscontrole op basis van household-membership).
+
+4. Delen we gegevens met derden?
+We verkopen geen gegevens.
+We gebruiken Google Firebase als verwerker/dienstverlener om inloggen en opslag mogelijk te maken (Firebase Authentication en Cloud Firestore).
+
+5. Beveiliging
+- Communicatie verloopt versleuteld (TLS).
+- Toegang tot huishouden-data wordt beperkt via Firestore security rules (alleen members van het huishouden).
+
+6. Bewaartermijn
+We bewaren gegevens zolang je het account gebruikt.
+Wil je gegevens verwijderen? Mail naar: meershoek@gmail.com
+We verwijderen je data zo snel mogelijk en uiterlijk binnen 30 dagen, tenzij we wettelijk langer moeten bewaren.
+
+7. Jouw rechten
+Je kunt verzoeken om inzage, correctie of verwijdering via: meershoek@gmail.com
+
+8. Kinderen
+KiDu is bedoeld voor (co-)ouders/volwassenen en is niet ontworpen voor gebruik door kinderen.
+
+---
+
+EN — Privacy Policy
+
+1. Who we are
+KiDu helps co-parents track shared child-related expenses.
+Developer / privacy contact: meershoek@gmail.com
+
+2. Data we process
+Account (Google sign-in)
+- Google account data needed to sign in (e.g., email, name, profile photo if available).
+
+User-provided app data
+- Household connection between co-parents.
+- Expenses (amount, description, date, who paid).
+- Invite codes (for linking).
+- Private notes (only visible to the user who created them).
+
+Technical data
+- We use Google Firebase (Auth/Firestore). These services may process technical information required for service operation and security.
+
+3. Why we use data
+- Authentication and account management.
+- Linking co-parents inside one household.
+- Storing and displaying expenses, balance, and private notes.
+- Security (access control based on household membership).
+
+4. Sharing
+We do not sell data.
+We use Google Firebase as a service provider (Firebase Authentication and Cloud Firestore).
+
+5. Security
+- Encrypted transport (TLS).
+- Access restricted via Firestore security rules (household membership).
+
+6. Retention & deletion
+We keep data while your account is active.
+To request deletion: meershoek@gmail.com
+We aim to delete within 30 days unless legally required to retain longer.
+
+7. Your rights
+You can request access, correction, or deletion via: meershoek@gmail.com
+
+8. Children
+KiDu is intended for adults (co-parents) and is not designed for children.
+''';
+
 class ProfileNamePage extends StatefulWidget {
   const ProfileNamePage({super.key});
 
@@ -490,6 +585,45 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PrivacyPolicyPage extends StatelessWidget {
+  const PrivacyPolicyPage({super.key});
+
+  static const double _pagePadding = 16;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Privacyverklaring',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(_pagePadding),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: SingleChildScrollView(
+              child: Text(
+                _privacyPolicyFull,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: onSurface(context, a68),
+                  height: 1.35,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1096,6 +1230,123 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                         ),
                       ],
+                      const Divider(height: 24),
+                      Text(
+                        'Account',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.edit),
+                        title: const Text('Naam wijzigen'),
+                        subtitle: Text(
+                          'Wijzig hoe je zichtbaar bent in KiDu',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: onSurface(context, a62)),
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          Navigator.of(rootContext).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ProfileNamePage(),
+                            ),
+                          );
+                        },
+                      ),
+                      Text(
+                        'Info',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.info_outline),
+                        title: const Text('Over KiDu'),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          showDialog<void>(
+                            context: rootContext,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('KiDu'),
+                              content: const Text(
+                                'Rust in gedeelde kosten tussen co-parents.\n'
+                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: const Text('Sluiten'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.privacy_tip_outlined),
+                        title: const Text('Privacy'),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          showDialog<void>(
+                            context: rootContext,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Privacy in KiDu'),
+                              content: SingleChildScrollView(
+                                child: Text(
+                                  'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+                                  'Wat we wél gebruiken (alleen wat nodig is):\n'
+                                  '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
+                                  '• Je Google-account (voor veilig inloggen)\n'
+                                  '• Jullie gedeelde uitgaven in KiDu\n\n'
+                                  'Wat KiDu níét vraagt of gebruikt:\n'
+                                  '• Geen telefoonnummer\n'
+                                  '• Geen toegang tot je contacten\n'
+                                  '• Geen locatie\n'
+                                  '• Geen agenda, microfoon of camera\n'
+                                  '• Geen push-notificaties of "ping-gedrag"\n\n'
+                                  'Delen met anderen?\n'
+                                  '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
+                                  '• We delen geen gegevens voor marketingdoeleinden.\n'
+                                  '• We verkopen je gegevens niet.\n\n'
+                                  'Je houdt de controle:\n'
+                                  '• Je kunt je naam altijd aanpassen.\n'
+                                  '• Je kunt uitloggen wanneer je wilt.',
+                                  style: Theme.of(ctx)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(color: onSurface(ctx, a68)),
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(ctx).pop();
+                                    Navigator.of(rootContext).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const PrivacyPolicyPage(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text(
+                                    'Volledige privacyverklaring',
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: const Text('Sluiten'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                       const Divider(height: 24),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
