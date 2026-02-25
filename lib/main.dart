@@ -406,7 +406,9 @@ KiDu is intended for adults (co-parents) and is not designed for children.
 ''';
 
 class ProfileNamePage extends StatefulWidget {
-  const ProfileNamePage({super.key});
+  const ProfileNamePage({super.key, this.fromSettings = false});
+
+  final bool fromSettings;
 
   @override
   State<ProfileNamePage> createState() => _ProfileNamePageState();
@@ -458,9 +460,13 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardPage()),
-      );
+      if (widget.fromSettings) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
+        );
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('Save profileName error: $e');
       _showSnackBar(
@@ -854,6 +860,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _switchBusy = false;
   bool _expenseBusy = false;
   String? _inviteCode;
+  bool _showWaiting = false;
   int _notesRefreshTick = 0;
   bool _noteWriteInFlight = false;
 
@@ -877,41 +884,6 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _pagePadding = 16;
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
-
-  Widget _buildSettlementStatusChip(
-    BuildContext context, {
-    required int settlementCents,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    final String label;
-    final Color chipColor;
-    if (settlementCents > 0) {
-      label = 'Jij krijgt terug';
-      chipColor = cs.primary.withValues(alpha: a18);
-    } else if (settlementCents < 0) {
-      label = 'Jij betaalt';
-      chipColor = cs.secondary.withValues(alpha: a18);
-    } else {
-      label = 'In balans';
-      chipColor = cs.surfaceContainerHighest.withValues(alpha: a40);
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(chipColor, cs.surface),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: a40)),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: onSurface(context, a85),
-        ),
-      ),
-    );
-  }
 
   void _showSnackBar(String message) {
     if (!mounted) {
@@ -1252,7 +1224,8 @@ class _DashboardPageState extends State<DashboardPage> {
                           Navigator.of(context).pop();
                           Navigator.of(rootContext).push(
                             MaterialPageRoute(
-                              builder: (_) => const ProfileNamePage(),
+                              builder: (_) =>
+                                  const ProfileNamePage(fromSettings: true),
                             ),
                           );
                         },
@@ -1788,9 +1761,10 @@ class _DashboardPageState extends State<DashboardPage> {
       }
 
       if (mounted) {
-        setState(() => _inviteCode = createdCode);
+        setState(() {
+          _inviteCode = createdCode;
+        });
       }
-      _showSnackBar('Invite code gegenereerd.');
     } catch (e) {
       if (kDebugMode) debugPrint('Generate invite error: $e');
       _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
@@ -1856,6 +1830,18 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: const Icon(Icons.share),
                     label: const Text('Delen'),
                   ),
+                  const SizedBox(height: _cardGap),
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        if (!mounted) return;
+                        setState(() => _showWaiting = true);
+                      },
+                      child: const Text('Klaar'),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1877,10 +1863,19 @@ class _DashboardPageState extends State<DashboardPage> {
     if (effectiveHouseholdId.isEmpty) {
       await _startSetup();
       if (!mounted) return;
-      final userSnap = await FirebaseFirestore.instance.doc('users/$uid').get();
-      final data = userSnap.data();
-      effectiveHouseholdId =
-          (data?['householdId'] as String?)?.trim() ?? '';
+      for (var i = 0; i < 10; i++) {
+        final userSnap = await FirebaseFirestore.instance.doc('users/$uid').get();
+        final data = userSnap.data();
+        effectiveHouseholdId =
+            (data?['householdId'] as String?)?.trim() ?? '';
+        if (effectiveHouseholdId.isNotEmpty) {
+          break;
+        }
+        if (kDebugMode) {
+          debugPrint('resolve householdId retry=$i still empty');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      }
       if (effectiveHouseholdId.isEmpty) {
         _showSnackBar('Kon geen huishouden aanmaken. Probeer opnieuw.');
         return;
@@ -1890,6 +1885,9 @@ class _DashboardPageState extends State<DashboardPage> {
     await _generateInvite(effectiveHouseholdId);
     if (!mounted) return;
     if (_inviteCode != null && _inviteCode!.trim().isNotEmpty) {
+      setState(() {
+        _showWaiting = false;
+      });
       _openInviteSheetOnly(context, _inviteCode!.trim());
     }
   }
@@ -1972,21 +1970,6 @@ class _DashboardPageState extends State<DashboardPage> {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.doc('users/${user.uid}').snapshots(),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data();
-        final myProfileName = (data?['profileName'] as String?)?.trim();
-        final householdId = (data?['householdId'] as String?)?.trim();
-        final hasHousehold =
-            householdId != null && householdId.trim().isNotEmpty;
-
-        final myFallbackName =
-            (myProfileName != null && myProfileName.isNotEmpty)
-            ? myProfileName
-            : (user.displayName != null && user.displayName!.trim().isNotEmpty)
-            ? user.displayName!.trim()
-            : (user.email != null && user.email!.trim().isNotEmpty)
-            ? user.email!.trim()
-            : 'Jij';
-
         if (snapshot.hasError) {
           return Scaffold(
             appBar: AppBar(
@@ -2013,35 +1996,52 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             body: SafeArea(
               child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(_pagePadding),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 560),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Accountgegevens konden niet worden geladen.',
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          height: 48,
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: _switchBusy
-                                ? null
-                                : () => _switchAccount(context),
-                            child: const Text('Wissel account'),
-                          ),
-                        ),
-                      ],
-                    ),
+                child: Text(
+                  'Kon accountgegevens niet laden.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: onSurface(context, a62),
+                    height: 1.35,
                   ),
                 ),
               ),
             ),
           );
         }
+        if (!snapshot.hasData ||
+            snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(
+              centerTitle: true,
+              title: Text(
+                'KiDu',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+            body: const SafeArea(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          );
+        }
+
+        final data = snapshot.data!.data();
+        final myProfileName = (data?['profileName'] as String?)?.trim();
+        final householdId = (data?['householdId'] as String?)?.trim();
+        final hasHousehold =
+            householdId != null && householdId.trim().isNotEmpty;
+
+        final myFallbackName =
+            (myProfileName != null && myProfileName.isNotEmpty)
+            ? myProfileName
+            : (user.displayName != null && user.displayName!.trim().isNotEmpty)
+            ? user.displayName!.trim()
+            : (user.email != null && user.email!.trim().isNotEmpty)
+            ? user.email!.trim()
+            : 'Jij';
 
         final householdIdStr =
             hasHousehold ? householdId.trim() : '';
@@ -2117,6 +2117,20 @@ class _DashboardPageState extends State<DashboardPage> {
             final canInvite = memberCount == 1;
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
+            final myDashboardName = (myProfileName != null &&
+                    myProfileName.isNotEmpty)
+                ? myProfileName
+                : ((user.displayName != null &&
+                        user.displayName!.trim().isNotEmpty)
+                    ? user.displayName!.trim()
+                    : 'Jij');
+
+            if (canAddExpenses && _showWaiting) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() => _showWaiting = false);
+              });
+            }
 
             if (!canAddExpenses) {
               return Scaffold(
@@ -2129,74 +2143,244 @@ class _DashboardPageState extends State<DashboardPage> {
                       letterSpacing: 0.4,
                     ),
                   ),
+                  actions: [
+                    IconButton(
+                      onPressed: () => _openMenuSheet(
+                        householdId: householdIdStr,
+                        myUid: user.uid,
+                        otherName: 'Co-parent',
+                        canInvite: canInvite,
+                      ),
+                      icon: const Icon(Icons.more_horiz),
+                      tooltip: 'Menu',
+                    ),
+                  ],
                 ),
                 floatingActionButton: null,
                 body: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(_pagePadding),
-                    child: Center(
-                      child: KiduCard(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Je bent nog niet gekoppeld',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                            const SizedBox(height: _cardGap),
-                            SizedBox(
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: (_inviteBusy || _setupBusy)
-                                    ? null
-                                    : () {
-                                        HapticFeedback.selectionClick();
-                                        _onCoParentUitnodigen(householdIdStr);
-                                      },
-                                child: Text(
-                                  (_inviteBusy || _setupBusy)
-                                      ? 'Bezig...'
-                                      : 'Co-parent uitnodigen',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: _cardGap),
-                            SizedBox(
-                              height: 48,
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const SetupPage(),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  KiduCard(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Text(
+                                          'Balans',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        _balanceRow(
+                                          label: 'Samen uitgegeven',
+                                          value: _formatEur(0),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: onSurface(context, a68),
+                                                height: 1.3,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Divider(
+                                          height: 1,
+                                          color: outlineV(context, a45),
+                                        ),
+                                      ],
                                     ),
-                                  );
-                                },
-                                child: const Text('Ik heb een code'),
+                                  ),
+                                  const SizedBox(height: _cardGap),
+                                  KiduCard(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Text(
+                                          'Uitgaven',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: onSurface(context, a62),
+                                                height: 1.35,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!_showWaiting) ...[
+                                    const SizedBox(height: _cardGap),
+                                    KiduCard(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          Text(
+                                            'Je bent nog niet gekoppeld',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: onSurface(context, a62),
+                                                  height: 1.35,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            height: 48,
+                                            child: ElevatedButton(
+                                              onPressed:
+                                                  (_inviteBusy || _setupBusy)
+                                                  ? null
+                                                  : () {
+                                                      HapticFeedback
+                                                          .selectionClick();
+                                                      _onCoParentUitnodigen(
+                                                        householdIdStr,
+                                                      );
+                                                    },
+                                              child: Text(
+                                                (_inviteBusy || _setupBusy)
+                                                    ? 'Bezig...'
+                                                    : 'Co-parent uitnodigen',
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            height: 48,
+                                            child: OutlinedButton(
+                                              onPressed: () {
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const SetupPage(),
+                                                  ),
+                                                );
+                                              },
+                                              child: const Text('Ik heb een code'),
+                                            ),
+                                          ),
+                                          if (kDebugMode) ...[
+                                            const SizedBox(height: 10),
+                                            Center(
+                                              child: TextButton(
+                                                onPressed: _switchBusy
+                                                    ? null
+                                                    : () =>
+                                                          _switchAccount(context),
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      onSurface(context, a62),
+                                                ),
+                                                child: const Text(
+                                                  'Wissel account',
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            if (kDebugMode) ...[
-                              const SizedBox(height: 12),
-                              Center(
-                                child: TextButton(
-                                  onPressed: _switchBusy
-                                      ? null
-                                      : () => _switchAccount(context),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: onSurface(context, a62),
-                                  ),
-                                  child: const Text('Wissel account'),
+                          ),
+                        ),
+                        if (_showWaiting) ...[
+                          const ModalBarrier(
+                            dismissible: false,
+                            color: Color(0x59000000),
+                          ),
+                          Align(
+                            alignment: const Alignment(0, 0.25),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              child: KiduCard(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Wachten op co-parent',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: onSurface(context, a68),
+                                            height: 1.35,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    SizedBox(
+                                      height: 48,
+                                      child: FilledButton(
+                                        onPressed: () {
+                                          setState(() => _showWaiting = false);
+                                        },
+                                        child: const Text('Terug'),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ],
-                        ),
-                      ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
@@ -2374,45 +2558,46 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     fontWeight: FontWeight.w700,
                                                   ),
                                             ),
-                                            const SizedBox(height: _cardGap),
+                                            // Compact summary: replace three separate rows.
+                                            const SizedBox(height: 8),
                                             _balanceRow(
-                                              label: 'Totaal',
+                                              label: 'Samen uitgegeven',
                                               value: _formatEur(totalCents),
                                             ),
                                             const SizedBox(height: 8),
-                                            _balanceRow(
-                                              label: myName,
-                                              value: _formatEur(myPaidCents),
+                                            Text(
+                                              '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: onSurface(context, a68),
+                                                    height: 1.3,
+                                                  ),
                                             ),
+                                            // Tighter section spacing for lower card height.
                                             const SizedBox(height: 8),
-                                            _balanceRow(
-                                              label: otherName,
-                                              value: _formatEur(otherPaidCents),
-                                            ),
-                                            const SizedBox(height: _cardGap),
                                             Divider(
                                               height: 1,
                                               color: outlineV(context, a45),
                                             ),
-                                            const SizedBox(height: _cardGap),
+                                            const SizedBox(height: 8),
+                                            // Keep settlement as primary info.
                                             Text(
                                               settlementText,
                                               style: Theme.of(context)
                                                   .textTheme
-                                                  .bodyMedium
+                                                  .bodySmall
                                                   ?.copyWith(
-                                                    fontWeight: FontWeight.w500,
+                                                    fontWeight: FontWeight.w600,
                                                     color: onSurface(
                                                       context,
                                                       a84,
                                                     ),
-                                                    height: 1.35,
+                                                    height: 1.3,
                                                   ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            _buildSettlementStatusChip(
-                                              context,
-                                              settlementCents: settlementCents,
                                             ),
                                           ],
                                         ),
