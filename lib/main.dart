@@ -46,10 +46,7 @@ ThemeData buildKiduTheme() {
   final cs = ColorScheme.fromSeed(
     seedColor: seed,
     brightness: Brightness.light,
-  ).copyWith(
-    surface: Colors.white,
-    surfaceTint: Colors.transparent,
-  );
+  ).copyWith(surface: Colors.white, surfaceTint: Colors.transparent);
 
   return ThemeData(
     useMaterial3: true,
@@ -545,17 +542,17 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
               const SizedBox(height: 24),
               Text(
                 'Welke naam wil je gebruiken?',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
               Text(
                 'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: onSurface(context, a62),
-                      height: 1.35,
-                    ),
+                  color: onSurface(context, a62),
+                  height: 1.35,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -565,7 +562,8 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _busy ? null : _save(),
                 onChanged: (_) {
-                  if (_nameInlineHint != null) setState(() => _nameInlineHint = null);
+                  if (_nameInlineHint != null)
+                    setState(() => _nameInlineHint = null);
                 },
                 decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
@@ -856,7 +854,9 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _inviteBusy = false;
   bool _isInviting = false;
   bool _switchBusy = false;
-  bool _addExpenseCheckBusy = false;
+  final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
+  final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
+  QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
   bool _expenseBusy = false;
   String? _inviteCode;
   bool _showWaiting = false;
@@ -1118,9 +1118,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       if (email != null && email.isNotEmpty)
                         Text(
                           'Ingelogd als: $email',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: onSurface(context, a62),
                                 height: 1.35,
@@ -1129,20 +1127,20 @@ class _DashboardPageState extends State<DashboardPage> {
                       if (isPaired)
                         Text(
                           'Verbonden met: $effectiveOtherName',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: onSurface(context, a68),
-                                    height: 1.35,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: onSurface(context, a68),
+                                height: 1.35,
+                              ),
                         )
                       else
                         Text(
                           'Koppel met je co-parent om samen kosten te delen.',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: onSurface(context, a68),
-                                    height: 1.35,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: onSurface(context, a68),
+                                height: 1.35,
+                              ),
                         ),
                       const SizedBox(height: _cardGap),
                       if (!isPaired && hasHousehold && canInvite) ...[
@@ -1204,9 +1202,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       const Divider(height: 24),
                       Text(
                         'Account',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -1214,9 +1211,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         title: const Text('Naam wijzigen'),
                         subtitle: Text(
                           'Wijzig hoe je zichtbaar bent in KiDu',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: onSurface(context, a62)),
                         ),
                         onTap: () {
@@ -1231,9 +1226,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       Text(
                         'Info',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -1289,9 +1283,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   'Je houdt de controle:\n'
                                   '• Je kunt je naam altijd aanpassen.\n'
                                   '• Je kunt uitloggen wanneer je wilt.',
-                                  style: Theme.of(ctx)
-                                      .textTheme
-                                      .bodyMedium
+                                  style: Theme.of(ctx).textTheme.bodyMedium
                                       ?.copyWith(color: onSurface(ctx, a68)),
                                 ),
                               ),
@@ -1384,16 +1376,11 @@ class _DashboardPageState extends State<DashboardPage> {
     String? note,
     String? coparentNameForPendingMessage,
   }) async {
-    if (_expenseBusy) {
-      return;
-    }
-
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       return;
     }
 
-    setState(() => _expenseBusy = true);
     try {
       final ref = await FirebaseFirestore.instance
           .collection('households/$householdId/expenses')
@@ -1439,10 +1426,6 @@ class _DashboardPageState extends State<DashboardPage> {
     } catch (e) {
       if (kDebugMode) debugPrint('Create expense error: $e');
       rethrow;
-    } finally {
-      if (mounted) {
-        setState(() => _expenseBusy = false);
-      }
     }
   }
 
@@ -1454,6 +1437,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final amountController = TextEditingController();
     final noteController = TextEditingController();
     var saving = false;
+    _freezeExpensesVN.value = true;
 
     try {
       await showDialog<void>(
@@ -1559,6 +1543,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   coparentNameForPendingMessage: coparentName,
                                 );
                                 if (context.mounted) {
+                                  await Future<void>.delayed(
+                                    const Duration(milliseconds: 150),
+                                  );
                                   Navigator.of(context).pop();
                                 }
                               } catch (e) {
@@ -1576,7 +1563,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                 }
                               }
                             },
-                      child: Text(saving ? 'Bezig...' : 'Opslaan'),
+                      child: SizedBox(
+                        width: 82,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            const Text('Opslaan'),
+                            if (saving)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1586,9 +1595,10 @@ class _DashboardPageState extends State<DashboardPage> {
         },
       );
     } finally {
-      // Wait a moment so the dialog route can fully dispose (prevents
-      // TextEditingController used-after-dispose during pop animation).
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        _freezeExpensesVN.value = false;
+      }
       titleController.dispose();
       amountController.dispose();
       noteController.dispose();
@@ -1623,6 +1633,13 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     ensureUserDoc();
+  }
+
+  @override
+  void dispose() {
+    _addExpenseCheckBusyVN.dispose();
+    _freezeExpensesVN.dispose();
+    super.dispose();
   }
 
   Future<void> _startSetup() async {
@@ -1812,8 +1829,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   Text(
                     'Uitnodigingscode',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: _cardGap),
                   KiduCodePill(
@@ -1863,10 +1880,11 @@ class _DashboardPageState extends State<DashboardPage> {
       await _startSetup();
       if (!mounted) return;
       for (var i = 0; i < 10; i++) {
-        final userSnap = await FirebaseFirestore.instance.doc('users/$uid').get();
+        final userSnap = await FirebaseFirestore.instance
+            .doc('users/$uid')
+            .get();
         final data = userSnap.data();
-        effectiveHouseholdId =
-            (data?['householdId'] as String?)?.trim() ?? '';
+        effectiveHouseholdId = (data?['householdId'] as String?)?.trim() ?? '';
         if (effectiveHouseholdId.isNotEmpty) {
           break;
         }
@@ -2020,9 +2038,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
             body: const SafeArea(
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: Center(child: CircularProgressIndicator()),
             ),
           );
         }
@@ -2042,15 +2058,14 @@ class _DashboardPageState extends State<DashboardPage> {
             ? user.email!.trim()
             : 'Jij';
 
-        final householdIdStr =
-            hasHousehold ? householdId.trim() : '';
+        final householdIdStr = hasHousehold ? householdId.trim() : '';
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>?>(
           stream: hasHousehold
               ? FirebaseFirestore.instance
-                  .collection('households/$householdIdStr/members')
-                  .limit(2)
-                  .snapshots()
+                    .collection('households/$householdIdStr/members')
+                    .limit(2)
+                    .snapshots()
               : Stream.value(null),
           builder: (context, membersSnapshot) {
             // Prevent "not linked" UI flash while member list is still loading
@@ -2062,9 +2077,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   title: Text(
                     'KiDu',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.4,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                 ),
                 body: SafeArea(
@@ -2072,9 +2087,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     child: Text(
                       'Kon koppeling niet laden.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: onSurface(context, a62),
-                            height: 1.35,
-                          ),
+                        color: onSurface(context, a62),
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ),
@@ -2087,15 +2102,13 @@ class _DashboardPageState extends State<DashboardPage> {
                   title: Text(
                     'KiDu',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.4,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                 ),
                 body: const SafeArea(
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
               );
             }
@@ -2116,13 +2129,13 @@ class _DashboardPageState extends State<DashboardPage> {
             final canInvite = memberCount == 1;
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
-            final myDashboardName = (myProfileName != null &&
-                    myProfileName.isNotEmpty)
+            final myDashboardName =
+                (myProfileName != null && myProfileName.isNotEmpty)
                 ? myProfileName
                 : ((user.displayName != null &&
-                        user.displayName!.trim().isNotEmpty)
-                    ? user.displayName!.trim()
-                    : 'Jij');
+                          user.displayName!.trim().isNotEmpty)
+                      ? user.displayName!.trim()
+                      : 'Jij');
 
             if (canAddExpenses && _showWaiting) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2157,210 +2170,322 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 floatingActionButton: null,
                 body: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(_pagePadding),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 520),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: IntrinsicHeight(
+                            child: Padding(
+                              padding: const EdgeInsets.all(_pagePadding),
+                              child: Stack(
                                 children: [
-                                  KiduCard(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Text(
-                                          'Balans',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        _balanceRow(
-                                          label: 'Samen uitgegeven',
-                                          value: _formatEur(0),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: onSurface(context, a68),
-                                                height: 1.3,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Divider(
-                                          height: 1,
-                                          color: outlineV(context, a45),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: _cardGap),
-                                  KiduCard(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Text(
-                                          'Uitgaven',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(
-                                                color: onSurface(context, a62),
-                                                height: 1.35,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (!_showWaiting) ...[
-                                    const SizedBox(height: _cardGap),
-                                    KiduCard(
+                                  Align(
+                                    alignment: Alignment.topCenter,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 520,
+                                      ),
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         crossAxisAlignment:
                                             CrossAxisAlignment.stretch,
                                         children: [
-                                          Text(
-                                            'Je bent nog niet gekoppeld',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w700,
+                                          KiduCard(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Text(
+                                                  'Balans',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
                                                 ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: onSurface(context, a62),
-                                                  height: 1.35,
+                                                const SizedBox(height: 8),
+                                                _balanceRow(
+                                                  label: 'Samen uitgegeven',
+                                                  value: _formatEur(0),
                                                 ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Builder(
-                                            builder: (context) {
-                                              final bool inviteActionBusy =
-                                                  _isInviting ||
-                                                  _inviteBusy ||
-                                                  _setupBusy;
-                                              return SizedBox(
-                                                height: 48,
-                                                child: ElevatedButton(
-                                                  onPressed: inviteActionBusy
-                                                      ? null
-                                                      : () async {
-                                                          if (_isInviting) return;
-                                                          HapticFeedback
-                                                              .selectionClick();
-                                                          setState(
-                                                            () => _isInviting = true,
-                                                          );
-                                                          try {
-                                                            await _onCoParentUitnodigen(
-                                                              householdIdStr,
-                                                            );
-                                                          } finally {
-                                                            if (mounted) {
-                                                              setState(
-                                                                () => _isInviting = false,
-                                                              );
-                                                            }
-                                                          }
-                                                        },
-                                                  child: SizedBox(
-                                                    width: double.infinity,
-                                                    child: Stack(
-                                                      alignment: Alignment.center,
-                                                      children: [
-                                                        const Text(
-                                                          'Co-parent uitnodigen',
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a68,
                                                         ),
-                                                        if (inviteActionBusy)
-                                                          Align(
-                                                            alignment:
-                                                                Alignment.centerLeft,
-                                                            child: SizedBox(
-                                                              width: 16,
-                                                              height: 16,
-                                                              child: CircularProgressIndicator(
-                                                                strokeWidth: 2,
-                                                                color: Theme.of(
-                                                                  context,
-                                                                ).colorScheme.onPrimary,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                      ],
-                                                    ),
-                                                  ),
+                                                        height: 1.3,
+                                                      ),
                                                 ),
-                                              );
-                                            },
-                                          ),
-                                          const SizedBox(height: 8),
-                                          SizedBox(
-                                            height: 48,
-                                            child: OutlinedButton(
-                                              onPressed: () {
-                                                Navigator.of(context).push(
-                                                  MaterialPageRoute(
-                                                    builder: (_) =>
-                                                        const SetupPage(),
-                                                  ),
-                                                );
-                                              },
-                                              child: const Text('Ik heb een code'),
+                                                const SizedBox(height: 8),
+                                                Divider(
+                                                  height: 1,
+                                                  color: outlineV(context, a45),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          if (kDebugMode) ...[
-                                            const SizedBox(height: 10),
-                                            Center(
-                                              child: TextButton(
-                                                onPressed: _switchBusy
-                                                    ? null
-                                                    : () =>
-                                                          _switchAccount(context),
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor:
-                                                      onSurface(context, a62),
+                                          const SizedBox(height: _cardGap),
+                                          KiduCard(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Text(
+                                                  'Uitgaven',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
                                                 ),
-                                                child: const Text(
-                                                  'Wissel account',
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a62,
+                                                        ),
+                                                        height: 1.35,
+                                                      ),
                                                 ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (!_showWaiting) ...[
+                                            const SizedBox(height: _cardGap),
+                                            KiduCard(
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  Text(
+                                                    'Je bent nog niet gekoppeld',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a62,
+                                                          ),
+                                                          height: 1.35,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Builder(
+                                                    builder: (context) {
+                                                      final bool
+                                                      inviteActionBusy =
+                                                          _isInviting ||
+                                                          _inviteBusy ||
+                                                          _setupBusy;
+                                                      return SizedBox(
+                                                        height: 48,
+                                                        child: ElevatedButton(
+                                                          onPressed:
+                                                              inviteActionBusy
+                                                              ? null
+                                                              : () async {
+                                                                  if (_isInviting)
+                                                                    return;
+                                                                  HapticFeedback.selectionClick();
+                                                                  setState(
+                                                                    () =>
+                                                                        _isInviting =
+                                                                            true,
+                                                                  );
+                                                                  try {
+                                                                    await _onCoParentUitnodigen(
+                                                                      householdIdStr,
+                                                                    );
+                                                                  } finally {
+                                                                    if (mounted) {
+                                                                      setState(
+                                                                        () => _isInviting =
+                                                                            false,
+                                                                      );
+                                                                    }
+                                                                  }
+                                                                },
+                                                          child: SizedBox(
+                                                            width:
+                                                                double.infinity,
+                                                            child: Stack(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .center,
+                                                              children: [
+                                                                const Text(
+                                                                  'Co-parent uitnodigen',
+                                                                ),
+                                                                if (inviteActionBusy)
+                                                                  Align(
+                                                                    alignment:
+                                                                        Alignment
+                                                                            .centerLeft,
+                                                                    child: SizedBox(
+                                                                      width: 16,
+                                                                      height:
+                                                                          16,
+                                                                      child: CircularProgressIndicator(
+                                                                        strokeWidth:
+                                                                            2,
+                                                                        color: Theme.of(
+                                                                          context,
+                                                                        ).colorScheme.onPrimary,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  SizedBox(
+                                                    height: 48,
+                                                    child: OutlinedButton(
+                                                      onPressed: () {
+                                                        Navigator.of(
+                                                          context,
+                                                        ).push(
+                                                          MaterialPageRoute(
+                                                            builder: (_) =>
+                                                                const SetupPage(),
+                                                          ),
+                                                        );
+                                                      },
+                                                      child: const Text(
+                                                        'Ik heb een code',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (kDebugMode) ...[
+                                                    const SizedBox(height: 10),
+                                                    Center(
+                                                      child: TextButton(
+                                                        onPressed: _switchBusy
+                                                            ? null
+                                                            : () =>
+                                                                  _switchAccount(
+                                                                    context,
+                                                                  ),
+                                                        style:
+                                                            TextButton.styleFrom(
+                                                              foregroundColor:
+                                                                  onSurface(
+                                                                    context,
+                                                                    a62,
+                                                                  ),
+                                                            ),
+                                                        child: const Text(
+                                                          'Wissel account',
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
                                               ),
                                             ),
                                           ],
                                         ],
+                                      ),
+                                    ),
+                                  ),
+                                  if (_showWaiting) ...[
+                                    const ModalBarrier(
+                                      dismissible: false,
+                                      color: Color(0x59000000),
+                                    ),
+                                    Align(
+                                      alignment: const Alignment(0, 0.25),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 520,
+                                        ),
+                                        child: KiduCard(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              Text(
+                                                'Wachten op co-parent',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: onSurface(
+                                                        context,
+                                                        a68,
+                                                      ),
+                                                      height: 1.35,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 14),
+                                              SizedBox(
+                                                height: 48,
+                                                child: FilledButton(
+                                                  onPressed: () {
+                                                    setState(
+                                                      () =>
+                                                          _showWaiting = false,
+                                                    );
+                                                  },
+                                                  child: const Text('Terug'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -2369,58 +2494,8 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                           ),
                         ),
-                        if (_showWaiting) ...[
-                          const ModalBarrier(
-                            dismissible: false,
-                            color: Color(0x59000000),
-                          ),
-                          Align(
-                            alignment: const Alignment(0, 0.25),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 520),
-                              child: KiduCard(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Wachten op co-parent',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: onSurface(context, a68),
-                                            height: 1.35,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 14),
-                                    SizedBox(
-                                      height: 48,
-                                      child: FilledButton(
-                                        onPressed: () {
-                                          setState(() => _showWaiting = false);
-                                        },
-                                        child: const Text('Terug'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
               );
@@ -2442,14 +2517,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 final otherName = otherUid == null
                     ? 'Co-parent'
                     : (names[otherUid] ?? 'Co-parent');
-                final bool addExpenseBusy =
-                    _addExpenseCheckBusy ||
-                    _expenseBusy ||
-                    _setupBusy ||
-                    _inviteBusy ||
-                    _switchBusy;
 
                 return Scaffold(
+                  resizeToAvoidBottomInset: false,
                   appBar: AppBar(
                     centerTitle: true,
                     title: Text(
@@ -2475,630 +2545,680 @@ class _DashboardPageState extends State<DashboardPage> {
                         : [],
                   ),
                   floatingActionButton: canAddExpenses
-                      ? FloatingActionButton(
-                          onPressed: addExpenseBusy
-                              ? null
-                              : () async {
-                                  if (_addExpenseCheckBusy) return;
-                                  setState(() => _addExpenseCheckBusy = true);
-                                  try {
-                                  if (!await _canWriteExpenseNow()) {
-                                    _showSnackBar(
-                                      'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
-                                    );
-                                    return;
-                                  }
-                                  _openAddExpenseDialog(
-                                    householdIdStr,
-                                    coparentName: otherName,
-                                  );
-                                  } finally {
-                                    if (mounted) {
-                                      setState(
-                                        () => _addExpenseCheckBusy = false,
-                                      );
-                                    }
-                                  }
-                                },
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: addExpenseBusy
-                                ? Center(
-                                    child: SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onPrimaryContainer,
-                                      ),
-                                    ),
-                                  )
-                                : const Icon(Icons.add, size: 24),
-                          ),
+                      ? ValueListenableBuilder<bool>(
+                          valueListenable: _addExpenseCheckBusyVN,
+                          builder: (context, fabBusy, _) {
+                            final bool addExpenseBusy =
+                                fabBusy ||
+                                _expenseBusy ||
+                                _setupBusy ||
+                                _inviteBusy ||
+                                _switchBusy;
+
+                            return FloatingActionButton(
+                              onPressed: addExpenseBusy
+                                  ? null
+                                  : () async {
+                                      if (_addExpenseCheckBusyVN.value) return;
+                                      _addExpenseCheckBusyVN.value = true;
+                                      try {
+                                        if (!await _canWriteExpenseNow()) {
+                                          _showSnackBar(
+                                            'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                                          );
+                                          return;
+                                        }
+                                        await _openAddExpenseDialog(
+                                          householdIdStr,
+                                          coparentName: otherName,
+                                        );
+                                      } finally {
+                                        if (mounted) {
+                                          _addExpenseCheckBusyVN.value = false;
+                                        }
+                                      }
+                                    },
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: addExpenseBusy
+                                    ? Center(
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
+                                      )
+                                    : const Icon(Icons.add, size: 24),
+                              ),
+                            );
+                          },
                         )
                       : null,
-                  body: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(_pagePadding),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Align(
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: min(constraints.maxWidth, 520.0),
-                              height: constraints.maxHeight,
-                              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                                stream: FirebaseFirestore.instance
-                                    .collection(
-                                      'households/$householdIdStr/expenses',
-                                    )
-                                    .orderBy('createdAt', descending: true)
-                                    .limit(20)
-                                    .snapshots(includeMetadataChanges: true),
-                                builder: (context, expensesSnapshot) {
-                                  if (expensesSnapshot.hasError) {
-                                    return const Text(
-                                      'Kon uitgaven niet laden.',
-                                    );
-                                  }
+                  body: MediaQuery.removeViewInsets(
+                    context: context,
+                    removeBottom: true,
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(_pagePadding),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Align(
+                              alignment: Alignment.topCenter,
+                              child: SizedBox(
+                                width: min(constraints.maxWidth, 520.0),
+                                height: constraints.maxHeight,
+                                child: ValueListenableBuilder<bool>(
+                                  valueListenable: _freezeExpensesVN,
+                                  builder: (context, frozen, _) {
+                                    return StreamBuilder<
+                                      QuerySnapshot<Map<String, dynamic>>
+                                    >(
+                                      stream: FirebaseFirestore.instance
+                                          .collection(
+                                            'households/$householdIdStr/expenses',
+                                          )
+                                          .orderBy(
+                                            'createdAt',
+                                            descending: true,
+                                          )
+                                          .limit(20)
+                                          .snapshots(
+                                            includeMetadataChanges: true,
+                                          ),
+                                      builder: (context, expensesSnapshot) {
+                                        if (expensesSnapshot.hasData &&
+                                            !frozen) {
+                                          _lastExpensesSnap =
+                                              expensesSnapshot.data!;
+                                        }
+                                        final effectiveSnap =
+                                            _lastExpensesSnap ??
+                                            expensesSnapshot.data;
+                                        if (expensesSnapshot.hasError &&
+                                            effectiveSnap == null) {
+                                          return const Text(
+                                            'Kon uitgaven niet laden.',
+                                          );
+                                        }
 
-                                  final docs =
-                                      expensesSnapshot.data?.docs ?? const [];
+                                        final docs =
+                                            effectiveSnap?.docs ?? const [];
 
-                                  var totalCents = 0;
-                                  var myPaidCents = 0;
-                                  for (final d in docs) {
-                                    final e = d.data();
-                                    final amountCents =
-                                        (e['amountCents'] as num?)?.toInt() ??
-                                        0;
-                                    totalCents += amountCents;
-                                    final createdBy =
-                                        (e['createdBy'] as String?)?.trim();
-                                    if (createdBy == user.uid) {
-                                      myPaidCents += amountCents;
-                                    }
-                                  }
-                                  final otherPaidCents =
-                                      totalCents - myPaidCents;
-                                  final halfFloor = totalCents ~/ 2;
-                                  final remainder = totalCents % 2;
-                                  final expectedMy =
-                                      halfFloor +
-                                      ((remainder == 1 &&
-                                              myPaidCents < otherPaidCents)
-                                          ? 1
-                                          : 0);
-                                  final settlementCents =
-                                      myPaidCents - expectedMy;
+                                        var totalCents = 0;
+                                        var myPaidCents = 0;
+                                        for (final d in docs) {
+                                          final e = d.data();
+                                          final amountCents =
+                                              (e['amountCents'] as num?)
+                                                  ?.toInt() ??
+                                              0;
+                                          totalCents += amountCents;
+                                          final createdBy =
+                                              (e['createdBy'] as String?)
+                                                  ?.trim();
+                                          if (createdBy == user.uid) {
+                                            myPaidCents += amountCents;
+                                          }
+                                        }
+                                        final otherPaidCents =
+                                            totalCents - myPaidCents;
+                                        final halfFloor = totalCents ~/ 2;
+                                        final remainder = totalCents % 2;
+                                        final expectedMy =
+                                            halfFloor +
+                                            ((remainder == 1 &&
+                                                    myPaidCents <
+                                                        otherPaidCents)
+                                                ? 1
+                                                : 0);
+                                        final settlementCents =
+                                            myPaidCents - expectedMy;
 
-                                  final absSettlement = settlementCents.abs();
-                                  final settlementText = settlementCents > 0
-                                      ? '$otherName betaalt jou ${_formatEur(absSettlement)}'
-                                      : settlementCents < 0
-                                      ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
-                                      : 'Jullie zijn in balans';
+                                        final absSettlement = settlementCents
+                                            .abs();
+                                        final settlementText =
+                                            settlementCents > 0
+                                            ? '$otherName betaalt jou ${_formatEur(absSettlement)}'
+                                            : settlementCents < 0
+                                            ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
+                                            : 'Jullie zijn in balans';
 
-                                  String? lastActivityText;
-                                  if (docs.isNotEmpty) {
-                                    final first = docs.first;
-                                    final e = first.data();
-                                    final createdBy =
-                                        (e['createdBy'] as String?)?.trim();
-                                    final createdAt =
-                                        e['createdAt'] as Timestamp?;
-                                    final name = createdBy == user.uid
-                                        ? myName
-                                        : otherName;
-                                    final timeStr = createdAt == null
-                                        ? 'zojuist'
-                                        : _formatRelativeNl(createdAt.toDate());
-                                    lastActivityText =
-                                        'Laatste activiteit: $name · $timeStr';
-                                  }
+                                        String? lastActivityText;
+                                        if (docs.isNotEmpty) {
+                                          final first = docs.first;
+                                          final e = first.data();
+                                          final createdBy =
+                                              (e['createdBy'] as String?)
+                                                  ?.trim();
+                                          final createdAt =
+                                              e['createdAt'] as Timestamp?;
+                                          final name = createdBy == user.uid
+                                              ? myName
+                                              : otherName;
+                                          final timeStr = createdAt == null
+                                              ? 'zojuist'
+                                              : _formatRelativeNl(
+                                                  createdAt.toDate(),
+                                                );
+                                          lastActivityText =
+                                              'Laatste activiteit: $name · $timeStr';
+                                        }
 
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      if (lastActivityText != null) ...[
-                                        Text(
-                                          lastActivityText,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: onSurface(context, a60),
-                                              ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                      ],
-                                      KiduCard(
-                                        child: Column(
+                                        return Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.stretch,
                                           children: [
-                                            Text(
-                                              'Balans',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                            // Compact summary: replace three separate rows.
-                                            const SizedBox(height: 8),
-                                            _balanceRow(
-                                              label: 'Samen uitgegeven',
-                                              value: _formatEur(totalCents),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: onSurface(context, a68),
-                                                    height: 1.3,
-                                                  ),
-                                            ),
-                                            // Tighter section spacing for lower card height.
-                                            const SizedBox(height: 8),
-                                            Divider(
-                                              height: 1,
-                                              color: outlineV(context, a45),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            // Keep settlement as primary info.
-                                            Text(
-                                              settlementText,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w600,
-                                                    color: onSurface(
-                                                      context,
-                                                      a84,
-                                                    ),
-                                                    height: 1.3,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: _cardGap),
-                                      Expanded(
-                                        child: KiduCard(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
+                                            if (lastActivityText != null) ...[
                                               Text(
-                                                'Uitgaven',
+                                                lastActivityText,
                                                 style: Theme.of(context)
                                                     .textTheme
-                                                    .titleMedium
+                                                    .bodySmall
                                                     ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
+                                                      color: onSurface(
+                                                        context,
+                                                        a60,
+                                                      ),
                                                     ),
                                               ),
-                                              const SizedBox(height: 10),
-                                              Expanded(
-                                                child: !expensesSnapshot.hasData
-                                                    ? const Center(
-                                                        child:
-                                                            CircularProgressIndicator(),
-                                                      )
-                                                    : docs.isEmpty
-                                                    ? Align(
-                                                        alignment:
-                                                            Alignment.topLeft,
-                                                        child: Text(
-                                                          canAddExpenses
-                                                              ? 'Nog geen uitgaven. Voeg er een toe met +.'
-                                                              : 'Nog geen uitgaven.',
-                                                          style: Theme.of(context)
-                                                              .textTheme
-                                                              .bodyMedium
-                                                              ?.copyWith(
-                                                                color:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a62,
-                                                                    ),
-                                                                height: 1.35,
-                                                              ),
+                                              const SizedBox(height: 8),
+                                            ],
+                                            KiduCard(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  Text(
+                                                    'Balans',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
                                                         ),
-                                                      )
-                                                    : ListView.separated(
-                                                        itemCount: docs.length,
-                                                        separatorBuilder:
-                                                            (context, index) =>
-                                                                Divider(
-                                                                  height: 16,
-                                                                  color:
-                                                                      outlineV(
+                                                  ),
+                                                  // Compact summary: replace three separate rows.
+                                                  const SizedBox(height: 8),
+                                                  _balanceRow(
+                                                    label: 'Samen uitgegeven',
+                                                    value: _formatEur(
+                                                      totalCents,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Text(
+                                                    '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a68,
+                                                          ),
+                                                          height: 1.3,
+                                                        ),
+                                                  ),
+                                                  // Tighter section spacing for lower card height.
+                                                  const SizedBox(height: 8),
+                                                  Divider(
+                                                    height: 1,
+                                                    color: outlineV(
+                                                      context,
+                                                      a45,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  // Keep settlement as primary info.
+                                                  Text(
+                                                    settlementText,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: onSurface(
+                                                            context,
+                                                            a84,
+                                                          ),
+                                                          height: 1.3,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: _cardGap),
+                                            Expanded(
+                                              child: KiduCard(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    Text(
+                                                      'Uitgaven',
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 10),
+                                                    Expanded(
+                                                      child:
+                                                          effectiveSnap == null
+                                                          ? const Center(
+                                                              child:
+                                                                  CircularProgressIndicator(),
+                                                            )
+                                                          : docs.isEmpty
+                                                          ? Align(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .topLeft,
+                                                              child: Text(
+                                                                canAddExpenses
+                                                                    ? 'Nog geen uitgaven. Voeg er een toe met +.'
+                                                                    : 'Nog geen uitgaven.',
+                                                                style: Theme.of(context)
+                                                                    .textTheme
+                                                                    .bodyMedium
+                                                                    ?.copyWith(
+                                                                      color: onSurface(
                                                                         context,
-                                                                        a40,
+                                                                        a62,
                                                                       ),
-                                                                ),
-                                                        itemBuilder: (context, index) {
-                                                          final d = docs[index];
-                                                          final e = d.data();
-                                                          final title =
-                                                              (e['title']
-                                                                      as String?)
-                                                                  ?.trim() ??
-                                                              '(zonder)';
-                                                          final amountCents =
-                                                              (e['amountCents']
-                                                                      as num?)
-                                                                  ?.toInt() ??
-                                                              0;
-                                                          final createdBy =
-                                                              (e['createdBy']
-                                                                      as String?)
-                                                                  ?.trim();
-
-                                                          final who =
-                                                              createdBy ==
-                                                                  user.uid
-                                                              ? myName
-                                                              : (otherUid !=
-                                                                        null &&
-                                                                    createdBy ==
-                                                                        otherUid)
-                                                              ? otherName
-                                                              : 'Co-parent';
-                                                          final isPending = d
-                                                              .metadata
-                                                              .hasPendingWrites;
-                                                          final createdAtRaw =
-                                                              e['createdAt'];
-                                                          DateTime?
-                                                          createdAtDateTime;
-                                                          if (createdAtRaw
-                                                              is Timestamp) {
-                                                            createdAtDateTime =
-                                                                createdAtRaw
-                                                                    .toDate()
-                                                                    .toLocal();
-                                                          } else if (createdAtRaw
-                                                              is DateTime) {
-                                                            createdAtDateTime =
-                                                                createdAtRaw
-                                                                    .toLocal();
-                                                          }
-                                                          final subtitleText =
-                                                              createdAtDateTime ==
-                                                                  null
-                                                              ? who
-                                                              : (() {
-                                                                  final dt =
-                                                                      createdAtDateTime;
-                                                                  if (dt ==
-                                                                      null) {
-                                                                    return who;
-                                                                  }
-                                                                  const nlMonths =
-                                                                      <String>[
-                                                                        'jan',
-                                                                        'feb',
-                                                                        'mrt',
-                                                                        'apr',
-                                                                        'mei',
-                                                                        'jun',
-                                                                        'jul',
-                                                                        'aug',
-                                                                        'sep',
-                                                                        'okt',
-                                                                        'nov',
-                                                                        'dec',
-                                                                      ];
-                                                                  final shortDateTime =
-                                                                      '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                                                                  return '$who • $shortDateTime';
-                                                                })();
-
-                                                          if (createdBy !=
-                                                              user.uid) {
-                                                            return ListTile(
-                                                              contentPadding:
-                                                                  EdgeInsets
-                                                                      .zero,
-                                                              dense: true,
-                                                              visualDensity:
-                                                                  VisualDensity
-                                                                      .compact,
-                                                              onTap: () {
-                                                                Navigator.of(
-                                                                  context,
-                                                                ).push(
-                                                                  MaterialPageRoute<
-                                                                    void
-                                                                  >(
-                                                                    builder: (context) => _ExpenseDetailPage(
-                                                                      householdId:
-                                                                          householdIdStr,
-                                                                      expenseId:
-                                                                          d.id,
-                                                                      uid: user
-                                                                          .uid,
-                                                                      title:
-                                                                          title,
-                                                                      amountCents:
-                                                                          amountCents,
-                                                                      paidByName:
-                                                                          who,
-                                                                      createdAt:
-                                                                          createdAtDateTime,
-                                                                      isPending:
-                                                                          isPending,
-                                                                      onManageNote:
-                                                                          null,
+                                                                      height:
+                                                                          1.35,
                                                                     ),
-                                                                  ),
-                                                                );
-                                                              },
-                                                              title: Text(
-                                                                title,
-                                                                maxLines: 1,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
                                                               ),
-                                                              subtitle: Text(
-                                                                subtitleText,
-                                                                maxLines: 1,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                              trailing: Row(
-                                                                mainAxisSize:
-                                                                    MainAxisSize
-                                                                        .min,
-                                                                children: [
-                                                                  if (isPending)
-                                                                    Tooltip(
-                                                                      message:
-                                                                          'Nog niet gesynchroniseerd',
-                                                                      child: Icon(
-                                                                        Icons
-                                                                            .cloud_off,
-                                                                        size:
-                                                                            16,
-                                                                        color: onSurface(
-                                                                          context,
-                                                                          a50,
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                  if (isPending)
-                                                                    const SizedBox(
-                                                                      width: 4,
-                                                                    ),
-                                                                  Text(
-                                                                    _formatEur(
-                                                                      amountCents,
-                                                                    ),
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodyMedium
-                                                                        ?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w700,
-                                                                        ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            );
-                                                          }
-
-                                                          return FutureBuilder<
-                                                            String?
-                                                          >(
-                                                            key: ValueKey(
-                                                              'note_${d.id}_$_notesRefreshTick',
-                                                            ),
-                                                            future: _loadMyPrivateNote(
-                                                              householdId:
-                                                                  householdIdStr,
-                                                              expenseId: d.id,
-                                                              uid: user.uid,
-                                                            ),
-                                                            builder: (context, noteSnap) {
-                                                              final note =
-                                                                  noteSnap.data;
-                                                              final hasNote =
-                                                                  note !=
-                                                                      null &&
-                                                                  note.isNotEmpty;
-
-                                                              Future<void>
-                                                              openNoteFlow() async {
-                                                                if (!await _canWriteExpenseNow()) {
-                                                                  if (mounted) {
-                                                                    final msg =
-                                                                        hasNote
-                                                                        ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                        : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
-                                                                    _showSnackBar(
-                                                                      msg,
-                                                                    );
-                                                                  }
-                                                                  return;
-                                                                }
-                                                                final snap =
-                                                                    await FirebaseFirestore
-                                                                        .instance
-                                                                        .doc(
-                                                                          'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
-                                                                        )
-                                                                        .get();
-                                                                final latestNote =
-                                                                    ((snap.data()?['note']
-                                                                                as String?) ??
-                                                                            '')
-                                                                        .trim();
-                                                                await _openEditPrivateNoteDialog(
-                                                                  householdId:
-                                                                      householdIdStr,
-                                                                  expenseId:
-                                                                      d.id,
-                                                                  uid: user.uid,
-                                                                  initialNote:
-                                                                      latestNote,
-                                                                );
-                                                              }
-
-                                                              return ListTile(
-                                                                contentPadding:
-                                                                    EdgeInsets
-                                                                        .zero,
-                                                                dense: true,
-                                                                visualDensity:
-                                                                    VisualDensity
-                                                                        .compact,
-                                                                onTap: () {
-                                                                  Navigator.of(
+                                                            )
+                                                          : ListView.separated(
+                                                              itemCount:
+                                                                  docs.length,
+                                                              separatorBuilder:
+                                                                  (
                                                                     context,
-                                                                  ).push(
-                                                                    MaterialPageRoute<
-                                                                      void
-                                                                    >(
-                                                                      builder: (context) => _ExpenseDetailPage(
-                                                                        householdId:
-                                                                            householdIdStr,
-                                                                        expenseId:
-                                                                            d.id,
-                                                                        uid: user
-                                                                            .uid,
-                                                                        title:
-                                                                            title,
-                                                                        amountCents:
+                                                                    index,
+                                                                  ) => Divider(
+                                                                    height: 16,
+                                                                    color:
+                                                                        outlineV(
+                                                                          context,
+                                                                          a40,
+                                                                        ),
+                                                                  ),
+                                                              itemBuilder: (context, index) {
+                                                                final d =
+                                                                    docs[index];
+                                                                final e = d
+                                                                    .data();
+                                                                final title =
+                                                                    (e['title']
+                                                                            as String?)
+                                                                        ?.trim() ??
+                                                                    '(zonder)';
+                                                                final amountCents =
+                                                                    (e['amountCents']
+                                                                            as num?)
+                                                                        ?.toInt() ??
+                                                                    0;
+                                                                final createdBy =
+                                                                    (e['createdBy']
+                                                                            as String?)
+                                                                        ?.trim();
+
+                                                                final who =
+                                                                    createdBy ==
+                                                                        user.uid
+                                                                    ? myName
+                                                                    : (otherUid !=
+                                                                              null &&
+                                                                          createdBy ==
+                                                                              otherUid)
+                                                                    ? otherName
+                                                                    : 'Co-parent';
+                                                                final isPending = d
+                                                                    .metadata
+                                                                    .hasPendingWrites;
+                                                                final createdAtRaw =
+                                                                    e['createdAt'];
+                                                                DateTime?
+                                                                createdAtDateTime;
+                                                                if (createdAtRaw
+                                                                    is Timestamp) {
+                                                                  createdAtDateTime =
+                                                                      createdAtRaw
+                                                                          .toDate()
+                                                                          .toLocal();
+                                                                } else if (createdAtRaw
+                                                                    is DateTime) {
+                                                                  createdAtDateTime =
+                                                                      createdAtRaw
+                                                                          .toLocal();
+                                                                }
+                                                                final subtitleText =
+                                                                    createdAtDateTime ==
+                                                                        null
+                                                                    ? who
+                                                                    : (() {
+                                                                        final dt =
+                                                                            createdAtDateTime;
+                                                                        if (dt ==
+                                                                            null) {
+                                                                          return who;
+                                                                        }
+                                                                        const nlMonths =
+                                                                            <
+                                                                              String
+                                                                            >[
+                                                                              'jan',
+                                                                              'feb',
+                                                                              'mrt',
+                                                                              'apr',
+                                                                              'mei',
+                                                                              'jun',
+                                                                              'jul',
+                                                                              'aug',
+                                                                              'sep',
+                                                                              'okt',
+                                                                              'nov',
+                                                                              'dec',
+                                                                            ];
+                                                                        final shortDateTime =
+                                                                            '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                                                                        return '$who • $shortDateTime';
+                                                                      })();
+
+                                                                if (createdBy !=
+                                                                    user.uid) {
+                                                                  return ListTile(
+                                                                    contentPadding:
+                                                                        EdgeInsets
+                                                                            .zero,
+                                                                    dense: true,
+                                                                    visualDensity:
+                                                                        VisualDensity
+                                                                            .compact,
+                                                                    onTap: () {
+                                                                      Navigator.of(
+                                                                        context,
+                                                                      ).push(
+                                                                        MaterialPageRoute<
+                                                                          void
+                                                                        >(
+                                                                          builder:
+                                                                              (
+                                                                                context,
+                                                                              ) => _ExpenseDetailPage(
+                                                                                householdId: householdIdStr,
+                                                                                expenseId: d.id,
+                                                                                uid: user.uid,
+                                                                                title: title,
+                                                                                amountCents: amountCents,
+                                                                                paidByName: who,
+                                                                                createdAt: createdAtDateTime,
+                                                                                isPending: isPending,
+                                                                                onManageNote: null,
+                                                                              ),
+                                                                        ),
+                                                                      );
+                                                                    },
+                                                                    title: Text(
+                                                                      title,
+                                                                      maxLines:
+                                                                          1,
+                                                                      overflow:
+                                                                          TextOverflow
+                                                                              .ellipsis,
+                                                                    ),
+                                                                    subtitle: Text(
+                                                                      subtitleText,
+                                                                      maxLines:
+                                                                          1,
+                                                                      overflow:
+                                                                          TextOverflow
+                                                                              .ellipsis,
+                                                                    ),
+                                                                    trailing: Row(
+                                                                      mainAxisSize:
+                                                                          MainAxisSize
+                                                                              .min,
+                                                                      children: [
+                                                                        if (isPending)
+                                                                          Tooltip(
+                                                                            message:
+                                                                                'Nog niet gesynchroniseerd',
+                                                                            child: Icon(
+                                                                              Icons.cloud_off,
+                                                                              size: 16,
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a50,
+                                                                              ),
+                                                                            ),
+                                                                          ),
+                                                                        if (isPending)
+                                                                          const SizedBox(
+                                                                            width:
+                                                                                4,
+                                                                          ),
+                                                                        Text(
+                                                                          _formatEur(
                                                                             amountCents,
-                                                                        paidByName:
-                                                                            who,
-                                                                        createdAt:
-                                                                            createdAtDateTime,
-                                                                        isPending:
-                                                                            isPending,
-                                                                        onManageNote:
-                                                                            openNoteFlow,
-                                                                      ),
+                                                                          ),
+                                                                          style:
+                                                                              Theme.of(
+                                                                                context,
+                                                                              ).textTheme.bodyMedium?.copyWith(
+                                                                                fontWeight: FontWeight.w700,
+                                                                              ),
+                                                                        ),
+                                                                      ],
                                                                     ),
                                                                   );
-                                                                },
-                                                                title: Text(
-                                                                  title,
-                                                                  maxLines: 1,
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis,
-                                                                ),
-                                                                subtitle:
-                                                                    (noteSnap
-                                                                            .hasError ||
-                                                                        !noteSnap
-                                                                            .hasData)
-                                                                    ? Text(
-                                                                        subtitleText,
-                                                                        maxLines:
-                                                                            1,
-                                                                        overflow:
-                                                                            TextOverflow.ellipsis,
-                                                                      )
-                                                                    : (hasNote
-                                                                          ? Column(
-                                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                                              mainAxisSize: MainAxisSize.min,
-                                                                              children: [
-                                                                                Text(
+                                                                }
+
+                                                                return FutureBuilder<
+                                                                  String?
+                                                                >(
+                                                                  key: ValueKey(
+                                                                    'note_${d.id}_$_notesRefreshTick',
+                                                                  ),
+                                                                  future: _loadMyPrivateNote(
+                                                                    householdId:
+                                                                        householdIdStr,
+                                                                    expenseId:
+                                                                        d.id,
+                                                                    uid: user
+                                                                        .uid,
+                                                                  ),
+                                                                  builder:
+                                                                      (
+                                                                        context,
+                                                                        noteSnap,
+                                                                      ) {
+                                                                        final note =
+                                                                            noteSnap.data;
+                                                                        final hasNote =
+                                                                            note !=
+                                                                                null &&
+                                                                            note.isNotEmpty;
+
+                                                                        Future<
+                                                                          void
+                                                                        >
+                                                                        openNoteFlow() async {
+                                                                          if (!await _canWriteExpenseNow()) {
+                                                                            if (mounted) {
+                                                                              final msg = hasNote
+                                                                                  ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                                  : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
+                                                                              _showSnackBar(
+                                                                                msg,
+                                                                              );
+                                                                            }
+                                                                            return;
+                                                                          }
+                                                                          final snap = await FirebaseFirestore
+                                                                              .instance
+                                                                              .doc(
+                                                                                'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
+                                                                              )
+                                                                              .get();
+                                                                          final latestNote =
+                                                                              ((snap.data()?['note']
+                                                                                          as String?) ??
+                                                                                      '')
+                                                                                  .trim();
+                                                                          await _openEditPrivateNoteDialog(
+                                                                            householdId:
+                                                                                householdIdStr,
+                                                                            expenseId:
+                                                                                d.id,
+                                                                            uid:
+                                                                                user.uid,
+                                                                            initialNote:
+                                                                                latestNote,
+                                                                          );
+                                                                        }
+
+                                                                        return ListTile(
+                                                                          contentPadding:
+                                                                              EdgeInsets.zero,
+                                                                          dense:
+                                                                              true,
+                                                                          visualDensity:
+                                                                              VisualDensity.compact,
+                                                                          onTap: () {
+                                                                            Navigator.of(
+                                                                              context,
+                                                                            ).push(
+                                                                              MaterialPageRoute<
+                                                                                void
+                                                                              >(
+                                                                                builder:
+                                                                                    (
+                                                                                      context,
+                                                                                    ) => _ExpenseDetailPage(
+                                                                                      householdId: householdIdStr,
+                                                                                      expenseId: d.id,
+                                                                                      uid: user.uid,
+                                                                                      title: title,
+                                                                                      amountCents: amountCents,
+                                                                                      paidByName: who,
+                                                                                      createdAt: createdAtDateTime,
+                                                                                      isPending: isPending,
+                                                                                      onManageNote: openNoteFlow,
+                                                                                    ),
+                                                                              ),
+                                                                            );
+                                                                          },
+                                                                          title: Text(
+                                                                            title,
+                                                                            maxLines:
+                                                                                1,
+                                                                            overflow:
+                                                                                TextOverflow.ellipsis,
+                                                                          ),
+                                                                          subtitle:
+                                                                              (noteSnap.hasError ||
+                                                                                  !noteSnap.hasData)
+                                                                              ? Text(
                                                                                   subtitleText,
                                                                                   maxLines: 1,
                                                                                   overflow: TextOverflow.ellipsis,
+                                                                                )
+                                                                              : (hasNote
+                                                                                    ? Column(
+                                                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                                                        mainAxisSize: MainAxisSize.min,
+                                                                                        children: [
+                                                                                          Text(
+                                                                                            subtitleText,
+                                                                                            maxLines: 1,
+                                                                                            overflow: TextOverflow.ellipsis,
+                                                                                          ),
+                                                                                          Text(
+                                                                                            note,
+                                                                                            maxLines: 1,
+                                                                                            overflow: TextOverflow.ellipsis,
+                                                                                          ),
+                                                                                        ],
+                                                                                      )
+                                                                                    : Text(
+                                                                                        subtitleText,
+                                                                                        maxLines: 1,
+                                                                                        overflow: TextOverflow.ellipsis,
+                                                                                      )),
+                                                                          trailing: Row(
+                                                                            mainAxisSize:
+                                                                                MainAxisSize.min,
+                                                                            mainAxisAlignment:
+                                                                                MainAxisAlignment.end,
+                                                                            children: [
+                                                                              if (isPending)
+                                                                                Tooltip(
+                                                                                  message: 'Nog niet gesynchroniseerd',
+                                                                                  child: Icon(
+                                                                                    Icons.cloud_off,
+                                                                                    size: 16,
+                                                                                    color: onSurface(
+                                                                                      context,
+                                                                                      a50,
+                                                                                    ),
+                                                                                  ),
                                                                                 ),
-                                                                                Text(
-                                                                                  note,
-                                                                                  maxLines: 1,
-                                                                                  overflow: TextOverflow.ellipsis,
+                                                                              if (isPending)
+                                                                                const SizedBox(
+                                                                                  width: 4,
                                                                                 ),
-                                                                              ],
-                                                                            )
-                                                                          : Text(
-                                                                              subtitleText,
-                                                                              maxLines: 1,
-                                                                              overflow: TextOverflow.ellipsis,
-                                                                            )),
-                                                                trailing: Row(
-                                                                  mainAxisSize:
-                                                                      MainAxisSize
-                                                                          .min,
-                                                                  mainAxisAlignment:
-                                                                      MainAxisAlignment
-                                                                          .end,
-                                                                  children: [
-                                                                    if (isPending)
-                                                                      Tooltip(
-                                                                        message:
-                                                                            'Nog niet gesynchroniseerd',
-                                                                        child: Icon(
-                                                                          Icons
-                                                                              .cloud_off,
-                                                                          size:
-                                                                              16,
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a50,
+                                                                              Text(
+                                                                                _formatEur(
+                                                                                  amountCents,
+                                                                                ),
+                                                                                style:
+                                                                                    Theme.of(
+                                                                                      context,
+                                                                                    ).textTheme.bodyMedium?.copyWith(
+                                                                                      fontWeight: FontWeight.w700,
+                                                                                    ),
+                                                                              ),
+                                                                            ],
                                                                           ),
-                                                                        ),
-                                                                      ),
-                                                                    if (isPending)
-                                                                      const SizedBox(
-                                                                        width:
-                                                                            4,
-                                                                      ),
-                                                                    Text(
-                                                                      _formatEur(
-                                                                        amountCents,
-                                                                      ),
-                                                                      style: Theme.of(context)
-                                                                          .textTheme
-                                                                          .bodyMedium
-                                                                          ?.copyWith(
-                                                                            fontWeight:
-                                                                                FontWeight.w700,
-                                                                          ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              );
-                                                            },
-                                                          );
-                                                        },
-                                                      ),
+                                                                        );
+                                                                      },
+                                                                );
+                                                              },
+                                                            ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -3206,7 +3326,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Bedrag'),
-                  subtitle: Text(_ExpenseDetailPage._formatEur(widget.amountCents)),
+                  subtitle: Text(
+                    _ExpenseDetailPage._formatEur(widget.amountCents),
+                  ),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -3216,7 +3338,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Datum/tijd'),
-                  subtitle: Text(_ExpenseDetailPage._formatDateTime(widget.createdAt)),
+                  subtitle: Text(
+                    _ExpenseDetailPage._formatDateTime(widget.createdAt),
+                  ),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -3661,7 +3785,8 @@ class _SetupPageState extends State<SetupPage> {
                       TextField(
                         controller: _inviteController,
                         textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) => setState(() => _joinInlineHint = null),
+                        onChanged: (_) =>
+                            setState(() => _joinInlineHint = null),
                         decoration: const InputDecoration(
                           labelText: 'Koppelcode',
                           border: OutlineInputBorder(),
@@ -3671,9 +3796,7 @@ class _SetupPageState extends State<SetupPage> {
                         const SizedBox(height: 12),
                         Text(
                           _joinInlineHint!,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: onSurface(context, a62),
                                 height: 1.35,
