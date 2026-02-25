@@ -854,7 +854,9 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   bool _setupBusy = false;
   bool _inviteBusy = false;
+  bool _isInviting = false;
   bool _switchBusy = false;
+  bool _addExpenseCheckBusy = false;
   bool _expenseBusy = false;
   String? _inviteCode;
   bool _showWaiting = false;
@@ -2265,25 +2267,65 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 ),
                                           ),
                                           const SizedBox(height: 8),
-                                          SizedBox(
-                                            height: 48,
-                                            child: ElevatedButton(
-                                              onPressed:
-                                                  (_inviteBusy || _setupBusy)
-                                                  ? null
-                                                  : () {
-                                                      HapticFeedback
-                                                          .selectionClick();
-                                                      _onCoParentUitnodigen(
-                                                        householdIdStr,
-                                                      );
-                                                    },
-                                              child: Text(
-                                                (_inviteBusy || _setupBusy)
-                                                    ? 'Bezig...'
-                                                    : 'Co-parent uitnodigen',
-                                              ),
-                                            ),
+                                          Builder(
+                                            builder: (context) {
+                                              final bool inviteActionBusy =
+                                                  _isInviting ||
+                                                  _inviteBusy ||
+                                                  _setupBusy;
+                                              return SizedBox(
+                                                height: 48,
+                                                child: ElevatedButton(
+                                                  onPressed: inviteActionBusy
+                                                      ? null
+                                                      : () async {
+                                                          if (_isInviting) return;
+                                                          HapticFeedback
+                                                              .selectionClick();
+                                                          setState(
+                                                            () => _isInviting = true,
+                                                          );
+                                                          try {
+                                                            await _onCoParentUitnodigen(
+                                                              householdIdStr,
+                                                            );
+                                                          } finally {
+                                                            if (mounted) {
+                                                              setState(
+                                                                () => _isInviting = false,
+                                                              );
+                                                            }
+                                                          }
+                                                        },
+                                                  child: SizedBox(
+                                                    width: double.infinity,
+                                                    child: Stack(
+                                                      alignment: Alignment.center,
+                                                      children: [
+                                                        const Text(
+                                                          'Co-parent uitnodigen',
+                                                        ),
+                                                        if (inviteActionBusy)
+                                                          Align(
+                                                            alignment:
+                                                                Alignment.centerLeft,
+                                                            child: SizedBox(
+                                                              width: 16,
+                                                              height: 16,
+                                                              child: CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: Theme.of(
+                                                                  context,
+                                                                ).colorScheme.onPrimary,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
                                           ),
                                           const SizedBox(height: 8),
                                           SizedBox(
@@ -2400,6 +2442,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 final otherName = otherUid == null
                     ? 'Co-parent'
                     : (names[otherUid] ?? 'Co-parent');
+                final bool addExpenseBusy =
+                    _addExpenseCheckBusy ||
+                    _expenseBusy ||
+                    _setupBusy ||
+                    _inviteBusy ||
+                    _switchBusy;
 
                 return Scaffold(
                   appBar: AppBar(
@@ -2428,9 +2476,12 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   floatingActionButton: canAddExpenses
                       ? FloatingActionButton(
-                          onPressed: _expenseBusy
+                          onPressed: addExpenseBusy
                               ? null
                               : () async {
+                                  if (_addExpenseCheckBusy) return;
+                                  setState(() => _addExpenseCheckBusy = true);
+                                  try {
                                   if (!await _canWriteExpenseNow()) {
                                     _showSnackBar(
                                       'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
@@ -2441,8 +2492,32 @@ class _DashboardPageState extends State<DashboardPage> {
                                     householdIdStr,
                                     coparentName: otherName,
                                   );
+                                  } finally {
+                                    if (mounted) {
+                                      setState(
+                                        () => _addExpenseCheckBusy = false,
+                                      );
+                                    }
+                                  }
                                 },
-                          child: const Icon(Icons.add),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: addExpenseBusy
+                                ? Center(
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(Icons.add, size: 24),
+                          ),
                         )
                       : null,
                   body: SafeArea(
@@ -3048,7 +3123,7 @@ Widget _balanceRow({required String label, required String value}) {
   );
 }
 
-class _ExpenseDetailPage extends StatelessWidget {
+class _ExpenseDetailPage extends StatefulWidget {
   const _ExpenseDetailPage({
     required this.householdId,
     required this.expenseId,
@@ -3096,6 +3171,13 @@ class _ExpenseDetailPage extends StatelessWidget {
   }
 
   @override
+  State<_ExpenseDetailPage> createState() => _ExpenseDetailPageState();
+}
+
+class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
+  bool _noteActionBusy = false;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -3119,27 +3201,27 @@ class _ExpenseDetailPage extends StatelessWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Titel'),
-                  subtitle: Text(title),
+                  subtitle: Text(widget.title),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Bedrag'),
-                  subtitle: Text(_formatEur(amountCents)),
+                  subtitle: Text(_ExpenseDetailPage._formatEur(widget.amountCents)),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Betaald door'),
-                  subtitle: Text(paidByName),
+                  subtitle: Text(widget.paidByName),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Datum/tijd'),
-                  subtitle: Text(_formatDateTime(createdAt)),
+                  subtitle: Text(_ExpenseDetailPage._formatDateTime(widget.createdAt)),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Status'),
-                  subtitle: isPending
+                  subtitle: widget.isPending
                       ? Row(
                           children: [
                             Icon(
@@ -3156,7 +3238,7 @@ class _ExpenseDetailPage extends StatelessWidget {
                 StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: FirebaseFirestore.instance
                       .doc(
-                        'households/$householdId/expenses/$expenseId/privateNotes/$uid',
+                        'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${widget.uid}',
                       )
                       .snapshots(includeMetadataChanges: true),
                   builder: (context, snap) {
@@ -3173,15 +3255,46 @@ class _ExpenseDetailPage extends StatelessWidget {
                             title: const Text('Notitie'),
                             subtitle: Text(note),
                           ),
-                        if (onManageNote != null)
+                        if (widget.onManageNote != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 16),
                             child: FilledButton.icon(
-                              onPressed: () async => await onManageNote!(),
-                              icon: Icon(
-                                hasNoteLive
-                                    ? Icons.edit_note
-                                    : Icons.note_add_outlined,
+                              onPressed: _noteActionBusy
+                                  ? null
+                                  : () async {
+                                      if (_noteActionBusy) return;
+                                      setState(() => _noteActionBusy = true);
+                                      try {
+                                        await widget.onManageNote!();
+                                      } finally {
+                                        if (mounted) {
+                                          setState(
+                                            () => _noteActionBusy = false,
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: _noteActionBusy
+                                    ? Center(
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimary,
+                                          ),
+                                        ),
+                                      )
+                                    : Icon(
+                                        hasNoteLive
+                                            ? Icons.edit_note
+                                            : Icons.note_add_outlined,
+                                      ),
                               ),
                               label: Text(
                                 hasNoteLive
