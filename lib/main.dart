@@ -19,16 +19,13 @@ import 'firebase_options.dart';
 // ------------------------------------------------------------
 // Common semantic opacities used across the UI.
 const double a06 = 0.06;
-const double a18 = 0.18;
 const double a40 = 0.40;
 const double a45 = 0.45;
 const double a50 = 0.50;
 const double a55 = 0.55;
 const double a60 = 0.60;
 const double a62 = 0.62;
-const double a66 = 0.66;
 const double a68 = 0.68;
-const double a72 = 0.72;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
