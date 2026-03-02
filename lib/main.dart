@@ -2237,145 +2237,71 @@ class _DashboardPageState extends State<DashboardPage> {
             }
 
             if (!canAddExpenses) {
-              return Scaffold(
-                appBar: AppBar(
-                  centerTitle: true,
-                  title: Text(
-                    'KiDu',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  actions: [
-                    IconButton(
-                      onPressed: () => _openMenuSheet(
-                        householdId: householdIdStr,
-                        myUid: user.uid,
-                        otherName: 'Co-parent',
-                        canInvite: canInvite,
+              return PopScope(
+                canPop: !_showWaiting,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (!didPop && _showWaiting) {
+                    setState(() => _showWaiting = false);
+                  }
+                },
+                child: Scaffold(
+                  appBar: AppBar(
+                    centerTitle: true,
+                    title: Text(
+                      'KiDu',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
                       ),
-                      icon: const Icon(Icons.more_horiz),
-                      tooltip: 'Menu',
                     ),
-                  ],
-                ),
-                floatingActionButton: null,
-                body: SafeArea(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SingleChildScrollView(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                    actions: [
+                      IconButton(
+                        onPressed: () => _openMenuSheet(
+                          householdId: householdIdStr,
+                          myUid: user.uid,
+                          otherName: 'Co-parent',
+                          canInvite: canInvite,
                         ),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
+                        icon: const Icon(Icons.more_horiz),
+                        tooltip: 'Menu',
+                      ),
+                    ],
+                  ),
+                  floatingActionButton: null,
+                  body: SafeArea(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).viewInsets.bottom,
                           ),
-                          child: IntrinsicHeight(
-                            child: Padding(
-                              padding: const EdgeInsets.all(_pagePadding),
-                              child: Stack(
-                                children: [
-                                  Align(
-                                    alignment: Alignment.topCenter,
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 520,
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          KiduCard(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                Text(
-                                                  'Balans',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .titleMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                _balanceRow(
-                                                  label: 'Samen uitgegeven',
-                                                  value: _formatEur(0),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: onSurface(
-                                                          context,
-                                                          a68,
-                                                        ),
-                                                        height: 1.3,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Divider(
-                                                  height: 1,
-                                                  color: outlineV(context, a45),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: _cardGap),
-                                          KiduCard(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                Text(
-                                                  'Uitgaven',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .titleMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 10),
-                                                Text(
-                                                  'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.copyWith(
-                                                        color: onSurface(
-                                                          context,
-                                                          a62,
-                                                        ),
-                                                        height: 1.35,
-                                                      ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (!_showWaiting) ...[
-                                            const SizedBox(height: _cardGap),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
+                            child: IntrinsicHeight(
+                              child: Padding(
+                                padding: const EdgeInsets.all(_pagePadding),
+                                child: Stack(
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.topCenter,
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 520,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
                                             KiduCard(
                                               child: Column(
-                                                mainAxisSize: MainAxisSize.min,
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.stretch,
                                                 children: [
                                                   Text(
-                                                    'Je bent nog niet gekoppeld',
+                                                    'Balans',
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .titleMedium
@@ -2385,11 +2311,60 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ),
                                                   ),
                                                   const SizedBox(height: 8),
+                                                  _balanceRow(
+                                                    label: 'Samen uitgegeven',
+                                                    value: _formatEur(0),
+                                                  ),
+                                                  const SizedBox(height: 8),
                                                   Text(
-                                                    'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                                    '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .bodySmall
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a68,
+                                                          ),
+                                                          height: 1.3,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Divider(
+                                                    height: 1,
+                                                    color: outlineV(
+                                                      context,
+                                                      a45,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(height: _cardGap),
+                                            KiduCard(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  Text(
+                                                    'Uitgaven',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  Text(
+                                                    'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
                                                         ?.copyWith(
                                                           color: onSurface(
                                                             context,
@@ -2398,153 +2373,201 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           height: 1.35,
                                                         ),
                                                   ),
-                                                  const SizedBox(height: 8),
-                                                  SizedBox(
-                                                    height: 48,
-                                                    child: ElevatedButton(
-                                                      onPressed: () async {
-                                                        if (_inviteSheetOpening) {
-                                                          return;
-                                                        }
-                                                        if (_inviteBusy ||
-                                                            _setupBusy) {
-                                                          return;
-                                                        }
-                                                        _inviteSheetOpening =
-                                                            true;
-                                                        HapticFeedback.selectionClick();
-                                                        try {
-                                                          await _openInviteSheetFlow(
-                                                            householdIdStr,
-                                                          );
-                                                        } finally {
-                                                          _inviteSheetOpening =
-                                                              false;
-                                                        }
-                                                      },
-                                                      child: const Text(
-                                                        'Co-parent uitnodigen',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  SizedBox(
-                                                    height: 48,
-                                                    child: OutlinedButton(
-                                                      onPressed: () {
-                                                        Navigator.of(
-                                                          context,
-                                                        ).push(
-                                                          MaterialPageRoute(
-                                                            builder: (_) =>
-                                                                const SetupPage(),
-                                                          ),
-                                                        );
-                                                      },
-                                                      child: const Text(
-                                                        'Ik heb een code',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  if (kDebugMode) ...[
-                                                    const SizedBox(height: 10),
-                                                    Center(
-                                                      child: TextButton(
-                                                        onPressed: _switchBusy
-                                                            ? null
-                                                            : () =>
-                                                                  _switchAccount(
-                                                                    context,
-                                                                  ),
-                                                        style:
-                                                            TextButton.styleFrom(
-                                                              foregroundColor:
-                                                                  onSurface(
-                                                                    context,
-                                                                    a62,
-                                                                  ),
-                                                            ),
-                                                        child: const Text(
-                                                          'Wissel account',
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
                                                 ],
                                               ),
                                             ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (_showWaiting) ...[
-                                    const ModalBarrier(
-                                      dismissible: false,
-                                      color: Color(0x59000000),
-                                    ),
-                                    Align(
-                                      alignment: const Alignment(0, 0.25),
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 520,
-                                        ),
-                                        child: KiduCard(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
-                                              Text(
-                                                'Wachten op co-parent',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleMedium
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
+                                            if (!_showWaiting) ...[
+                                              const SizedBox(height: _cardGap),
+                                              KiduCard(
+                                                child: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    Text(
+                                                      'Je bent nog niet gekoppeld',
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .titleMedium
+                                                          ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
                                                     ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                              Text(
-                                                'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color: onSurface(
-                                                        context,
-                                                        a68,
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .bodySmall
+                                                          ?.copyWith(
+                                                            color: onSurface(
+                                                              context,
+                                                              a62,
+                                                            ),
+                                                            height: 1.35,
+                                                          ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    SizedBox(
+                                                      height: 48,
+                                                      child: ElevatedButton(
+                                                        onPressed: () async {
+                                                          if (_inviteSheetOpening) {
+                                                            return;
+                                                          }
+                                                          if (_inviteBusy ||
+                                                              _setupBusy) {
+                                                            return;
+                                                          }
+                                                          _inviteSheetOpening =
+                                                              true;
+                                                          HapticFeedback.selectionClick();
+                                                          try {
+                                                            await _openInviteSheetFlow(
+                                                              householdIdStr,
+                                                            );
+                                                          } finally {
+                                                            _inviteSheetOpening =
+                                                                false;
+                                                          }
+                                                        },
+                                                        child: const Text(
+                                                          'Co-parent uitnodigen',
+                                                        ),
                                                       ),
-                                                      height: 1.35,
                                                     ),
-                                              ),
-                                              const SizedBox(height: 14),
-                                              SizedBox(
-                                                height: 48,
-                                                child: FilledButton(
-                                                  onPressed: () {
-                                                    setState(
-                                                      () =>
-                                                          _showWaiting = false,
-                                                    );
-                                                  },
-                                                  child: const Text('Terug'),
+                                                    const SizedBox(height: 8),
+                                                    SizedBox(
+                                                      height: 48,
+                                                      child: OutlinedButton(
+                                                        onPressed: () {
+                                                          Navigator.of(
+                                                            context,
+                                                          ).push(
+                                                            MaterialPageRoute(
+                                                              builder: (_) =>
+                                                                  const SetupPage(),
+                                                            ),
+                                                          );
+                                                        },
+                                                        child: const Text(
+                                                          'Ik heb een code',
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (kDebugMode) ...[
+                                                      const SizedBox(
+                                                        height: 10,
+                                                      ),
+                                                      Center(
+                                                        child: TextButton(
+                                                          onPressed: _switchBusy
+                                                              ? null
+                                                              : () =>
+                                                                    _switchAccount(
+                                                                      context,
+                                                                    ),
+                                                          style:
+                                                              TextButton.styleFrom(
+                                                                foregroundColor:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a62,
+                                                                    ),
+                                                              ),
+                                                          child: const Text(
+                                                            'Wissel account',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ),
                                             ],
-                                          ),
+                                          ],
                                         ),
                                       ),
                                     ),
+                                    if (_showWaiting) ...[
+                                      const ModalBarrier(
+                                        dismissible: false,
+                                        color: Color(0x59000000),
+                                      ),
+                                      Align(
+                                        alignment: const Alignment(0, 0.25),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          child: ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 520,
+                                            ),
+                                            child: KiduCard(
+                                              elevation: 8,
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  Text(
+                                                    'Wachten op co-parent',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  Text(
+                                                    'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a68,
+                                                          ),
+                                                          height: 1.35,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 14),
+                                                  SizedBox(
+                                                    height: 48,
+                                                    child: FilledButton(
+                                                      onPressed: () {
+                                                        setState(
+                                                          () => _showWaiting =
+                                                              false,
+                                                        );
+                                                      },
+                                                      child: const Text(
+                                                        'Terug',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               );
