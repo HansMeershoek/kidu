@@ -852,7 +852,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   bool _setupBusy = false;
   bool _inviteBusy = false;
-  bool _isInviting = false;
+  bool _inviteSheetOpening = false;
   bool _switchBusy = false;
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
@@ -1642,8 +1642,8 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  Future<void> _startSetup() async {
-    if (_setupBusy) {
+  Future<void> _startSetup({bool silent = false}) async {
+    if (!silent && _setupBusy) {
       return;
     }
 
@@ -1652,7 +1652,7 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
 
-    setState(() => _setupBusy = true);
+    if (!silent) setState(() => _setupBusy = true);
 
     try {
       final firestore = FirebaseFirestore.instance;
@@ -1699,11 +1699,15 @@ class _DashboardPageState extends State<DashboardPage> {
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Start setup error: $e');
-      _showSnackBar(
-        mapUserFacingError(e, fallback: 'Setup mislukt. Probeer opnieuw.'),
-      );
+      if (silent) {
+        rethrow;
+      } else {
+        _showSnackBar(
+          mapUserFacingError(e, fallback: 'Setup mislukt. Probeer opnieuw.'),
+        );
+      }
     } finally {
-      if (mounted) {
+      if (!silent && mounted) {
         setState(() => _setupBusy = false);
       }
     }
@@ -1718,17 +1722,20 @@ class _DashboardPageState extends State<DashboardPage> {
     ).join();
   }
 
-  Future<void> _generateInvite(String householdId) async {
-    if (_inviteBusy) {
-      return;
+  Future<String?> _generateInvite(
+    String householdId, {
+    bool silent = false,
+  }) async {
+    if (!silent && _inviteBusy) {
+      return null;
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return;
+      return null;
     }
 
-    setState(() => _inviteBusy = true);
+    if (!silent) setState(() => _inviteBusy = true);
 
     try {
       final firestore = FirebaseFirestore.instance;
@@ -1738,8 +1745,8 @@ class _DashboardPageState extends State<DashboardPage> {
           .limit(2)
           .get();
       if (membersSnap.size >= 2) {
-        _showSnackBar('Household is al vol.');
-        return;
+        if (!silent) _showSnackBar('Household is al vol.');
+        return null;
       }
 
       String? createdCode;
@@ -1772,20 +1779,27 @@ class _DashboardPageState extends State<DashboardPage> {
 
       if (createdCode == null) {
         if (kDebugMode) debugPrint('Generate invite error: $lastError');
-        _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
-        return;
+        if (!silent) {
+          _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
+        }
+        return null;
       }
 
-      if (mounted) {
+      if (!silent && mounted) {
         setState(() {
           _inviteCode = createdCode;
         });
       }
+
+      return createdCode;
     } catch (e) {
       if (kDebugMode) debugPrint('Generate invite error: $e');
-      _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
+      if (!silent) {
+        _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
+      }
+      return null;
     } finally {
-      if (mounted) {
+      if (!silent && mounted) {
         setState(() => _inviteBusy = false);
       }
     }
@@ -1806,106 +1820,181 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  void _openInviteSheetOnly(BuildContext context, String code) {
-    showModalBottomSheet<void>(
+  Future<void> _openInviteSheetFlow(String householdIdStr) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    var started = false;
+    var loading = true;
+    String? code;
+    String? error;
+
+    final didConfirm = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: _pagePadding,
-              right: _pagePadding,
-              top: 8,
-              bottom: _pagePadding + MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Uitnodigingscode',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+      isDismissible: true,
+      enableDrag: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setModalState) {
+            if (!started) {
+              started = true;
+              Future.microtask(() async {
+                String effectiveHouseholdId = householdIdStr.trim();
+                try {
+                  if (effectiveHouseholdId.isEmpty) {
+                    await _startSetup(silent: true);
+                    if (!sheetContext.mounted) return;
+                    for (var i = 0; i < 10; i++) {
+                      final userSnap = await FirebaseFirestore.instance
+                          .doc('users/$uid')
+                          .get();
+                      final data = userSnap.data();
+                      effectiveHouseholdId =
+                          (data?['householdId'] as String?)?.trim() ?? '';
+                      if (effectiveHouseholdId.isNotEmpty) break;
+                      await Future<void>.delayed(
+                        const Duration(milliseconds: 200),
+                      );
+                      if (!sheetContext.mounted) return;
+                    }
+                  }
+
+                  if (effectiveHouseholdId.isEmpty) {
+                    if (!sheetContext.mounted) return;
+                    setModalState(() {
+                      loading = false;
+                      error = 'Kon geen code maken. Probeer opnieuw.';
+                    });
+                    return;
+                  }
+
+                  final generated = await _generateInvite(
+                    effectiveHouseholdId,
+                    silent: true,
+                  );
+                  if (!sheetContext.mounted) return;
+
+                  final c = generated?.trim();
+                  if (c == null || c.isEmpty) {
+                    setModalState(() {
+                      loading = false;
+                      error = 'Kon geen code maken. Probeer opnieuw.';
+                    });
+                    return;
+                  }
+
+                  setModalState(() {
+                    code = c;
+                    loading = false;
+                    error = null;
+                  });
+                } catch (_) {
+                  if (!sheetContext.mounted) return;
+                  setModalState(() {
+                    loading = false;
+                    error = 'Kon geen code maken. Probeer opnieuw.';
+                  });
+                }
+              });
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: _pagePadding,
+                  right: _pagePadding,
+                  top: 8,
+                  bottom:
+                      _pagePadding +
+                      MediaQuery.of(sheetContext).viewInsets.bottom,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Uitnodigingscode',
+                        style: Theme.of(sheetContext).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: _cardGap),
+                      if (loading) ...[
+                        const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Code wordt gemaakt...',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(sheetContext).textTheme.bodyMedium
+                              ?.copyWith(color: onSurface(sheetContext, a68)),
+                        ),
+                      ] else if (code != null) ...[
+                        KiduCodePill(
+                          code: code!,
+                          onCopy: () async {
+                            await Clipboard.setData(ClipboardData(text: code!));
+                            _showSnackBar('Invite code gekopieerd.');
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        FilledButton.icon(
+                          onPressed: () => _shareInviteCode(code!),
+                          icon: const Icon(Icons.share),
+                          label: const Text('Delen'),
+                        ),
+                        const SizedBox(height: _cardGap),
+                        SizedBox(
+                          height: 48,
+                          child: FilledButton(
+                            onPressed: () =>
+                                Navigator.of(sheetContext).pop(true),
+                            child: const Text('Klaar'),
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          error ?? 'Kon geen code maken. Probeer opnieuw.',
+                          style: Theme.of(sheetContext).textTheme.bodyMedium
+                              ?.copyWith(color: onSurface(sheetContext, a68)),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 48,
+                          child: FilledButton(
+                            onPressed: () {
+                              setModalState(() {
+                                started = false;
+                                loading = true;
+                                code = null;
+                                error = null;
+                              });
+                            },
+                            child: const Text('Opnieuw'),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: _cardGap),
-                  KiduCodePill(
-                    code: code,
-                    onCopy: () async {
-                      await Clipboard.setData(ClipboardData(text: code));
-                      _showSnackBar('Invite code gekopieerd.');
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: () => _shareInviteCode(code),
-                    icon: const Icon(Icons.share),
-                    label: const Text('Delen'),
-                  ),
-                  const SizedBox(height: _cardGap),
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        if (!mounted) return;
-                        setState(() => _showWaiting = true);
-                      },
-                      child: const Text('Klaar'),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
-  }
 
-  Future<void> _onCoParentUitnodigen(String householdIdStr) async {
-    if (_inviteBusy || _setupBusy) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      return;
-    }
-
-    String effectiveHouseholdId = householdIdStr;
-
-    if (effectiveHouseholdId.isEmpty) {
-      await _startSetup();
-      if (!mounted) return;
-      for (var i = 0; i < 10; i++) {
-        final userSnap = await FirebaseFirestore.instance
-            .doc('users/$uid')
-            .get();
-        final data = userSnap.data();
-        effectiveHouseholdId = (data?['householdId'] as String?)?.trim() ?? '';
-        if (effectiveHouseholdId.isNotEmpty) {
-          break;
-        }
-        if (kDebugMode) {
-          debugPrint('resolve householdId retry=$i still empty');
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      }
-      if (effectiveHouseholdId.isEmpty) {
-        _showSnackBar('Kon geen huishouden aanmaken. Probeer opnieuw.');
-        return;
-      }
-    }
-
-    await _generateInvite(effectiveHouseholdId);
     if (!mounted) return;
-    if (_inviteCode != null && _inviteCode!.trim().isNotEmpty) {
-      setState(() {
-        _showWaiting = false;
-      });
-      _openInviteSheetOnly(context, _inviteCode!.trim());
+    if (didConfirm == true) {
+      setState(() => _showWaiting = true);
     }
   }
 
@@ -2307,76 +2396,33 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ),
                                                   ),
                                                   const SizedBox(height: 8),
-                                                  Builder(
-                                                    builder: (context) {
-                                                      final bool
-                                                      inviteActionBusy =
-                                                          _isInviting ||
-                                                          _inviteBusy ||
-                                                          _setupBusy;
-                                                      return SizedBox(
-                                                        height: 48,
-                                                        child: ElevatedButton(
-                                                          onPressed:
-                                                              inviteActionBusy
-                                                              ? null
-                                                              : () async {
-                                                                  if (_isInviting)
-                                                                    return;
-                                                                  HapticFeedback.selectionClick();
-                                                                  setState(
-                                                                    () =>
-                                                                        _isInviting =
-                                                                            true,
-                                                                  );
-                                                                  try {
-                                                                    await _onCoParentUitnodigen(
-                                                                      householdIdStr,
-                                                                    );
-                                                                  } finally {
-                                                                    if (mounted) {
-                                                                      setState(
-                                                                        () => _isInviting =
-                                                                            false,
-                                                                      );
-                                                                    }
-                                                                  }
-                                                                },
-                                                          child: SizedBox(
-                                                            width:
-                                                                double.infinity,
-                                                            child: Stack(
-                                                              alignment:
-                                                                  Alignment
-                                                                      .center,
-                                                              children: [
-                                                                const Text(
-                                                                  'Co-parent uitnodigen',
-                                                                ),
-                                                                if (inviteActionBusy)
-                                                                  Align(
-                                                                    alignment:
-                                                                        Alignment
-                                                                            .centerLeft,
-                                                                    child: SizedBox(
-                                                                      width: 16,
-                                                                      height:
-                                                                          16,
-                                                                      child: CircularProgressIndicator(
-                                                                        strokeWidth:
-                                                                            2,
-                                                                        color: Theme.of(
-                                                                          context,
-                                                                        ).colorScheme.onPrimary,
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      );
-                                                    },
+                                                  SizedBox(
+                                                    height: 48,
+                                                    child: ElevatedButton(
+                                                      onPressed: () async {
+                                                        if (_inviteSheetOpening) {
+                                                          return;
+                                                        }
+                                                        if (_inviteBusy ||
+                                                            _setupBusy) {
+                                                          return;
+                                                        }
+                                                        _inviteSheetOpening =
+                                                            true;
+                                                        HapticFeedback.selectionClick();
+                                                        try {
+                                                          await _openInviteSheetFlow(
+                                                            householdIdStr,
+                                                          );
+                                                        } finally {
+                                                          _inviteSheetOpening =
+                                                              false;
+                                                        }
+                                                      },
+                                                      child: const Text(
+                                                        'Co-parent uitnodigen',
+                                                      ),
+                                                    ),
                                                   ),
                                                   const SizedBox(height: 8),
                                                   SizedBox(
