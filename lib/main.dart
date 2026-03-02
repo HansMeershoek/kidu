@@ -2562,7 +2562,7 @@ class _DashboardPageState extends State<DashboardPage> {
               future: namesFuture,
               builder: (context, namesSnapshot) {
                 final names = namesSnapshot.data ?? const <String, String>{};
-                final myName = names[user.uid] ?? myFallbackName;
+                final myName = myFallbackName;
                 final otherName = otherUid == null
                     ? 'Co-parent'
                     : (names[otherUid] ?? 'Co-parent');
