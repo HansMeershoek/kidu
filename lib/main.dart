@@ -562,8 +562,9 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _busy ? null : _save(),
                 onChanged: (_) {
-                  if (_nameInlineHint != null)
+                  if (_nameInlineHint != null) {
                     setState(() => _nameInlineHint = null);
+                  }
                 },
                 decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
@@ -857,7 +858,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
-  bool _expenseBusy = false;
+  final bool _expenseBusy = false;
   String? _inviteCode;
   bool _showWaiting = false;
   int _notesRefreshTick = 0;
@@ -1546,7 +1547,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   await Future<void>.delayed(
                                     const Duration(milliseconds: 150),
                                   );
-                                  Navigator.of(context).pop();
+                                  if (context.mounted) {
+                                    Navigator.of(context).pop();
+                                  }
                                 }
                               } catch (e) {
                                 debugPrint('Create expense (dialog) error: $e');
