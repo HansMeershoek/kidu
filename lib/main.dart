@@ -3346,141 +3346,152 @@ class _ExpenseDetailPage extends StatefulWidget {
 class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   bool _noteActionBusy = false;
 
+  void _handleBack() {
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'Uitgave',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          leading: BackButton(onPressed: _handleBack),
+          title: Text(
+            'Uitgave',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Titel'),
-                  subtitle: Text(widget.title),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Bedrag'),
-                  subtitle: Text(
-                    _ExpenseDetailPage._formatEur(widget.amountCents),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Titel'),
+                    subtitle: Text(widget.title),
                   ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Betaald door'),
-                  subtitle: Text(widget.paidByName),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Datum/tijd'),
-                  subtitle: Text(
-                    _ExpenseDetailPage._formatDateTime(widget.createdAt),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Bedrag'),
+                    subtitle: Text(
+                      _ExpenseDetailPage._formatEur(widget.amountCents),
+                    ),
                   ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Status'),
-                  subtitle: widget.isPending
-                      ? Row(
-                          children: [
-                            Icon(
-                              Icons.cloud_off,
-                              size: 18,
-                              color: onSurface(context, a60),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text('Nog niet gesynchroniseerd'),
-                          ],
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Betaald door'),
+                    subtitle: Text(widget.paidByName),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Datum/tijd'),
+                    subtitle: Text(
+                      _ExpenseDetailPage._formatDateTime(widget.createdAt),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Status'),
+                    subtitle: widget.isPending
+                        ? Row(
+                            children: [
+                              Icon(
+                                Icons.cloud_off,
+                                size: 18,
+                                color: onSurface(context, a60),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Nog niet gesynchroniseerd'),
+                            ],
+                          )
+                        : const Text('Gesynchroniseerd'),
+                  ),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${widget.uid}',
                         )
-                      : const Text('Gesynchroniseerd'),
-                ),
-                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .doc(
-                        'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${widget.uid}',
-                      )
-                      .snapshots(includeMetadataChanges: true),
-                  builder: (context, snap) {
-                    final data = snap.data?.data();
-                    final note = (data?['note'] as String?)?.trim() ?? '';
-                    final hasNoteLive = note.isNotEmpty;
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (hasNoteLive)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Notitie'),
-                            subtitle: Text(note),
-                          ),
-                        if (widget.onManageNote != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: FilledButton.icon(
-                              onPressed: _noteActionBusy
-                                  ? null
-                                  : () async {
-                                      if (_noteActionBusy) return;
-                                      setState(() => _noteActionBusy = true);
-                                      try {
-                                        await widget.onManageNote!();
-                                      } finally {
-                                        if (mounted) {
-                                          setState(
-                                            () => _noteActionBusy = false,
-                                          );
+                        .snapshots(),
+                    builder: (context, snap) {
+                      final data = snap.data?.data();
+                      final note = (data?['note'] as String?)?.trim() ?? '';
+                      final hasNoteLive = note.isNotEmpty;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (hasNoteLive)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Notitie'),
+                              subtitle: Text(note),
+                            ),
+                          if (widget.onManageNote != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: FilledButton.icon(
+                                onPressed: _noteActionBusy
+                                    ? null
+                                    : () async {
+                                        if (_noteActionBusy) return;
+                                        setState(() => _noteActionBusy = true);
+                                        try {
+                                          await widget.onManageNote!();
+                                        } finally {
+                                          if (mounted) {
+                                            setState(
+                                              () => _noteActionBusy = false,
+                                            );
+                                          }
                                         }
-                                      }
-                                    },
-                              icon: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: _noteActionBusy
-                                    ? Center(
-                                        child: SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onPrimary,
+                                      },
+                                icon: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: _noteActionBusy
+                                      ? Center(
+                                          child: SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimary,
+                                            ),
                                           ),
+                                        )
+                                      : Icon(
+                                          hasNoteLive
+                                              ? Icons.edit_note
+                                              : Icons.note_add_outlined,
                                         ),
-                                      )
-                                    : Icon(
-                                        hasNoteLive
-                                            ? Icons.edit_note
-                                            : Icons.note_add_outlined,
-                                      ),
-                              ),
-                              label: Text(
-                                hasNoteLive
-                                    ? 'Notitie wijzigen'
-                                    : 'Notitie toevoegen',
+                                ),
+                                label: Text(
+                                  hasNoteLive
+                                      ? 'Notitie wijzigen'
+                                      : 'Notitie toevoegen',
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
