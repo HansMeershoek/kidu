@@ -32,6 +32,18 @@ const double a85 = 0.85;
 /// Calm green for success overlays (e.g. join/connect confirmation).
 const Color _kSuccessGreen = Color(0xFF2E7D32);
 
+/// Fixed height reserved for the child-picker area in the Add Expense dialog.
+/// Both the "all selected" summary pill and the expanded chip grid live inside
+/// a SizedBox of this height so the dialog never resizes on toggle.
+const double _kChildPickerHeight = 140;
+
+/// Lightweight value-object used by the "Voor wie?" feature.
+class _ChildItem {
+  const _ChildItem({required this.id, required this.name});
+  final String id;
+  final String name;
+}
+
 Color onSurface(BuildContext context, double alpha) =>
     Theme.of(context).colorScheme.onSurface.withValues(alpha: alpha);
 
@@ -857,6 +869,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _switchBusy = false;
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
+  final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
   QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
   final bool _expenseBusy = false;
   String? _inviteCode;
@@ -1225,6 +1238,26 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
+                      if (hasHousehold)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.child_care),
+                          title: const Text('Kinderen'),
+                          subtitle: Text(
+                            'Voeg kinderen toe of beheer ze',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a62)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(rootContext).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    _KinderenPage(householdId: householdId),
+                              ),
+                            );
+                          },
+                        ),
                       Text(
                         'Info',
                         style: Theme.of(context).textTheme.titleMedium
@@ -1370,12 +1403,50 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  /// Returns active (non-archived) children for the household, sorted by
+  /// creation time. Returns empty list on any error so the dialog still opens.
+  Future<List<_ChildItem>> _loadActiveChildren(String householdId) async {
+    if (householdId.trim().isEmpty) return [];
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/$householdId/children')
+          .get();
+      final docs =
+          snap.docs
+              .where(
+                (d) =>
+                    d.data()['isArchived'] != true &&
+                    d.data()['isDeleted'] != true,
+              )
+              .toList()
+            ..sort((a, b) {
+              final aTs = a.data()['createdAt'];
+              final bTs = b.data()['createdAt'];
+              if (aTs is Timestamp && bTs is Timestamp) {
+                return aTs.compareTo(bTs);
+              }
+              return 0;
+            });
+      return docs
+          .map(
+            (d) => _ChildItem(
+              id: d.id,
+              name: (d.data()['name'] as String?)?.trim() ?? '?',
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> _createExpense({
     required String householdId,
     required String title,
     required int amountCents,
     String? note,
     String? coparentNameForPendingMessage,
+    List<String>? childIds,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -1383,15 +1454,17 @@ class _DashboardPageState extends State<DashboardPage> {
     }
 
     try {
+      final data = <String, dynamic>{
+        'amountCents': amountCents,
+        'currency': 'EUR',
+        'title': title,
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': uid,
+        if (childIds != null && childIds.isNotEmpty) 'childIds': childIds,
+      };
       final ref = await FirebaseFirestore.instance
           .collection('households/$householdId/expenses')
-          .add({
-            'amountCents': amountCents,
-            'currency': 'EUR',
-            'title': title,
-            'createdAt': FieldValue.serverTimestamp(),
-            'createdBy': uid,
-          });
+          .add(data);
       String? noteErrMsg;
       final noteTrimmed = note?.trim();
       if (noteTrimmed != null && noteTrimmed.isNotEmpty) {
@@ -1433,164 +1506,355 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _openAddExpenseDialog(
     String householdId, {
     String? coparentName,
+    List<_ChildItem> children = const [],
   }) async {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final noteController = TextEditingController();
     var saving = false;
+    var didShow = false;
+    // Default selection: all active children (covers 0, 1, 2+ cases).
+    var selectedChildIds = children.map((c) => c.id).toList();
+    // When true, show individual chips even while all children are selected.
+    var kidChipsExpanded = false;
     _freezeExpensesVN.value = true;
 
     try {
+      didShow = true;
       await showDialog<void>(
         context: context,
         useSafeArea: true,
         builder: (context) {
           return StatefulBuilder(
             builder: (context, setLocalState) {
+              final screenW = MediaQuery.sizeOf(context).width;
+              final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
               return Align(
                 alignment: const Alignment(0, -0.15),
-                child: AlertDialog(
-                  title: const Text('Nieuwe uitgave'),
-                  content: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.32,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextField(
-                            controller: titleController,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Titel',
-                              floatingLabelBehavior:
-                                  FloatingLabelBehavior.always,
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: amountController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Bedrag (EUR)',
-                              floatingLabelBehavior:
-                                  FloatingLabelBehavior.always,
-                              border: OutlineInputBorder(),
-                              hintText: '12,34',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: noteController,
-                            maxLength: 180,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              labelText: 'Notitie (optioneel)',
-                              floatingLabelBehavior:
-                                  FloatingLabelBehavior.always,
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ],
+                child: SizedBox(
+                  width: dialogW,
+                  child: AlertDialog(
+                    title: const Text('Nieuwe uitgave'),
+                    content: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.55,
                       ),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: saving
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      child: const Text('Annuleren'),
-                    ),
-                    ElevatedButton(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              final title = titleController.text.trim();
-                              final amountCents = _tryParseEurToCents(
-                                amountController.text,
-                              );
-                              if (title.isEmpty) {
-                                _showSnackBar('Vul een titel in.');
-                                return;
-                              }
-                              if (amountCents == null || amountCents <= 0) {
-                                _showSnackBar('Vul een geldig bedrag in.');
-                                return;
-                              }
-
-                              setLocalState(() => saving = true);
-                              if (!await _canWriteExpenseNow()) {
-                                _showSnackBar(
-                                  'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
-                                );
-                                if (context.mounted) {
-                                  setLocalState(() => saving = false);
-                                }
-                                return;
-                              }
-                              try {
-                                await _createExpense(
-                                  householdId: householdId,
-                                  title: title,
-                                  amountCents: amountCents,
-                                  note: noteController.text.trim().isEmpty
-                                      ? null
-                                      : noteController.text.trim(),
-                                  coparentNameForPendingMessage: coparentName,
-                                );
-                                if (context.mounted) {
-                                  await Future<void>.delayed(
-                                    const Duration(milliseconds: 150),
-                                  );
-                                  if (context.mounted) {
-                                    Navigator.of(context).pop();
-                                  }
-                                }
-                              } catch (e) {
-                                debugPrint('Create expense (dialog) error: $e');
-                                _showSnackBar(
-                                  mapUserFacingError(
-                                    e,
-                                    fallback:
-                                        'Opslaan mislukt. Probeer opnieuw.',
-                                  ),
-                                );
-                              } finally {
-                                if (context.mounted) {
-                                  setLocalState(() => saving = false);
-                                }
-                              }
-                            },
-                      child: SizedBox(
-                        width: 82,
-                        child: Stack(
-                          alignment: Alignment.center,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text('Opslaan'),
-                            if (saving)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimary,
+                            TextField(
+                              controller: titleController,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Titel',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: amountController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
                                   ),
+                              decoration: const InputDecoration(
+                                labelText: 'Bedrag (EUR)',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
+                                border: OutlineInputBorder(),
+                                hintText: '12,34',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: noteController,
+                              maxLength: 180,
+                              textInputAction: TextInputAction.done,
+                              decoration: const InputDecoration(
+                                labelText: 'Notitie (optioneel)',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            // "Voor wie?" section — only shown for 2+ children.
+                            // Single-child: selectedChildIds already defaults to
+                            // [child.id] so it is stored correctly without UI.
+                            if (children.length > 1) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Voor wie?',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelMedium,
+                                  ),
+                                  Builder(
+                                    builder: (context) {
+                                      final allSelected =
+                                          selectedChildIds.length ==
+                                          children.length;
+                                      final showPill =
+                                          allSelected && !kidChipsExpanded;
+                                      return TextButton(
+                                        onPressed: () => setLocalState(() {
+                                          if (showPill) {
+                                            kidChipsExpanded = true;
+                                          } else {
+                                            selectedChildIds = children
+                                                .map((c) => c.id)
+                                                .toList();
+                                            kidChipsExpanded = false;
+                                          }
+                                        }),
+                                        style: TextButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: Text(
+                                          showPill
+                                              ? 'Selecteer'
+                                              : 'Alle kinderen',
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              // Fixed-height area: dialog does not resize when
+                              // toggling between the summary pill and chips.
+                              SizedBox(
+                                height: _kChildPickerHeight,
+                                child: Builder(
+                                  builder: (context) {
+                                    final cs = Theme.of(context).colorScheme;
+                                    final allSelected =
+                                        selectedChildIds.length ==
+                                        children.length;
+                                    final showPill =
+                                        allSelected && !kidChipsExpanded;
+
+                                    if (showPill) {
+                                      return Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: cs.primary.withValues(
+                                              alpha: 0.10,
+                                            ),
+                                            border: Border.all(
+                                              color: cs.primary,
+                                              width: 1.0,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Alle kinderen geselecteerd',
+                                            style: TextStyle(
+                                              color: cs.onSurface,
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    // Individual chips — border width fixed at
+                                    // 1.0; only color/bg change on selection.
+                                    FilterChip kidChip({
+                                      required Widget label,
+                                      required bool selected,
+                                      required ValueChanged<bool> onSelected,
+                                    }) {
+                                      return FilterChip(
+                                        label: label,
+                                        selected: selected,
+                                        showCheckmark: false,
+                                        backgroundColor: cs.surface,
+                                        selectedColor: cs.primary.withValues(
+                                          alpha: 0.10,
+                                        ),
+                                        side: BorderSide(
+                                          color: selected
+                                              ? cs.primary
+                                              : cs.onSurface.withValues(
+                                                  alpha: 0.22,
+                                                ),
+                                          width: 1.0,
+                                        ),
+                                        labelStyle: TextStyle(
+                                          color: selected
+                                              ? cs.onSurface
+                                              : cs.onSurface.withValues(
+                                                  alpha: 0.75,
+                                                ),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        onSelected: onSelected,
+                                      );
+                                    }
+
+                                    return ClipRect(
+                                      child: SingleChildScrollView(
+                                        child: Wrap(
+                                          spacing: 8,
+                                          runSpacing: 4,
+                                          children: [
+                                            ...children.map(
+                                              (c) => kidChip(
+                                                label: Text(c.name),
+                                                selected: selectedChildIds
+                                                    .contains(c.id),
+                                                onSelected: (v) {
+                                                  setLocalState(() {
+                                                    if (v) {
+                                                      selectedChildIds = [
+                                                        ...selectedChildIds,
+                                                        c.id,
+                                                      ];
+                                                    } else {
+                                                      kidChipsExpanded = true;
+                                                      selectedChildIds =
+                                                          selectedChildIds
+                                                              .where(
+                                                                (id) =>
+                                                                    id != c.id,
+                                                              )
+                                                              .toList();
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
+                            ],
                           ],
                         ),
                       ),
                     ),
-                  ],
+                    actions: [
+                      TextButton(
+                        onPressed: saving
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        child: const Text('Annuleren'),
+                      ),
+                      ElevatedButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final title = titleController.text.trim();
+                                final amountCents = _tryParseEurToCents(
+                                  amountController.text,
+                                );
+                                if (title.isEmpty) {
+                                  _showSnackBar('Vul een titel in.');
+                                  return;
+                                }
+                                if (amountCents == null || amountCents <= 0) {
+                                  _showSnackBar('Vul een geldig bedrag in.');
+                                  return;
+                                }
+
+                                setLocalState(() => saving = true);
+                                if (!await _canWriteExpenseNow()) {
+                                  _showSnackBar(
+                                    'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
+                                  );
+                                  if (context.mounted) {
+                                    setLocalState(() => saving = false);
+                                  }
+                                  return;
+                                }
+                                try {
+                                  await _createExpense(
+                                    householdId: householdId,
+                                    title: title,
+                                    amountCents: amountCents,
+                                    note: noteController.text.trim().isEmpty
+                                        ? null
+                                        : noteController.text.trim(),
+                                    coparentNameForPendingMessage: coparentName,
+                                    childIds: children.isEmpty
+                                        ? null
+                                        : selectedChildIds,
+                                  );
+                                  if (context.mounted) {
+                                    await Future<void>.delayed(
+                                      const Duration(milliseconds: 150),
+                                    );
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop();
+                                    }
+                                  }
+                                } catch (e) {
+                                  debugPrint(
+                                    'Create expense (dialog) error: $e',
+                                  );
+                                  _showSnackBar(
+                                    mapUserFacingError(
+                                      e,
+                                      fallback:
+                                          'Opslaan mislukt. Probeer opnieuw.',
+                                    ),
+                                  );
+                                } finally {
+                                  if (context.mounted) {
+                                    setLocalState(() => saving = false);
+                                  }
+                                }
+                              },
+                        child: SizedBox(
+                          width: 82,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              const Text('Opslaan'),
+                              if (saving)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -1598,10 +1862,13 @@ class _DashboardPageState extends State<DashboardPage> {
         },
       );
     } finally {
-      if (mounted) {
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-        _freezeExpensesVN.value = false;
+      if (mounted && didShow) {
+        // Wait for the dialog pop animation to finish before unfreezing
+        // the expenses list, so the dashboard stays stable during the
+        // transition.
+        await Future<void>.delayed(kThemeAnimationDuration);
       }
+      if (mounted) _freezeExpensesVN.value = false;
       titleController.dispose();
       amountController.dispose();
       noteController.dispose();
@@ -1642,6 +1909,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void dispose() {
     _addExpenseCheckBusyVN.dispose();
     _freezeExpensesVN.dispose();
+    _addExpenseDialogOpenVN.dispose();
     super.dispose();
   }
 
@@ -2081,6 +2349,7 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Scaffold(
+            resizeToAvoidBottomInset: false,
             appBar: AppBar(
               centerTitle: true,
               title: Text(
@@ -2119,6 +2388,7 @@ class _DashboardPageState extends State<DashboardPage> {
         if (!snapshot.hasData ||
             snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
+            resizeToAvoidBottomInset: false,
             appBar: AppBar(
               centerTitle: true,
               title: Text(
@@ -2164,6 +2434,7 @@ class _DashboardPageState extends State<DashboardPage> {
             // after re-login (hasHousehold=true but snapshot not ready yet).
             if (hasHousehold && membersSnapshot.hasError) {
               return Scaffold(
+                resizeToAvoidBottomInset: false,
                 appBar: AppBar(
                   centerTitle: true,
                   title: Text(
@@ -2189,6 +2460,7 @@ class _DashboardPageState extends State<DashboardPage> {
             }
             if (hasHousehold && !membersSnapshot.hasData) {
               return Scaffold(
+                resizeToAvoidBottomInset: false,
                 appBar: AppBar(
                   centerTitle: true,
                   title: Text(
@@ -2245,6 +2517,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   }
                 },
                 child: Scaffold(
+                  resizeToAvoidBottomInset: false,
                   appBar: AppBar(
                     centerTitle: true,
                     title: Text(
@@ -2618,56 +2891,90 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   floatingActionButton: canAddExpenses
                       ? ValueListenableBuilder<bool>(
-                          valueListenable: _addExpenseCheckBusyVN,
-                          builder: (context, fabBusy, _) {
-                            final bool addExpenseBusy =
-                                fabBusy ||
-                                _expenseBusy ||
-                                _setupBusy ||
-                                _inviteBusy ||
-                                _switchBusy;
+                          valueListenable: _addExpenseDialogOpenVN,
+                          builder: (context, dialogOpen, _) {
+                            // Only the FAB subtree rebuilds when the dialog
+                            // opens/closes — the rest of the dashboard is
+                            // untouched.
+                            if (dialogOpen) return const SizedBox.shrink();
+                            return ValueListenableBuilder<bool>(
+                              valueListenable: _addExpenseCheckBusyVN,
+                              builder: (context, fabBusy, _) {
+                                final bool addExpenseBusy =
+                                    fabBusy ||
+                                    _expenseBusy ||
+                                    _setupBusy ||
+                                    _inviteBusy ||
+                                    _switchBusy;
 
-                            return FloatingActionButton(
-                              onPressed: addExpenseBusy
-                                  ? null
-                                  : () async {
-                                      if (_addExpenseCheckBusyVN.value) return;
-                                      _addExpenseCheckBusyVN.value = true;
-                                      try {
-                                        if (!await _canWriteExpenseNow()) {
-                                          _showSnackBar(
-                                            'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
-                                          );
-                                          return;
-                                        }
-                                        await _openAddExpenseDialog(
-                                          householdIdStr,
-                                          coparentName: otherName,
-                                        );
-                                      } finally {
-                                        if (mounted) {
-                                          _addExpenseCheckBusyVN.value = false;
-                                        }
-                                      }
-                                    },
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: addExpenseBusy
-                                    ? Center(
-                                        child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onPrimaryContainer,
-                                          ),
-                                        ),
-                                      )
-                                    : const Icon(Icons.add, size: 24),
-                              ),
+                                return FloatingActionButton(
+                                  onPressed: addExpenseBusy
+                                      ? null
+                                      : () async {
+                                          if (_addExpenseCheckBusyVN.value ||
+                                              _addExpenseDialogOpenVN.value) {
+                                            return;
+                                          }
+                                          _addExpenseCheckBusyVN.value = true;
+                                          var didOpenDialog = false;
+                                          try {
+                                            if (!await _canWriteExpenseNow()) {
+                                              _showSnackBar(
+                                                'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                                              );
+                                              return;
+                                            }
+                                            final kids =
+                                                await _loadActiveChildren(
+                                                  householdIdStr,
+                                                );
+                                            // Pre-load done: stop spinner and
+                                            // hide FAB for the dialog duration.
+                                            _addExpenseCheckBusyVN.value =
+                                                false;
+                                            if (!mounted) return;
+                                            _addExpenseDialogOpenVN.value =
+                                                true;
+                                            didOpenDialog = true;
+                                            await _openAddExpenseDialog(
+                                              householdIdStr,
+                                              coparentName: otherName,
+                                              children: kids,
+                                            );
+                                          } finally {
+                                            // Wait for the pop transition to
+                                            // finish before restoring the FAB.
+                                            if (didOpenDialog) {
+                                              await Future<void>.delayed(
+                                                kThemeAnimationDuration,
+                                              );
+                                            }
+                                            _addExpenseDialogOpenVN.value =
+                                                false;
+                                            _addExpenseCheckBusyVN.value =
+                                                false;
+                                          }
+                                        },
+                                  child: SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: addExpenseBusy
+                                        ? Center(
+                                            child: SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onPrimaryContainer,
+                                              ),
+                                            ),
+                                          )
+                                        : const Icon(Icons.add, size: 24),
+                                  ),
+                                );
+                              },
                             );
                           },
                         )
@@ -3014,6 +3321,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
                                                                         return '$who • $shortDateTime';
                                                                       })();
+                                                                final expChildIds =
+                                                                    (e['childIds']
+                                                                            as List?)
+                                                                        ?.whereType<
+                                                                          String
+                                                                        >()
+                                                                        .toList() ??
+                                                                    const <
+                                                                      String
+                                                                    >[];
 
                                                                 if (createdBy !=
                                                                     user.uid) {
@@ -3045,6 +3362,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 createdAt: createdAtDateTime,
                                                                                 isPending: isPending,
                                                                                 onManageNote: null,
+                                                                                childIds: expChildIds,
                                                                               ),
                                                                         ),
                                                                       );
@@ -3195,6 +3513,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                       createdAt: createdAtDateTime,
                                                                                       isPending: isPending,
                                                                                       onManageNote: openNoteFlow,
+                                                                                      childIds: expChildIds,
                                                                                     ),
                                                                               ),
                                                                             );
@@ -3326,6 +3645,7 @@ class _ExpenseDetailPage extends StatefulWidget {
     required this.createdAt,
     required this.isPending,
     this.onManageNote,
+    this.childIds = const [],
   });
 
   final String householdId;
@@ -3337,6 +3657,30 @@ class _ExpenseDetailPage extends StatefulWidget {
   final DateTime? createdAt;
   final bool isPending;
   final Future<void> Function()? onManageNote;
+  final List<String> childIds;
+
+  /// Resolves child IDs to display names; falls back to "Verwijderd kind".
+  static Future<List<String>> _resolveChildNames(
+    String householdId,
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return [];
+    try {
+      final snaps = await Future.wait(
+        ids.map(
+          (id) => FirebaseFirestore.instance
+              .doc('households/$householdId/children/$id')
+              .get(),
+        ),
+      );
+      return snaps.map((s) {
+        final name = (s.data()?['name'] as String?)?.trim();
+        return (name != null && name.isNotEmpty) ? name : 'Verwijderd kind';
+      }).toList();
+    } catch (_) {
+      return ids.map((_) => 'Verwijderd kind').toList();
+    }
+  }
 
   static String _formatEur(int cents) {
     final value = (cents / 100.0).toStringAsFixed(2);
@@ -3441,6 +3785,37 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           )
                         : const Text('Gesynchroniseerd'),
                   ),
+                  if (widget.childIds.isNotEmpty)
+                    FutureBuilder<List<String>>(
+                      future: _ExpenseDetailPage._resolveChildNames(
+                        widget.householdId,
+                        widget.childIds,
+                      ),
+                      builder: (context, snap) {
+                        if (!snap.hasData) return const SizedBox.shrink();
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Voor wie'),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: snap.data!
+                                  .map(
+                                    (n) => Chip(
+                                      label: Text(n),
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
@@ -3522,6 +3897,544 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     );
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Kinderen management screen
+// ────────────────────────────────────────────────────────────────────────────
+
+class _KinderenPage extends StatefulWidget {
+  const _KinderenPage({required this.householdId});
+
+  final String householdId;
+
+  @override
+  State<_KinderenPage> createState() => _KinderenPageState();
+}
+
+class _KinderenPageState extends State<_KinderenPage> {
+  bool _busy = false;
+
+  void _snackErr(Object e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mapUserFacingError(e))));
+  }
+
+  void _snackInfo(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _handleBack() => Navigator.of(context).pop();
+
+  Future<void> _addChild({required List<String> activeNormalised}) async {
+    // _AddChildDialog owns the TextEditingController; no disposal needed here.
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => _AddChildDialog(activeNormalised: activeNormalised),
+    );
+    if (newName == null || newName.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/children')
+          .add({
+            'name': newName,
+            'createdAt': FieldValue.serverTimestamp(),
+            'createdBy': FirebaseAuth.instance.currentUser?.uid ?? '',
+            'isArchived': false,
+            'isDeleted': false,
+          });
+    } catch (e) {
+      _snackErr(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _renameChild(
+    String docId,
+    String currentName, {
+    required List<String> activeNormalisedExcludingSelf,
+  }) async {
+    // _RenameChildDialog owns the TextEditingController; no disposal needed here.
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameChildDialog(
+        currentName: currentName,
+        activeNormalisedExcludingSelf: activeNormalisedExcludingSelf,
+      ),
+    );
+    if (newName == null || newName.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await FirebaseFirestore.instance
+          .doc('households/${widget.householdId}/children/$docId')
+          .update({'name': newName, 'updatedAt': Timestamp.now()});
+    } catch (e) {
+      _snackErr(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _archiveChild(String docId, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kind archiveren?'),
+        content: Text('$name wordt verborgen bij nieuwe uitgaven.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuleren'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Archiveren'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      await FirebaseFirestore.instance
+          .doc('households/${widget.householdId}/children/$docId')
+          .update({'isArchived': true, 'updatedAt': Timestamp.now()});
+    } catch (e) {
+      _snackErr(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restoreChild(String docId) async {
+    setState(() => _busy = true);
+    try {
+      await FirebaseFirestore.instance
+          .doc('households/${widget.householdId}/children/$docId')
+          .update({'isArchived': false, 'updatedAt': Timestamp.now()});
+    } catch (e) {
+      _snackErr(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _softDeleteChild(String docId, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Definitief verwijderen?'),
+        content: Text(
+          '"$name" wordt definitief verwijderd. '
+          'Blijft bewaard voor oude uitgaven.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuleren'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Verwijderen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      await FirebaseFirestore.instance
+          .doc('households/${widget.householdId}/children/$docId')
+          .update({
+            'isDeleted': true,
+            'deletedAt': Timestamp.now(),
+            'updatedAt': Timestamp.now(),
+          });
+    } catch (e) {
+      _snackErr(e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('households/${widget.householdId}/children')
+            .orderBy('createdAt')
+            .snapshots(),
+        builder: (context, snap) {
+          final appBar = AppBar(
+            centerTitle: true,
+            leading: BackButton(onPressed: _handleBack),
+            title: Text(
+              'Kinderen',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
+            ),
+          );
+
+          if (snap.hasError) {
+            return Scaffold(
+              appBar: appBar,
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(mapUserFacingError(snap.error!)),
+                ),
+              ),
+            );
+          }
+          if (!snap.hasData) {
+            return Scaffold(
+              appBar: appBar,
+              body: const Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final allDocs = snap.data!.docs;
+
+          // Active: not archived AND not soft-deleted.
+          final active = allDocs
+              .where(
+                (d) =>
+                    d.data()['isArchived'] != true &&
+                    d.data()['isDeleted'] != true,
+              )
+              .toList();
+
+          // Archived: archived but not yet soft-deleted.
+          final archived = allDocs
+              .where(
+                (d) =>
+                    d.data()['isArchived'] == true &&
+                    d.data()['isDeleted'] != true,
+              )
+              .toList();
+
+          // Lower-cased active names for duplicate-name validation.
+          final activeNormalised = active
+              .map(
+                (d) =>
+                    ((d.data()['name'] as String?)?.trim() ?? '').toLowerCase(),
+              )
+              .toList();
+
+          final atMax = active.length >= 7;
+
+          final fab = FloatingActionButton(
+            onPressed: _busy
+                ? null
+                : atMax
+                ? () => _snackInfo(
+                    'Maximaal 7 actieve kinderen. Archiveer eerst een kind.',
+                  )
+                : () => _addChild(activeNormalised: activeNormalised),
+            tooltip: atMax ? 'Maximaal 7 actieve kinderen' : 'Kind toevoegen',
+            backgroundColor: atMax
+                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                : null,
+            foregroundColor: atMax ? onSurface(context, a62) : null,
+            child: const Icon(Icons.add),
+          );
+
+          // Flat list: active section, then archived section.
+          final items = <Widget>[];
+
+          if (active.isNotEmpty) {
+            items.add(
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Text(
+                  'Actief',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+            );
+            for (int i = 0; i < active.length; i++) {
+              final d = active[i];
+              final name = (d.data()['name'] as String?)?.trim() ?? '?';
+              // Active names excluding this child (for rename duplicate check).
+              final othersNormalised = active
+                  .where((o) => o.id != d.id)
+                  .map(
+                    (o) => ((o.data()['name'] as String?)?.trim() ?? '')
+                        .toLowerCase(),
+                  )
+                  .toList();
+              if (i > 0) items.add(const Divider(height: 1));
+              items.add(
+                ListTile(
+                  title: Text(name),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        tooltip: 'Naam wijzigen',
+                        onPressed: _busy
+                            ? null
+                            : () => _renameChild(
+                                d.id,
+                                name,
+                                activeNormalisedExcludingSelf: othersNormalised,
+                              ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.archive_outlined, size: 20),
+                        tooltip: 'Archiveren',
+                        onPressed: _busy
+                            ? null
+                            : () => _archiveChild(d.id, name),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          if (archived.isNotEmpty) {
+            items.add(
+              Padding(
+                padding: const EdgeInsets.only(top: 24, bottom: 4),
+                child: Text(
+                  'Archief',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+            );
+            for (int i = 0; i < archived.length; i++) {
+              final d = archived[i];
+              final name = (d.data()['name'] as String?)?.trim() ?? '?';
+              if (i > 0) items.add(const Divider(height: 1));
+              items.add(
+                ListTile(
+                  title: Text(
+                    name,
+                    style: TextStyle(color: onSurface(context, a62)),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.unarchive_outlined, size: 20),
+                        tooltip: 'Herstellen',
+                        onPressed: _busy ? null : () => _restoreChild(d.id),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        tooltip: 'Definitief verwijderen',
+                        onPressed: _busy
+                            ? null
+                            : () => _softDeleteChild(d.id, name),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          return Scaffold(
+            appBar: appBar,
+            floatingActionButton: fab,
+            body: items.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Nog geen kinderen. Voeg er een toe met +.'),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    children: items,
+                  ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Add-child dialog
+//
+// Owns its TextEditingController via initState/dispose so the controller is
+// always torn down by Flutter's widget lifecycle, never while EditableText is
+// still mounted during the dialog's dismiss animation or IME hide.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _AddChildDialog extends StatefulWidget {
+  const _AddChildDialog({required this.activeNormalised});
+
+  final List<String> activeNormalised;
+
+  @override
+  State<_AddChildDialog> createState() => _AddChildDialogState();
+}
+
+class _AddChildDialogState extends State<_AddChildDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _controller.text.trim();
+    final isDuplicate =
+        text.isNotEmpty && widget.activeNormalised.contains(text.toLowerCase());
+    final canAdd = text.isNotEmpty && !isDuplicate;
+
+    return AlertDialog(
+      title: const Text('Kind toevoegen'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        textInputAction: TextInputAction.done,
+        onChanged: (_) => setState(() {}),
+        onSubmitted: (_) {
+          if (canAdd) Navigator.of(context).pop(_controller.text.trim());
+        },
+        decoration: InputDecoration(
+          labelText: 'Naam',
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          border: const OutlineInputBorder(),
+          errorText: isDuplicate ? 'Naam bestaat al' : null,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: canAdd
+              ? () => Navigator.of(context).pop(_controller.text.trim())
+              : null,
+          child: const Text('Toevoegen'),
+        ),
+      ],
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Rename-child dialog
+//
+// Owns its TextEditingController so Flutter disposes it as part of the normal
+// widget lifecycle — never while EditableText is still mounted during the
+// dialog's dismiss animation or IME hide.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _RenameChildDialog extends StatefulWidget {
+  const _RenameChildDialog({
+    required this.currentName,
+    required this.activeNormalisedExcludingSelf,
+  });
+
+  final String currentName;
+  final List<String> activeNormalisedExcludingSelf;
+
+  @override
+  State<_RenameChildDialog> createState() => _RenameChildDialogState();
+}
+
+class _RenameChildDialogState extends State<_RenameChildDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _controller.text.trim();
+    final isSame = text == widget.currentName.trim();
+    final isDuplicate =
+        text.isNotEmpty &&
+        !isSame &&
+        widget.activeNormalisedExcludingSelf.contains(text.toLowerCase());
+    final canSave = text.isNotEmpty && !isSame && !isDuplicate;
+
+    return AlertDialog(
+      title: const Text('Naam wijzigen'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        textInputAction: TextInputAction.done,
+        onChanged: (_) => setState(() {}),
+        onSubmitted: (_) {
+          if (canSave) Navigator.of(context).pop(_controller.text.trim());
+        },
+        decoration: InputDecoration(
+          labelText: 'Naam',
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          border: const OutlineInputBorder(),
+          errorText: isDuplicate ? 'Naam bestaat al' : null,
+          helperText: isSame && text.isNotEmpty ? 'Naam is ongewijzigd' : null,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: canSave
+              ? () => Navigator.of(context).pop(_controller.text.trim())
+              : null,
+          child: const Text('Opslaan'),
+        ),
+      ],
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 class KiduCard extends StatelessWidget {
   const KiduCard({
