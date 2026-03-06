@@ -1258,6 +1258,28 @@ class _DashboardPageState extends State<DashboardPage> {
                             );
                           },
                         ),
+                      if (hasHousehold)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.menu_book_outlined),
+                          title: const Text('Logboek'),
+                          subtitle: Text(
+                            'Bekijk alle uitgaven per kind',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a62)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(rootContext).push(
+                              MaterialPageRoute(
+                                builder: (_) => _LogboekPage(
+                                  householdId: householdId,
+                                  uid: myUid,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       Text(
                         'Info',
                         style: Theme.of(context).textTheme.titleMedium
@@ -1780,6 +1802,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                   _showSnackBar('Vul een geldig bedrag in.');
                                   return;
                                 }
+                                if (selectedChildIds.isEmpty) {
+                                  _showSnackBar('Selecteer minimaal één kind.');
+                                  return;
+                                }
 
                                 setLocalState(() => saving = true);
                                 if (!await _canWriteExpenseNow()) {
@@ -1800,9 +1826,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ? null
                                         : noteController.text.trim(),
                                     coparentNameForPendingMessage: coparentName,
-                                    childIds: children.isEmpty
-                                        ? null
-                                        : selectedChildIds,
+                                    childIds: selectedChildIds,
                                   );
                                   if (context.mounted) {
                                     await Future<void>.delayed(
@@ -2915,6 +2939,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                               _addExpenseDialogOpenVN.value) {
                                             return;
                                           }
+                                          // Capture before any awaits so the
+                                          // local builder context isn't used
+                                          // across async gaps.
+                                          final messenger =
+                                              ScaffoldMessenger.of(context);
+                                          final nav = Navigator.of(context);
                                           _addExpenseCheckBusyVN.value = true;
                                           var didOpenDialog = false;
                                           try {
@@ -2928,6 +2958,30 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 await _loadActiveChildren(
                                                   householdIdStr,
                                                 );
+                                            if (kids.isEmpty) {
+                                              if (!mounted) return;
+                                              messenger.hideCurrentSnackBar();
+                                              messenger.showSnackBar(
+                                                SnackBar(
+                                                  content: const Text(
+                                                    'Voeg eerst een kind toe om een uitgave te registreren.',
+                                                  ),
+                                                  action: SnackBarAction(
+                                                    label: 'Kinderen',
+                                                    onPressed: () => nav.push(
+                                                      MaterialPageRoute<void>(
+                                                        builder: (_) =>
+                                                            _KinderenPage(
+                                                              householdId:
+                                                                  householdIdStr,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            }
                                             // Pre-load done: stop spinner and
                                             // hide FAB for the dialog duration.
                                             _addExpenseCheckBusyVN.value =
@@ -3899,6 +3953,248 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Logboek – read-only expense history with child filter
+// ────────────────────────────────────────────────────────────────────────────
+
+class _LogboekPage extends StatefulWidget {
+  const _LogboekPage({required this.householdId, required this.uid});
+
+  final String householdId;
+  final String uid;
+
+  @override
+  State<_LogboekPage> createState() => _LogboekPageState();
+}
+
+class _LogboekPageState extends State<_LogboekPage> {
+  List<_ChildItem> _children = [];
+  bool _childrenLoaded = false;
+  String? _filterChildId; // null = alle, childId = selected child
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChildren();
+  }
+
+  Future<void> _loadChildren() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/children')
+          .get();
+      final docs = snap.docs.toList()
+        ..sort((a, b) {
+          final aTs = a.data()['createdAt'];
+          final bTs = b.data()['createdAt'];
+          if (aTs is Timestamp && bTs is Timestamp) {
+            return aTs.compareTo(bTs);
+          }
+          return 0;
+        });
+      final children = docs
+          .map(
+            (d) => _ChildItem(
+              id: d.id,
+              name: (d.data()['name'] as String?)?.trim() ?? '?',
+            ),
+          )
+          .toList();
+      if (mounted) {
+        setState(() {
+          _children = children;
+          _childrenLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _childrenLoaded = true);
+    }
+  }
+
+  bool _matchesFilter(Map<String, dynamic> data) {
+    if (_filterChildId == null) return true;
+    final ids =
+        (data['childIds'] as List?)?.whereType<String>().toList() ??
+        const <String>[];
+    return ids.contains(_filterChildId);
+  }
+
+  static String _fmtEur(int cents) => '€${(cents / 100.0).toStringAsFixed(2)}';
+
+  static String _fmtDate(DateTime? dt) {
+    if (dt == null) return '—';
+    const mo = [
+      'jan',
+      'feb',
+      'mrt',
+      'apr',
+      'mei',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec',
+    ];
+    return '${dt.day} ${mo[dt.month - 1]} ${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appBar = AppBar(
+      centerTitle: true,
+      leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+      title: Text(
+        'Logboek',
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+
+    return Scaffold(
+      appBar: appBar,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_childrenLoaded) _buildFilterRow(context),
+          Expanded(child: _buildExpenseList(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterRow(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('Alle'),
+            selected: _filterChildId == null,
+            onSelected: (_) => setState(() => _filterChildId = null),
+          ),
+          for (final child in _children) ...[
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(child.name),
+              selected: _filterChildId == child.id,
+              onSelected: (v) =>
+                  setState(() => _filterChildId = v ? child.id : null),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExpenseList(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/expenses')
+          .orderBy('createdAt', descending: true)
+          .limit(200)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(mapUserFacingError(snap.error!)),
+            ),
+          );
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snap.data!.docs
+            .where((d) => _matchesFilter(d.data()))
+            .toList();
+        if (docs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Geen uitgaven gevonden.'),
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: docs.length,
+          separatorBuilder: (context, _) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final d = docs[i];
+            final e = d.data();
+            final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+            final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+            final createdAtRaw = e['createdAt'];
+            DateTime? createdAt;
+            if (createdAtRaw is Timestamp) {
+              createdAt = createdAtRaw.toDate().toLocal();
+            } else if (createdAtRaw is DateTime) {
+              createdAt = createdAtRaw.toLocal();
+            }
+            final childIds =
+                (e['childIds'] as List?)?.whereType<String>().toList() ??
+                const <String>[];
+            final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+            final paidByName = createdBy == widget.uid ? 'Jij' : 'Co-parent';
+            final nKids = childIds.length;
+            final isFiltered = _filterChildId != null && nKids > 0;
+            final displayCents = isFiltered
+                ? (amountCents / nKids).round()
+                : amountCents;
+            final dateStr = _fmtDate(createdAt);
+            final subtitleStr = isFiltered
+                ? '$dateStr · Aandeel: 1/$nKids'
+                : nKids > 0
+                ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
+                : dateStr;
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _ExpenseDetailPage(
+                    householdId: widget.householdId,
+                    expenseId: d.id,
+                    uid: widget.uid,
+                    title: title,
+                    amountCents: amountCents,
+                    paidByName: paidByName,
+                    createdAt: createdAt,
+                    isPending: false,
+                    childIds: childIds,
+                  ),
+                ),
+              ),
+              title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                subtitleStr,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: onSurface(context, a62)),
+              ),
+              trailing: Text(
+                _fmtEur(displayCents),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Kinderen management screen
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -3937,6 +4233,27 @@ class _KinderenPageState extends State<_KinderenPage> {
     if (newName == null || newName.isEmpty) return;
     setState(() => _busy = true);
     try {
+      final normNew = newName.trim().toLowerCase();
+      final allSnap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/children')
+          .get();
+      final deleted = allSnap.docs.where((d) {
+        final data = d.data();
+        if (data['isDeleted'] != true) return false;
+        final stored = ((data['name'] as String?) ?? '').trim().toLowerCase();
+        return stored == normNew;
+      }).toList();
+
+      if (deleted.isNotEmpty) {
+        await deleted.first.reference.update({
+          'isDeleted': false,
+          'isArchived': false,
+          'deletedAt': FieldValue.delete(),
+        });
+        _snackInfo('Bestaand kind hersteld.');
+        return;
+      }
+
       await FirebaseFirestore.instance
           .collection('households/${widget.householdId}/children')
           .add({
