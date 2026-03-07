@@ -4053,14 +4053,20 @@ class _LogboekPageState extends State<_LogboekPage> {
       ),
     );
 
-    return Scaffold(
-      appBar: appBar,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_childrenLoaded) _buildFilterRow(context),
-          Expanded(child: _buildExpenseList(context)),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: appBar,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_childrenLoaded) _buildFilterRow(context),
+            Expanded(child: _buildExpenseList(context)),
+          ],
+        ),
       ),
     );
   }
