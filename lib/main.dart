@@ -412,9 +412,14 @@ KiDu is intended for adults (co-parents) and is not designed for children.
 ''';
 
 class ProfileNamePage extends StatefulWidget {
-  const ProfileNamePage({super.key, this.fromSettings = false});
+  const ProfileNamePage({
+    super.key,
+    this.fromSettings = false,
+    this.initialName,
+  });
 
   final bool fromSettings;
+  final String? initialName;
 
   @override
   State<ProfileNamePage> createState() => _ProfileNamePageState();
@@ -424,6 +429,15 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
   final _controller = TextEditingController();
   bool _busy = false;
   String? _nameInlineHint;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialName;
+    if (initial != null && initial.trim().isNotEmpty) {
+      _controller.text = initial.trim();
+    }
+  }
 
   void _showSnackBar(String message) {
     if (!mounted) {
@@ -534,71 +548,79 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'KiDu',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          title: Text(
+            'KiDu',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 24),
-              Text(
-                'Welke naam wil je gebruiken?',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: onSurface(context, a62),
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                maxLength: 20,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _busy ? null : _save(),
-                onChanged: (_) {
-                  if (_nameInlineHint != null) {
-                    setState(() => _nameInlineHint = null);
-                  }
-                },
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-              ),
-              if (_nameInlineHint != null) ...[
-                const SizedBox(height: 12),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 24),
                 Text(
-                  _nameInlineHint!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  'Welke naam wil je gebruiken?',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: onSurface(context, a62),
                     height: 1.35,
                   ),
                 ),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _busy ? null : _save,
-                  child: Text(_busy ? 'Bezig...' : 'Opslaan'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _controller,
+                  autofocus: true,
+                  maxLength: 20,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _busy ? null : _save(),
+                  onChanged: (_) {
+                    if (_nameInlineHint != null) {
+                      setState(() => _nameInlineHint = null);
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                if (_nameInlineHint != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _nameInlineHint!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a62),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _busy ? null : _save,
+                    child: Text(_busy ? 'Bezig...' : 'Opslaan'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1092,6 +1114,7 @@ class _DashboardPageState extends State<DashboardPage> {
     required String myUid,
     required String? otherName,
     required bool canInvite,
+    String? myName,
   }) {
     final rootContext = context;
     showModalBottomSheet<void>(
@@ -1232,8 +1255,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           Navigator.of(context).pop();
                           Navigator.of(rootContext).push(
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  const ProfileNamePage(fromSettings: true),
+                              builder: (_) => ProfileNamePage(
+                                fromSettings: true,
+                                initialName: myName,
+                              ),
                             ),
                           );
                         },
@@ -2390,6 +2415,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     myUid: user.uid,
                     otherName: null,
                     canInvite: false,
+                    myName: null,
                   ),
                   icon: const Icon(Icons.more_horiz),
                   tooltip: 'Menu',
@@ -2558,6 +2584,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           myUid: user.uid,
                           otherName: 'Co-parent',
                           canInvite: canInvite,
+                          myName: myProfileName,
                         ),
                         icon: const Icon(Icons.more_horiz),
                         tooltip: 'Menu',
@@ -2906,6 +2933,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 myUid: user.uid,
                                 otherName: otherName,
                                 canInvite: canInvite,
+                                myName: myProfileName,
                               ),
                               icon: const Icon(Icons.more_horiz),
                               tooltip: 'Menu',
