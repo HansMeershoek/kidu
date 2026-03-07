@@ -69,6 +69,9 @@ ThemeData buildKiduTheme() {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: Color(0xFF2F3E46),
+    ),
   );
 }
 
