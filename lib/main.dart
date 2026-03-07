@@ -898,6 +898,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _showWaiting = false;
   int _notesRefreshTick = 0;
   bool _noteWriteInFlight = false;
+  final Map<String, Future<String?>> _noteFutureCache = {};
 
   String? _namesCacheKey;
   Future<Map<String, String>>? _namesFuture;
@@ -914,6 +915,17 @@ class _DashboardPageState extends State<DashboardPage> {
     final raw = (data?['note'] as String?)?.trim();
     if (raw == null || raw.isEmpty) return null;
     return raw;
+  }
+
+  Future<String?> _getNoteFuture(String householdId, String expenseId) {
+    return _noteFutureCache.putIfAbsent(
+      expenseId,
+      () => _loadMyPrivateNote(
+        householdId: householdId,
+        expenseId: expenseId,
+        uid: FirebaseAuth.instance.currentUser!.uid,
+      ),
+    );
   }
 
   static const double _pagePadding = 16;
@@ -974,7 +986,10 @@ class _DashboardPageState extends State<DashboardPage> {
       }
 
       if (!mounted) return;
-      setState(() => _notesRefreshTick++);
+      setState(() {
+        _notesRefreshTick++;
+        _noteFutureCache.clear();
+      });
       if (result is PrivateNoteDialogDelete) {
         _showSnackBar('Notitie verwijderd.');
       } else if (result is PrivateNoteDialogSave) {
@@ -1300,6 +1315,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                 builder: (_) => _LogboekPage(
                                   householdId: householdId,
                                   uid: myUid,
+                                  myName: myName,
+                                  otherName: otherName,
                                 ),
                               ),
                             );
@@ -3510,13 +3527,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   key: ValueKey(
                                                                     'note_${d.id}_$_notesRefreshTick',
                                                                   ),
-                                                                  future: _loadMyPrivateNote(
-                                                                    householdId:
-                                                                        householdIdStr,
-                                                                    expenseId:
-                                                                        d.id,
-                                                                    uid: user
-                                                                        .uid,
+                                                                  future: _getNoteFuture(
+                                                                    householdIdStr,
+                                                                    d.id,
                                                                   ),
                                                                   builder:
                                                                       (
@@ -3607,36 +3620,26 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             overflow:
                                                                                 TextOverflow.ellipsis,
                                                                           ),
-                                                                          subtitle:
-                                                                              (noteSnap.hasError ||
-                                                                                  !noteSnap.hasData)
-                                                                              ? Text(
-                                                                                  subtitleText,
-                                                                                  maxLines: 1,
-                                                                                  overflow: TextOverflow.ellipsis,
-                                                                                )
-                                                                              : (hasNote
-                                                                                    ? Column(
-                                                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                                                        mainAxisSize: MainAxisSize.min,
-                                                                                        children: [
-                                                                                          Text(
-                                                                                            subtitleText,
-                                                                                            maxLines: 1,
-                                                                                            overflow: TextOverflow.ellipsis,
-                                                                                          ),
-                                                                                          Text(
-                                                                                            note,
-                                                                                            maxLines: 1,
-                                                                                            overflow: TextOverflow.ellipsis,
-                                                                                          ),
-                                                                                        ],
-                                                                                      )
-                                                                                    : Text(
-                                                                                        subtitleText,
-                                                                                        maxLines: 1,
-                                                                                        overflow: TextOverflow.ellipsis,
-                                                                                      )),
+                                                                          subtitle: Column(
+                                                                            crossAxisAlignment:
+                                                                                CrossAxisAlignment.start,
+                                                                            mainAxisSize:
+                                                                                MainAxisSize.min,
+                                                                            children: [
+                                                                              Text(
+                                                                                subtitleText,
+                                                                                maxLines: 1,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                              ),
+                                                                              Text(
+                                                                                hasNote
+                                                                                    ? note
+                                                                                    : '',
+                                                                                maxLines: 1,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                              ),
+                                                                            ],
+                                                                          ),
                                                                           trailing: Row(
                                                                             mainAxisSize:
                                                                                 MainAxisSize.min,
@@ -3985,10 +3988,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _LogboekPage extends StatefulWidget {
-  const _LogboekPage({required this.householdId, required this.uid});
+  const _LogboekPage({
+    required this.householdId,
+    required this.uid,
+    this.myName,
+    this.otherName,
+  });
 
   final String householdId;
   final String uid;
+  final String? myName;
+  final String? otherName;
 
   @override
   State<_LogboekPage> createState() => _LogboekPageState();
@@ -4215,7 +4225,9 @@ class _LogboekPageState extends State<_LogboekPage> {
                 (e['childIds'] as List?)?.whereType<String>().toList() ??
                 const <String>[];
             final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-            final paidByName = createdBy == widget.uid ? 'Jij' : 'Co-parent';
+            final paidByName = createdBy == widget.uid
+                ? (widget.myName ?? 'Jij')
+                : (widget.otherName ?? 'Co-parent');
             final nKids = childIds.length;
             final isFiltered = _filterChildId != null && nKids > 0;
             final displayCents = isFiltered
