@@ -3998,11 +3998,38 @@ class _LogboekPageState extends State<_LogboekPage> {
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   String? _filterChildId; // null = alle, childId = selected child
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
+  bool _initialDataReady = false;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
-    _loadChildren();
+    _expensesStream = FirebaseFirestore.instance
+        .collection('households/${widget.householdId}/expenses')
+        .orderBy('createdAt', descending: true)
+        .limit(200)
+        .snapshots();
+    Future.wait([
+      _loadChildren(),
+      _expensesStream.first.then((_) {}).catchError((_) {}),
+    ]).then((_) {
+      if (mounted) setState(() => _initialDataReady = true);
+    });
+    _checkOffline();
+  }
+
+  Future<void> _checkOffline() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .doc('users/$uid')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      if (mounted) setState(() => _isOffline = true);
+    }
   }
 
   Future<void> _loadChildren() async {
@@ -4088,13 +4115,31 @@ class _LogboekPageState extends State<_LogboekPage> {
       },
       child: Scaffold(
         appBar: appBar,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_childrenLoaded) _buildFilterRow(context),
-            Expanded(child: _buildExpenseList(context)),
-          ],
-        ),
+        body: !_initialDataReady
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_isOffline)
+                    Container(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        'Offline — je ziet de laatst geladen gegevens.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a62),
+                        ),
+                      ),
+                    ),
+                  if (_childrenLoaded) _buildFilterRow(context),
+                  Expanded(child: _buildExpenseList(context)),
+                ],
+              ),
       ),
     );
   }
@@ -4126,11 +4171,7 @@ class _LogboekPageState extends State<_LogboekPage> {
 
   Widget _buildExpenseList(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('households/${widget.householdId}/expenses')
-          .orderBy('createdAt', descending: true)
-          .limit(200)
-          .snapshots(),
+      stream: _expensesStream,
       builder: (context, snap) {
         if (snap.hasError) {
           return Center(
@@ -4187,6 +4228,7 @@ class _LogboekPageState extends State<_LogboekPage> {
                 ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
                 : dateStr;
             return ListTile(
+              key: ValueKey(d.id),
               contentPadding: EdgeInsets.zero,
               dense: true,
               visualDensity: VisualDensity.compact,
