@@ -3117,8 +3117,14 @@ class _DashboardPageState extends State<DashboardPage> {
                     context: context,
                     removeBottom: true,
                     child: SafeArea(
+                      top: false,
                       child: Padding(
-                        padding: const EdgeInsets.all(_pagePadding),
+                        padding: const EdgeInsets.fromLTRB(
+                          _pagePadding,
+                          _pagePadding,
+                          _pagePadding,
+                          80,
+                        ),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             return Align(
@@ -3140,7 +3146,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'createdAt',
                                             descending: true,
                                           )
-                                          .limit(5)
+                                          .limit(4)
                                           .snapshots(
                                             includeMetadataChanges: true,
                                           ),
@@ -3312,31 +3318,31 @@ class _DashboardPageState extends State<DashboardPage> {
                                               ),
                                             ),
                                             const SizedBox(height: _cardGap),
-                                            Expanded(
-                                              child: KiduCard(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    Text(
-                                                      'Recente uitgaven',
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .titleMedium
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w700,
+                                            KiduCard(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment
+                                                        .stretch,
+                                                children: [
+                                                  Text(
+                                                    'Recente uitgaven',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  effectiveSnap == null
+                                                      ? const SizedBox(
+                                                          height: 48,
+                                                          child: Center(
+                                                            child:
+                                                                CircularProgressIndicator(),
                                                           ),
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Expanded(
-                                                      child:
-                                                          effectiveSnap == null
-                                                          ? const Center(
-                                                              child:
-                                                                  CircularProgressIndicator(),
-                                                            )
+                                                        )
                                                           : docs.isEmpty
                                                           ? Align(
                                                               alignment:
@@ -3359,10 +3365,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     ),
                                                               ),
                                                             )
-                                                          : ListView.separated(
-                                                              physics: const NeverScrollableScrollPhysics(),
-                                                              itemCount:
-                                                                  docs.length,
+                                                      : ListView.separated(
+                                                          shrinkWrap: true,
+                                                          padding: EdgeInsets.zero,
+                                                          physics: const NeverScrollableScrollPhysics(),
+                                                          itemCount:
+                                                              docs.length,
                                                               separatorBuilder:
                                                                   (
                                                                     context,
@@ -3731,11 +3739,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 );
                                                               },
                                                             ),
-                                                    ),
                                                   ],
                                                 ),
                                               ),
-                                            ),
                                           ],
                                         );
                                       },
