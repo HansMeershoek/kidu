@@ -2954,125 +2954,165 @@ class _DashboardPageState extends State<DashboardPage> {
                           ]
                         : [],
                   ),
-                  floatingActionButton: canAddExpenses
-                      ? ValueListenableBuilder<bool>(
-                          valueListenable: _addExpenseDialogOpenVN,
-                          builder: (context, dialogOpen, _) {
-                            // Only the FAB subtree rebuilds when the dialog
-                            // opens/closes — the rest of the dashboard is
-                            // untouched.
-                            if (dialogOpen) return const SizedBox.shrink();
-                            return ValueListenableBuilder<bool>(
-                              valueListenable: _addExpenseCheckBusyVN,
-                              builder: (context, fabBusy, _) {
-                                final bool addExpenseBusy =
-                                    fabBusy ||
-                                    _setupBusy ||
-                                    _inviteBusy ||
-                                    _switchBusy;
+                  floatingActionButtonLocation:
+                      FloatingActionButtonLocation.centerFloat,
+                  floatingActionButton: SizedBox(
+                    width: MediaQuery.of(context).size.width - 48,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        FloatingActionButton.small(
+                          heroTag: 'logboek_fab',
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => _LogboekPage(
+                                householdId: householdIdStr,
+                                uid: user.uid,
+                                myName: myName,
+                                otherName: otherName,
+                              ),
+                            ),
+                          ),
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant,
+                          elevation: 1,
+                          tooltip: 'Logboek',
+                          child: const Icon(Icons.menu_book, size: 20),
+                        ),
+                        if (canAddExpenses)
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _addExpenseDialogOpenVN,
+                            builder: (context, dialogOpen, _) {
+                              // Only the FAB subtree rebuilds when the dialog
+                              // opens/closes — the rest of the dashboard is
+                              // untouched.
+                              if (dialogOpen) return const SizedBox.shrink();
+                              return ValueListenableBuilder<bool>(
+                                valueListenable: _addExpenseCheckBusyVN,
+                                builder: (context, fabBusy, _) {
+                                  final bool addExpenseBusy =
+                                      fabBusy ||
+                                      _setupBusy ||
+                                      _inviteBusy ||
+                                      _switchBusy;
 
-                                return FloatingActionButton(
-                                  onPressed: addExpenseBusy
-                                      ? null
-                                      : () async {
-                                          if (_addExpenseCheckBusyVN.value ||
-                                              _addExpenseDialogOpenVN.value) {
-                                            return;
-                                          }
-                                          // Capture before any awaits so the
-                                          // local builder context isn't used
-                                          // across async gaps.
-                                          final messenger =
-                                              ScaffoldMessenger.of(context);
-                                          final nav = Navigator.of(context);
-                                          _addExpenseCheckBusyVN.value = true;
-                                          var didOpenDialog = false;
-                                          try {
-                                            if (!await _canWriteExpenseNow()) {
-                                              _showSnackBar(
-                                                'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
-                                              );
+                                  return FloatingActionButton(
+                                    heroTag: 'add_expense_fab',
+                                    onPressed: addExpenseBusy
+                                        ? null
+                                        : () async {
+                                            if (_addExpenseCheckBusyVN.value ||
+                                                _addExpenseDialogOpenVN.value) {
                                               return;
                                             }
-                                            final kids =
-                                                await _loadActiveChildren(
-                                                  householdIdStr,
+                                            // Capture before any awaits so the
+                                            // local builder context isn't used
+                                            // across async gaps.
+                                            final messenger =
+                                                ScaffoldMessenger.of(context);
+                                            final nav = Navigator.of(context);
+                                            _addExpenseCheckBusyVN.value =
+                                                true;
+                                            var didOpenDialog = false;
+                                            try {
+                                              if (!await _canWriteExpenseNow()) {
+                                                _showSnackBar(
+                                                  'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
                                                 );
-                                            if (kids.isEmpty) {
-                                              if (!mounted) return;
-                                              messenger.hideCurrentSnackBar();
-                                              messenger.showSnackBar(
-                                                SnackBar(
-                                                  content: const Text(
-                                                    'Voeg eerst een kind toe om een uitgave te registreren.',
-                                                  ),
-                                                  action: SnackBarAction(
-                                                    label: 'Kinderen',
-                                                    onPressed: () => nav.push(
-                                                      MaterialPageRoute<void>(
-                                                        builder: (_) =>
-                                                            _KinderenPage(
-                                                              householdId:
-                                                                  householdIdStr,
+                                                return;
+                                              }
+                                              final kids =
+                                                  await _loadActiveChildren(
+                                                    householdIdStr,
+                                                  );
+                                              if (kids.isEmpty) {
+                                                if (!mounted) return;
+                                                messenger
+                                                    .hideCurrentSnackBar();
+                                                messenger.showSnackBar(
+                                                  SnackBar(
+                                                    content: const Text(
+                                                      'Voeg eerst een kind toe om een uitgave te registreren.',
+                                                    ),
+                                                    action: SnackBarAction(
+                                                      label: 'Kinderen',
+                                                      onPressed: () =>
+                                                          nav.push(
+                                                            MaterialPageRoute<
+                                                              void
+                                                            >(
+                                                              builder: (_) =>
+                                                                  _KinderenPage(
+                                                                    householdId:
+                                                                        householdIdStr,
+                                                                  ),
                                                             ),
-                                                      ),
+                                                          ),
                                                     ),
                                                   ),
-                                                ),
+                                                );
+                                                return;
+                                              }
+                                              // Pre-load done: stop spinner and
+                                              // hide FAB for the dialog duration.
+                                              _addExpenseCheckBusyVN.value =
+                                                  false;
+                                              if (!mounted) return;
+                                              _addExpenseDialogOpenVN.value =
+                                                  true;
+                                              didOpenDialog = true;
+                                              await _openAddExpenseDialog(
+                                                householdIdStr,
+                                                coparentName: otherName,
+                                                children: kids,
                                               );
-                                              return;
+                                            } finally {
+                                              // Wait for the pop transition to
+                                              // finish before restoring the FAB.
+                                              if (didOpenDialog) {
+                                                await Future<void>.delayed(
+                                                  kThemeAnimationDuration,
+                                                );
+                                              }
+                                              _addExpenseDialogOpenVN.value =
+                                                  false;
+                                              _addExpenseCheckBusyVN.value =
+                                                  false;
                                             }
-                                            // Pre-load done: stop spinner and
-                                            // hide FAB for the dialog duration.
-                                            _addExpenseCheckBusyVN.value =
-                                                false;
-                                            if (!mounted) return;
-                                            _addExpenseDialogOpenVN.value =
-                                                true;
-                                            didOpenDialog = true;
-                                            await _openAddExpenseDialog(
-                                              householdIdStr,
-                                              coparentName: otherName,
-                                              children: kids,
-                                            );
-                                          } finally {
-                                            // Wait for the pop transition to
-                                            // finish before restoring the FAB.
-                                            if (didOpenDialog) {
-                                              await Future<void>.delayed(
-                                                kThemeAnimationDuration,
-                                              );
-                                            }
-                                            _addExpenseDialogOpenVN.value =
-                                                false;
-                                            _addExpenseCheckBusyVN.value =
-                                                false;
-                                          }
-                                        },
-                                  child: SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: addExpenseBusy
-                                        ? Center(
-                                            child: SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onPrimaryContainer,
+                                          },
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: addExpenseBusy
+                                          ? Center(
+                                              child: SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .onPrimaryContainer,
+                                                    ),
                                               ),
-                                            ),
-                                          )
-                                        : const Icon(Icons.add, size: 24),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        )
-                      : null,
+                                            )
+                                          : const Icon(Icons.add, size: 24),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          )
+                        else
+                          const SizedBox(width: 40, height: 40),
+                      ],
+                    ),
+                  ),
                   body: MediaQuery.removeViewInsets(
                     context: context,
                     removeBottom: true,
