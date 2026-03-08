@@ -5270,7 +5270,7 @@ class _JoinSuccessOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
+    return const PopScope(
       canPop: false,
       child: Material(
         color: _kSuccessGreen,
