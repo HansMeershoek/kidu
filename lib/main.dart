@@ -3831,15 +3831,46 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
+                    title: const Text('Betaald door'),
+                    subtitle: Text(widget.paidByName),
+                  ),
+                  if (widget.childIds.isNotEmpty)
+                    FutureBuilder<List<String>>(
+                      future: _ExpenseDetailPage._resolveChildNames(
+                        widget.householdId,
+                        widget.childIds,
+                      ),
+                      builder: (context, snap) {
+                        if (!snap.hasData) return const SizedBox.shrink();
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Voor'),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: snap.data!
+                                  .map(
+                                    (n) => Chip(
+                                      label: Text(n),
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
                     title: const Text('Bedrag'),
                     subtitle: Text(
                       _ExpenseDetailPage._formatEur(widget.amountCents),
                     ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Betaald door'),
-                    subtitle: Text(widget.paidByName),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -3865,37 +3896,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           )
                         : const Text('Gesynchroniseerd'),
                   ),
-                  if (widget.childIds.isNotEmpty)
-                    FutureBuilder<List<String>>(
-                      future: _ExpenseDetailPage._resolveChildNames(
-                        widget.householdId,
-                        widget.childIds,
-                      ),
-                      builder: (context, snap) {
-                        if (!snap.hasData) return const SizedBox.shrink();
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Voor wie'),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: snap.data!
-                                  .map(
-                                    (n) => Chip(
-                                      label: Text(n),
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
