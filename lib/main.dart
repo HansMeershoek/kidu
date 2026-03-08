@@ -3428,90 +3428,97 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                                                 if (createdBy !=
                                                                     user.uid) {
-                                                                  return ListTile(
-                                                                    contentPadding:
-                                                                        EdgeInsets
-                                                                            .zero,
-                                                                    dense: true,
-                                                                    visualDensity:
-                                                                        VisualDensity
-                                                                            .compact,
-                                                                    onTap: () {
-                                                                      Navigator.of(
-                                                                        context,
-                                                                      ).push(
-                                                                        MaterialPageRoute<
-                                                                          void
-                                                                        >(
-                                                                          builder:
-                                                                              (
-                                                                                context,
-                                                                              ) => _ExpenseDetailPage(
-                                                                                householdId: householdIdStr,
-                                                                                expenseId: d.id,
-                                                                                uid: user.uid,
-                                                                                title: title,
-                                                                                amountCents: amountCents,
-                                                                                paidByName: who,
-                                                                                createdAt: createdAtDateTime,
-                                                                                isPending: isPending,
-                                                                                onManageNote: null,
-                                                                                childIds: expChildIds,
-                                                                              ),
+                                                                  return Material(
+                                                                    type: MaterialType.transparency,
+                                                                    borderRadius: BorderRadius.circular(8),
+                                                                    child: InkWell(
+                                                                      borderRadius: BorderRadius.circular(8),
+                                                                      highlightColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+                                                                      splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                                                                      onTap: () {
+                                                                        Navigator.of(
+                                                                          context,
+                                                                        ).push(
+                                                                          MaterialPageRoute<
+                                                                            void
+                                                                          >(
+                                                                            builder:
+                                                                                (
+                                                                                  context,
+                                                                                ) => _ExpenseDetailPage(
+                                                                                  householdId: householdIdStr,
+                                                                                  expenseId: d.id,
+                                                                                  uid: user.uid,
+                                                                                  title: title,
+                                                                                  amountCents: amountCents,
+                                                                                  paidByName: who,
+                                                                                  createdAt: createdAtDateTime,
+                                                                                  isPending: isPending,
+                                                                                  onManageNote: null,
+                                                                                  childIds: expChildIds,
+                                                                                ),
+                                                                          ),
+                                                                        );
+                                                                      },
+                                                                      child: ListTile(
+                                                                        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                                                                        dense: true,
+                                                                        visualDensity:
+                                                                            VisualDensity
+                                                                                .compact,
+                                                                        title: Text(
+                                                                          title,
+                                                                          maxLines:
+                                                                              1,
+                                                                          overflow:
+                                                                              TextOverflow
+                                                                                  .ellipsis,
                                                                         ),
-                                                                      );
-                                                                    },
-                                                                    title: Text(
-                                                                      title,
-                                                                      maxLines:
-                                                                          1,
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
-                                                                    ),
-                                                                    subtitle: Text(
-                                                                      subtitleText,
-                                                                      maxLines:
-                                                                          1,
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
-                                                                    ),
-                                                                    trailing: Row(
-                                                                      mainAxisSize:
-                                                                          MainAxisSize
-                                                                              .min,
-                                                                      children: [
-                                                                        if (isPending)
-                                                                          Tooltip(
-                                                                            message:
-                                                                                'Nog niet gesynchroniseerd',
-                                                                            child: Icon(
-                                                                              Icons.cloud_off,
-                                                                              size: 16,
-                                                                              color: onSurface(
-                                                                                context,
-                                                                                a50,
+                                                                        subtitle: Text(
+                                                                          subtitleText,
+                                                                          maxLines:
+                                                                              1,
+                                                                          overflow:
+                                                                              TextOverflow
+                                                                                  .ellipsis,
+                                                                        ),
+                                                                        trailing: Row(
+                                                                          mainAxisSize:
+                                                                              MainAxisSize
+                                                                                  .min,
+                                                                          children: [
+                                                                            if (isPending)
+                                                                              Tooltip(
+                                                                                message:
+                                                                                    'Nog niet gesynchroniseerd',
+                                                                                child: Icon(
+                                                                                  Icons.cloud_off,
+                                                                                  size: 16,
+                                                                                  color: onSurface(
+                                                                                    context,
+                                                                                    a50,
+                                                                                  ),
+                                                                                ),
                                                                               ),
+                                                                            if (isPending)
+                                                                              const SizedBox(
+                                                                                width:
+                                                                                    4,
+                                                                              ),
+                                                                            Text(
+                                                                              _formatEur(
+                                                                                amountCents,
+                                                                              ),
+                                                                              style:
+                                                                                  Theme.of(
+                                                                                    context,
+                                                                                  ).textTheme.bodyMedium?.copyWith(
+                                                                                    fontWeight: FontWeight.w700,
+                                                                                  ),
                                                                             ),
-                                                                          ),
-                                                                        if (isPending)
-                                                                          const SizedBox(
-                                                                            width:
-                                                                                4,
-                                                                          ),
-                                                                        Text(
-                                                                          _formatEur(
-                                                                            amountCents,
-                                                                          ),
-                                                                          style:
-                                                                              Theme.of(
-                                                                                context,
-                                                                              ).textTheme.bodyMedium?.copyWith(
-                                                                                fontWeight: FontWeight.w700,
-                                                                              ),
+                                                                          ],
                                                                         ),
-                                                                      ],
+                                                                      ),
                                                                     ),
                                                                   );
                                                                 }
@@ -3576,99 +3583,107 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           );
                                                                         }
 
-                                                                        return ListTile(
-                                                                          contentPadding:
-                                                                              EdgeInsets.zero,
-                                                                          dense:
-                                                                              true,
-                                                                          visualDensity:
-                                                                              VisualDensity.compact,
-                                                                          onTap: () {
-                                                                            Navigator.of(
-                                                                              context,
-                                                                            ).push(
-                                                                              MaterialPageRoute<
-                                                                                void
-                                                                              >(
-                                                                                builder:
-                                                                                    (
-                                                                                      context,
-                                                                                    ) => _ExpenseDetailPage(
-                                                                                      householdId: householdIdStr,
-                                                                                      expenseId: d.id,
-                                                                                      uid: user.uid,
-                                                                                      title: title,
-                                                                                      amountCents: amountCents,
-                                                                                      paidByName: who,
-                                                                                      createdAt: createdAtDateTime,
-                                                                                      isPending: isPending,
-                                                                                      onManageNote: openNoteFlow,
-                                                                                      childIds: expChildIds,
-                                                                                    ),
+                                                                        return Material(
+                                                                          type: MaterialType.transparency,
+                                                                          borderRadius: BorderRadius.circular(8),
+                                                                          child: InkWell(
+                                                                            borderRadius: BorderRadius.circular(8),
+                                                                            highlightColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+                                                                            splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                                                                            onTap: () {
+                                                                              Navigator.of(
+                                                                                context,
+                                                                              ).push(
+                                                                                MaterialPageRoute<
+                                                                                  void
+                                                                                >(
+                                                                                  builder:
+                                                                                      (
+                                                                                        context,
+                                                                                      ) => _ExpenseDetailPage(
+                                                                                        householdId: householdIdStr,
+                                                                                        expenseId: d.id,
+                                                                                        uid: user.uid,
+                                                                                        title: title,
+                                                                                        amountCents: amountCents,
+                                                                                        paidByName: who,
+                                                                                        createdAt: createdAtDateTime,
+                                                                                        isPending: isPending,
+                                                                                        onManageNote: openNoteFlow,
+                                                                                        childIds: expChildIds,
+                                                                                      ),
+                                                                                ),
+                                                                              );
+                                                                            },
+                                                                            child: ListTile(
+                                                                              contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                                                                              dense:
+                                                                                  true,
+                                                                              visualDensity:
+                                                                                  VisualDensity.compact,
+                                                                              title: Text(
+                                                                                title,
+                                                                                maxLines:
+                                                                                    1,
+                                                                                overflow:
+                                                                                    TextOverflow.ellipsis,
                                                                               ),
-                                                                            );
-                                                                          },
-                                                                          title: Text(
-                                                                            title,
-                                                                            maxLines:
-                                                                                1,
-                                                                            overflow:
-                                                                                TextOverflow.ellipsis,
-                                                                          ),
-                                                                          subtitle: Column(
-                                                                            crossAxisAlignment:
-                                                                                CrossAxisAlignment.start,
-                                                                            mainAxisSize:
-                                                                                MainAxisSize.min,
-                                                                            children: [
-                                                                              Text(
-                                                                                subtitleText,
-                                                                                maxLines: 1,
-                                                                                overflow: TextOverflow.ellipsis,
-                                                                              ),
-                                                                              Text(
-                                                                                hasNote
-                                                                                    ? note
-                                                                                    : '',
-                                                                                maxLines: 1,
-                                                                                overflow: TextOverflow.ellipsis,
-                                                                              ),
-                                                                            ],
-                                                                          ),
-                                                                          trailing: Row(
-                                                                            mainAxisSize:
-                                                                                MainAxisSize.min,
-                                                                            mainAxisAlignment:
-                                                                                MainAxisAlignment.end,
-                                                                            children: [
-                                                                              if (isPending)
-                                                                                Tooltip(
-                                                                                  message: 'Nog niet gesynchroniseerd',
-                                                                                  child: Icon(
-                                                                                    Icons.cloud_off,
-                                                                                    size: 16,
-                                                                                    color: onSurface(
-                                                                                      context,
-                                                                                      a50,
-                                                                                    ),
+                                                                              subtitle: Column(
+                                                                                crossAxisAlignment:
+                                                                                    CrossAxisAlignment.start,
+                                                                                mainAxisSize:
+                                                                                    MainAxisSize.min,
+                                                                                children: [
+                                                                                  Text(
+                                                                                    subtitleText,
+                                                                                    maxLines: 1,
+                                                                                    overflow: TextOverflow.ellipsis,
                                                                                   ),
-                                                                                ),
-                                                                              if (isPending)
-                                                                                const SizedBox(
-                                                                                  width: 4,
-                                                                                ),
-                                                                              Text(
-                                                                                _formatEur(
-                                                                                  amountCents,
-                                                                                ),
-                                                                                style:
-                                                                                    Theme.of(
-                                                                                      context,
-                                                                                    ).textTheme.bodyMedium?.copyWith(
-                                                                                      fontWeight: FontWeight.w700,
-                                                                                    ),
+                                                                                  Text(
+                                                                                    hasNote
+                                                                                        ? note
+                                                                                        : '',
+                                                                                    maxLines: 1,
+                                                                                    overflow: TextOverflow.ellipsis,
+                                                                                  ),
+                                                                                ],
                                                                               ),
-                                                                            ],
+                                                                              trailing: Row(
+                                                                                mainAxisSize:
+                                                                                    MainAxisSize.min,
+                                                                                mainAxisAlignment:
+                                                                                    MainAxisAlignment.end,
+                                                                                children: [
+                                                                                  if (isPending)
+                                                                                    Tooltip(
+                                                                                      message: 'Nog niet gesynchroniseerd',
+                                                                                      child: Icon(
+                                                                                        Icons.cloud_off,
+                                                                                        size: 16,
+                                                                                        color: onSurface(
+                                                                                          context,
+                                                                                          a50,
+                                                                                        ),
+                                                                                      ),
+                                                                                    ),
+                                                                                  if (isPending)
+                                                                                    const SizedBox(
+                                                                                      width: 4,
+                                                                                    ),
+                                                                                  Text(
+                                                                                    _formatEur(
+                                                                                      amountCents,
+                                                                                    ),
+                                                                                    style:
+                                                                                        Theme.of(
+                                                                                          context,
+                                                                                        ).textTheme.bodyMedium?.copyWith(
+                                                                                          fontWeight: FontWeight.w700,
+                                                                                        ),
+                                                                                  ),
+                                                                                ],
+                                                                              ),
+                                                                            ),
                                                                           ),
                                                                         );
                                                                       },
@@ -4245,40 +4260,49 @@ class _LogboekPageState extends State<_LogboekPage> {
                 : nKids > 0
                 ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
                 : dateStr;
-            return ListTile(
-              key: ValueKey(d.id),
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              visualDensity: VisualDensity.compact,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _ExpenseDetailPage(
-                    householdId: widget.householdId,
-                    expenseId: d.id,
-                    uid: widget.uid,
-                    title: title,
-                    amountCents: amountCents,
-                    paidByName: paidByName,
-                    createdAt: createdAt,
-                    isPending: false,
-                    childIds: childIds,
+            return Material(
+              type: MaterialType.transparency,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                highlightColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+                splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _ExpenseDetailPage(
+                      householdId: widget.householdId,
+                      expenseId: d.id,
+                      uid: widget.uid,
+                      title: title,
+                      amountCents: amountCents,
+                      paidByName: paidByName,
+                      createdAt: createdAt,
+                      isPending: false,
+                      childIds: childIds,
+                    ),
                   ),
                 ),
-              ),
-              title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                subtitleStr,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: onSurface(context, a62)),
-              ),
-              trailing: Text(
-                _fmtEur(displayCents),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                child: ListTile(
+                  key: ValueKey(d.id),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(
+                    subtitleStr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: onSurface(context, a62)),
+                  ),
+                  trailing: Text(
+                    _fmtEur(displayCents),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
               ),
             );
           },
