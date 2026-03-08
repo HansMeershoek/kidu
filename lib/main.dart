@@ -2956,7 +2956,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   floatingActionButtonLocation:
                       FloatingActionButtonLocation.centerFloat,
-                  floatingActionButton: SizedBox(
+                  floatingActionButton: Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: SizedBox(
                     width: MediaQuery.of(context).size.width - 48,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3113,6 +3115,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ],
                     ),
                   ),
+                  ),
                   body: MediaQuery.removeViewInsets(
                     context: context,
                     removeBottom: true,
@@ -3121,7 +3124,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
                           _pagePadding,
-                          _pagePadding,
+                          48,
                           _pagePadding,
                           80,
                         ),
