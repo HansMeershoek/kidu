@@ -896,7 +896,6 @@ class _DashboardPageState extends State<DashboardPage> {
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
   QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
-  final bool _expenseBusy = false;
   String? _inviteCode;
   bool _showWaiting = false;
   int _notesRefreshTick = 0;
@@ -2402,11 +2401,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Test checklist:
-    // - 2 users in household -> invite knop verdwijnt (menu)
-    // - switch account werkt (terug naar login)
-    // - add expense -> verschijnt bovenaan
-    // - balans klopt bij even/oneven total cents (geen €0.01 drift)
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       // Avoid endless spinner if auth state flips during navigation/sign-out.
@@ -2974,7 +2968,6 @@ class _DashboardPageState extends State<DashboardPage> {
                               builder: (context, fabBusy, _) {
                                 final bool addExpenseBusy =
                                     fabBusy ||
-                                    _expenseBusy ||
                                     _setupBusy ||
                                     _inviteBusy ||
                                     _switchBusy;
