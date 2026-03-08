@@ -1164,23 +1164,14 @@ class _DashboardPageState extends State<DashboardPage> {
                     children: [
                       Text(
                         isPaired ? 'Instellingen' : 'Koppel met co-parent',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 10),
-                      if (email != null && email.isNotEmpty)
-                        Text(
-                          'Ingelogd als: $email',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a62),
-                                height: 1.35,
-                              ),
-                        ),
                       if (isPaired)
                         Text(
-                          'Verbonden met: $effectiveOtherName',
+                          'Verbonden met $effectiveOtherName',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: onSurface(context, a68),
@@ -1261,13 +1252,10 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
                         leading: const Icon(Icons.edit),
-                        title: const Text('Naam wijzigen'),
-                        subtitle: Text(
-                          'Wijzig hoe je zichtbaar bent in KiDu',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: onSurface(context, a62)),
-                        ),
+                        title: const Text('Naam'),
                         onTap: () {
                           Navigator.of(context).pop();
                           Navigator.of(rootContext).push(
@@ -1280,16 +1268,20 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Huishouden',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
                       if (hasHousehold)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
                           leading: const Icon(Icons.child_care),
                           title: const Text('Kinderen'),
-                          subtitle: Text(
-                            'Voeg kinderen toe of beheer ze',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: onSurface(context, a62)),
-                          ),
                           onTap: () {
                             Navigator.of(context).pop();
                             Navigator.of(rootContext).push(
@@ -1303,13 +1295,10 @@ class _DashboardPageState extends State<DashboardPage> {
                       if (hasHousehold)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
                           leading: const Icon(Icons.menu_book_outlined),
                           title: const Text('Logboek'),
-                          subtitle: Text(
-                            'Bekijk alle uitgaven per kind',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: onSurface(context, a62)),
-                          ),
                           onTap: () {
                             Navigator.of(context).pop();
                             Navigator.of(rootContext).push(
@@ -1324,37 +1313,17 @@ class _DashboardPageState extends State<DashboardPage> {
                             );
                           },
                         ),
+                      const SizedBox(height: 8),
                       Text(
                         'Info',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
+                      const SizedBox(height: 2),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.info_outline),
-                        title: const Text('Over KiDu'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          showDialog<void>(
-                            context: rootContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('KiDu'),
-                              content: const Text(
-                                'Rust in gedeelde kosten tussen co-parents.\n'
-                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
                         leading: const Icon(Icons.privacy_tip_outlined),
                         title: const Text('Privacy'),
                         onTap: () {
@@ -1411,27 +1380,58 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
-                      const Divider(height: 24),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.switch_account),
-                        title: const Text('Wissel account'),
-                        onTap: _switchBusy
-                            ? null
-                            : () {
-                                Navigator.of(context).pop();
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted) {
-                                    return;
-                                  }
-                                  _switchAccount(rootContext);
-                                });
-                              },
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        leading: const Icon(Icons.info_outline),
+                        title: const Text('Over KiDu'),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          showDialog<void>(
+                            context: rootContext,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('KiDu'),
+                              content: const Text(
+                                'Rust in gedeelde kosten tussen co-parents.\n'
+                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: const Text('Sluiten'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
+                      const Divider(height: 32),
+                      if (kDebugMode)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: const Icon(Icons.switch_account),
+                          title: const Text('Wissel account'),
+                          onTap: _switchBusy
+                              ? null
+                              : () {
+                                  Navigator.of(context).pop();
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    _switchAccount(rootContext);
+                                  });
+                                },
+                        ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
                         leading: const Icon(Icons.logout),
                         title: const Text('Uitloggen'),
                         onTap: () {
@@ -4156,11 +4156,12 @@ class _LogboekPageState extends State<_LogboekPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          FilterChip(
-            label: const Text('Alle'),
-            selected: _filterChildId == null,
-            onSelected: (_) => setState(() => _filterChildId = null),
-          ),
+          if (_children.length > 1)
+            FilterChip(
+              label: const Text('Alle'),
+              selected: _filterChildId == null,
+              onSelected: (_) => setState(() => _filterChildId = null),
+            ),
           for (final child in _children) ...[
             const SizedBox(width: 8),
             FilterChip(
