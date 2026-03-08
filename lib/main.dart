@@ -2649,7 +2649,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   _balanceRow(
-                                                    label: 'Samen uitgegeven',
+                                                    label: 'Totaal samen uitgegeven',
                                                     value: _formatEur(0),
                                                   ),
                                                   const SizedBox(height: 8),
@@ -2687,7 +2687,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     CrossAxisAlignment.stretch,
                                                 children: [
                                                   Text(
-                                                    'Uitgaven',
+                                                    'Recente uitgaven',
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .titleMedium
@@ -3100,7 +3100,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'createdAt',
                                             descending: true,
                                           )
-                                          .limit(20)
+                                          .limit(5)
                                           .snapshots(
                                             includeMetadataChanges: true,
                                           ),
@@ -3220,7 +3220,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   // Compact summary: replace three separate rows.
                                                   const SizedBox(height: 8),
                                                   _balanceRow(
-                                                    label: 'Samen uitgegeven',
+                                                    label: 'Totaal samen uitgegeven',
                                                     value: _formatEur(
                                                       totalCents,
                                                     ),
@@ -3280,7 +3280,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           .stretch,
                                                   children: [
                                                     Text(
-                                                      'Uitgaven',
+                                                      'Recente uitgaven',
                                                       style: Theme.of(context)
                                                           .textTheme
                                                           .titleMedium
@@ -3320,6 +3320,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                               ),
                                                             )
                                                           : ListView.separated(
+                                                              physics: const NeverScrollableScrollPhysics(),
                                                               itemCount:
                                                                   docs.length,
                                                               separatorBuilder:
