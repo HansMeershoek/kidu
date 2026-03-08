@@ -1145,7 +1145,6 @@ class _DashboardPageState extends State<DashboardPage> {
             final isPaired = trimmedOther.isNotEmpty;
             final hasHousehold = householdId.trim().isNotEmpty;
             final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
-            final email = FirebaseAuth.instance.currentUser?.email?.trim();
 
             return SafeArea(
               child: SingleChildScrollView(
@@ -4142,7 +4141,6 @@ class _LogboekPageState extends State<_LogboekPage> {
                         ),
                       ),
                     ),
-                  if (_childrenLoaded) _buildFilterRow(context),
                   Expanded(child: _buildExpenseList(context)),
                 ],
               ),
@@ -4150,7 +4148,7 @@ class _LogboekPageState extends State<_LogboekPage> {
     );
   }
 
-  Widget _buildFilterRow(BuildContext context) {
+  Widget _buildFilterRow(BuildContext context, Map<String?, int> counts) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -4158,14 +4156,14 @@ class _LogboekPageState extends State<_LogboekPage> {
         children: [
           if (_children.length > 1)
             FilterChip(
-              label: const Text('Alle'),
+              label: Text('Alle (${counts[null] ?? 0})'),
               selected: _filterChildId == null,
               onSelected: (_) => setState(() => _filterChildId = null),
             ),
           for (final child in _children) ...[
             const SizedBox(width: 8),
             FilterChip(
-              label: Text(child.name),
+              label: Text('${child.name} (${counts[child.id] ?? 0})'),
               selected: _filterChildId == child.id,
               onSelected: (v) =>
                   setState(() => _filterChildId = v ? child.id : null),
@@ -4191,18 +4189,29 @@ class _LogboekPageState extends State<_LogboekPage> {
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snap.data!.docs
-            .where((d) => _matchesFilter(d.data()))
-            .toList();
+        final allDocs = snap.data!.docs;
+        final counts = <String?, int>{
+          null: allDocs.length,
+          for (final child in _children)
+            child.id: allDocs
+                .where(
+                  (d) =>
+                      (d.data()['childIds'] as List?)?.contains(child.id) ==
+                      true,
+                )
+                .length,
+        };
+        final docs = allDocs.where((d) => _matchesFilter(d.data())).toList();
+        final Widget listWidget;
         if (docs.isEmpty) {
-          return const Center(
+          listWidget = const Center(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text('Geen uitgaven gevonden.'),
             ),
           );
-        }
-        return ListView.separated(
+        } else {
+          listWidget = ListView.separated(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           itemCount: docs.length,
           separatorBuilder: (context, _) => const Divider(height: 1),
@@ -4273,6 +4282,13 @@ class _LogboekPageState extends State<_LogboekPage> {
               ),
             );
           },
+        );
+        }
+        return Column(
+          children: [
+            if (_childrenLoaded) _buildFilterRow(context, counts),
+            Expanded(child: listWidget),
+          ],
         );
       },
     );
