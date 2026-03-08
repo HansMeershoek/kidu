@@ -3412,7 +3412,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               'dec',
                                                                             ];
                                                                         final shortDateTime =
-                                                                            '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                                                                            '${dt.day} ${nlMonths[dt.month - 1]}';
                                                                         return '$who • $shortDateTime';
                                                                       })();
                                                                 final expChildIds =
