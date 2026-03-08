@@ -3131,7 +3131,6 @@ class _DashboardPageState extends State<DashboardPage> {
                               alignment: Alignment.topCenter,
                               child: SizedBox(
                                 width: min(constraints.maxWidth, 520.0),
-                                height: constraints.maxHeight,
                                 child: ValueListenableBuilder<bool>(
                                   valueListenable: _freezeExpensesVN,
                                   builder: (context, frozen, _) {
@@ -3688,13 +3687,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                     maxLines: 1,
                                                                                     overflow: TextOverflow.ellipsis,
                                                                                   ),
-                                                                                  Text(
-                                                                                    hasNote
-                                                                                        ? note
-                                                                                        : '',
-                                                                                    maxLines: 1,
-                                                                                    overflow: TextOverflow.ellipsis,
-                                                                                  ),
+                                                                  if (hasNote)
+                                                                    Text(
+                                                                      note,
+                                                                      maxLines: 1,
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                    ),
                                                                                 ],
                                                                               ),
                                                                               trailing: Row(
