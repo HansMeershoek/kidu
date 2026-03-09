@@ -69,6 +69,9 @@ ThemeData buildKiduTheme() {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: Color(0xFF2F3E46),
+    ),
   );
 }
 
@@ -412,9 +415,14 @@ KiDu is intended for adults (co-parents) and is not designed for children.
 ''';
 
 class ProfileNamePage extends StatefulWidget {
-  const ProfileNamePage({super.key, this.fromSettings = false});
+  const ProfileNamePage({
+    super.key,
+    this.fromSettings = false,
+    this.initialName,
+  });
 
   final bool fromSettings;
+  final String? initialName;
 
   @override
   State<ProfileNamePage> createState() => _ProfileNamePageState();
@@ -424,6 +432,15 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
   final _controller = TextEditingController();
   bool _busy = false;
   String? _nameInlineHint;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialName;
+    if (initial != null && initial.trim().isNotEmpty) {
+      _controller.text = initial.trim();
+    }
+  }
 
   void _showSnackBar(String message) {
     if (!mounted) {
@@ -534,71 +551,79 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'KiDu',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          title: Text(
+            'KiDu',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 24),
-              Text(
-                'Welke naam wil je gebruiken?',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: onSurface(context, a62),
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                maxLength: 20,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _busy ? null : _save(),
-                onChanged: (_) {
-                  if (_nameInlineHint != null) {
-                    setState(() => _nameInlineHint = null);
-                  }
-                },
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-              ),
-              if (_nameInlineHint != null) ...[
-                const SizedBox(height: 12),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 24),
                 Text(
-                  _nameInlineHint!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  'Welke naam wil je gebruiken?',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: onSurface(context, a62),
                     height: 1.35,
                   ),
                 ),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _busy ? null : _save,
-                  child: Text(_busy ? 'Bezig...' : 'Opslaan'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _controller,
+                  autofocus: true,
+                  maxLength: 20,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _busy ? null : _save(),
+                  onChanged: (_) {
+                    if (_nameInlineHint != null) {
+                      setState(() => _nameInlineHint = null);
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
+                if (_nameInlineHint != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _nameInlineHint!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a62),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _busy ? null : _save,
+                    child: Text(_busy ? 'Bezig...' : 'Opslaan'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -871,14 +896,17 @@ class _DashboardPageState extends State<DashboardPage> {
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
   QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
-  final bool _expenseBusy = false;
   String? _inviteCode;
   bool _showWaiting = false;
   int _notesRefreshTick = 0;
   bool _noteWriteInFlight = false;
+  final Map<String, Future<String?>> _noteFutureCache = {};
 
   String? _namesCacheKey;
   Future<Map<String, String>>? _namesFuture;
+
+  List<_ChildItem> _dashChildren = [];
+  String? _dashChildrenHouseholdId;
 
   Future<String?> _loadMyPrivateNote({
     required String householdId,
@@ -892,6 +920,17 @@ class _DashboardPageState extends State<DashboardPage> {
     final raw = (data?['note'] as String?)?.trim();
     if (raw == null || raw.isEmpty) return null;
     return raw;
+  }
+
+  Future<String?> _getNoteFuture(String householdId, String expenseId) {
+    return _noteFutureCache.putIfAbsent(
+      expenseId,
+      () => _loadMyPrivateNote(
+        householdId: householdId,
+        expenseId: expenseId,
+        uid: FirebaseAuth.instance.currentUser!.uid,
+      ),
+    );
   }
 
   static const double _pagePadding = 16;
@@ -952,7 +991,10 @@ class _DashboardPageState extends State<DashboardPage> {
       }
 
       if (!mounted) return;
-      setState(() => _notesRefreshTick++);
+      setState(() {
+        _notesRefreshTick++;
+        _noteFutureCache.clear();
+      });
       if (result is PrivateNoteDialogDelete) {
         _showSnackBar('Notitie verwijderd.');
       } else if (result is PrivateNoteDialogSave) {
@@ -1015,8 +1057,18 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   String _formatEur(int cents) {
-    final value = (cents / 100.0).toStringAsFixed(2);
-    return '€$value';
+    final negative = cents < 0;
+    final abs = cents.abs();
+    final euros = abs ~/ 100;
+    final rem = abs % 100;
+    // Dutch thousands separator '.' and decimal separator ','.
+    final euroStr = euros.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < euroStr.length; i++) {
+      if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+      buf.write(euroStr[i]);
+    }
+    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
   }
 
   String _formatRelativeNl(DateTime dt) {
@@ -1087,11 +1139,25 @@ class _DashboardPageState extends State<DashboardPage> {
     return _namesFuture!;
   }
 
+  Future<void> _loadDashChildrenOnce(String householdId) async {
+    if (householdId.isEmpty) return;
+    if (_dashChildrenHouseholdId == householdId && _dashChildren.isNotEmpty) {
+      return;
+    }
+    final kids = await _loadActiveChildren(householdId);
+    if (!mounted) return;
+    setState(() {
+      _dashChildren = kids;
+      _dashChildrenHouseholdId = householdId;
+    });
+  }
+
   void _openMenuSheet({
     required String householdId,
     required String myUid,
     required String? otherName,
     required bool canInvite,
+    String? myName,
   }) {
     final rootContext = context;
     showModalBottomSheet<void>(
@@ -1105,7 +1171,6 @@ class _DashboardPageState extends State<DashboardPage> {
             final isPaired = trimmedOther.isNotEmpty;
             final hasHousehold = householdId.trim().isNotEmpty;
             final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
-            final email = FirebaseAuth.instance.currentUser?.email?.trim();
 
             return SafeArea(
               child: SingleChildScrollView(
@@ -1124,23 +1189,13 @@ class _DashboardPageState extends State<DashboardPage> {
                     children: [
                       Text(
                         isPaired ? 'Instellingen' : 'Koppel met co-parent',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 10),
-                      if (email != null && email.isNotEmpty)
-                        Text(
-                          'Ingelogd als: $email',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a62),
-                                height: 1.35,
-                              ),
-                        ),
                       if (isPaired)
                         Text(
-                          'Verbonden met: $effectiveOtherName',
+                          'Verbonden met $effectiveOtherName',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: onSurface(context, a68),
@@ -1221,33 +1276,36 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
                         leading: const Icon(Icons.edit),
-                        title: const Text('Naam wijzigen'),
-                        subtitle: Text(
-                          'Wijzig hoe je zichtbaar bent in KiDu',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: onSurface(context, a62)),
-                        ),
+                        title: const Text('Naam'),
                         onTap: () {
                           Navigator.of(context).pop();
                           Navigator.of(rootContext).push(
                             MaterialPageRoute(
-                              builder: (_) =>
-                                  const ProfileNamePage(fromSettings: true),
+                              builder: (_) => ProfileNamePage(
+                                fromSettings: true,
+                                initialName: myName,
+                              ),
                             ),
                           );
                         },
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Huishouden',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
                       if (hasHousehold)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
                           leading: const Icon(Icons.child_care),
                           title: const Text('Kinderen'),
-                          subtitle: Text(
-                            'Voeg kinderen toe of beheer ze',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: onSurface(context, a62)),
-                          ),
                           onTap: () {
                             Navigator.of(context).pop();
                             Navigator.of(rootContext).push(
@@ -1261,13 +1319,10 @@ class _DashboardPageState extends State<DashboardPage> {
                       if (hasHousehold)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
                           leading: const Icon(Icons.menu_book_outlined),
                           title: const Text('Logboek'),
-                          subtitle: Text(
-                            'Bekijk alle uitgaven per kind',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: onSurface(context, a62)),
-                          ),
                           onTap: () {
                             Navigator.of(context).pop();
                             Navigator.of(rootContext).push(
@@ -1275,42 +1330,24 @@ class _DashboardPageState extends State<DashboardPage> {
                                 builder: (_) => _LogboekPage(
                                   householdId: householdId,
                                   uid: myUid,
+                                  myName: myName,
+                                  otherName: otherName,
                                 ),
                               ),
                             );
                           },
                         ),
+                      const SizedBox(height: 8),
                       Text(
                         'Info',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
+                      const SizedBox(height: 2),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.info_outline),
-                        title: const Text('Over KiDu'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          showDialog<void>(
-                            context: rootContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('KiDu'),
-                              content: const Text(
-                                'Rust in gedeelde kosten tussen co-parents.\n'
-                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
                         leading: const Icon(Icons.privacy_tip_outlined),
                         title: const Text('Privacy'),
                         onTap: () {
@@ -1367,27 +1404,58 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
-                      const Divider(height: 24),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.switch_account),
-                        title: const Text('Wissel account'),
-                        onTap: _switchBusy
-                            ? null
-                            : () {
-                                Navigator.of(context).pop();
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted) {
-                                    return;
-                                  }
-                                  _switchAccount(rootContext);
-                                });
-                              },
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        leading: const Icon(Icons.info_outline),
+                        title: const Text('Over KiDu'),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          showDialog<void>(
+                            context: rootContext,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('KiDu'),
+                              content: const Text(
+                                'Rust in gedeelde kosten tussen co-parents.\n'
+                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: const Text('Sluiten'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
+                      const Divider(height: 32),
+                      if (kDebugMode)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: const Icon(Icons.switch_account),
+                          title: const Text('Wissel account'),
+                          onTap: _switchBusy
+                              ? null
+                              : () {
+                                  Navigator.of(context).pop();
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    _switchAccount(rootContext);
+                                  });
+                                },
+                        ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
                         leading: const Icon(Icons.logout),
                         title: const Text('Uitloggen'),
                         onTap: () {
@@ -2357,11 +2425,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Test checklist:
-    // - 2 users in household -> invite knop verdwijnt (menu)
-    // - switch account werkt (terug naar login)
-    // - add expense -> verschijnt bovenaan
-    // - balans klopt bij even/oneven total cents (geen €0.01 drift)
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       // Avoid endless spinner if auth state flips during navigation/sign-out.
@@ -2390,6 +2453,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     myUid: user.uid,
                     otherName: null,
                     canInvite: false,
+                    myName: null,
                   ),
                   icon: const Icon(Icons.more_horiz),
                   tooltip: 'Menu',
@@ -2445,6 +2509,11 @@ class _DashboardPageState extends State<DashboardPage> {
             : 'Jij';
 
         final householdIdStr = hasHousehold ? householdId.trim() : '';
+
+        if (householdIdStr.isNotEmpty &&
+            _dashChildrenHouseholdId != householdIdStr) {
+          Future.microtask(() => _loadDashChildrenOnce(householdIdStr));
+        }
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>?>(
           stream: hasHousehold
@@ -2558,6 +2627,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           myUid: user.uid,
                           otherName: 'Co-parent',
                           canInvite: canInvite,
+                          myName: myProfileName,
                         ),
                         icon: const Icon(Icons.more_horiz),
                         tooltip: 'Menu',
@@ -2609,7 +2679,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   _balanceRow(
-                                                    label: 'Samen uitgegeven',
+                                                    label:
+                                                        'Totaal samen uitgegeven',
                                                     value: _formatEur(0),
                                                   ),
                                                   const SizedBox(height: 8),
@@ -2634,7 +2705,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     height: 1,
                                                     color: outlineV(
                                                       context,
-                                                      a45,
+                                                      a40,
                                                     ),
                                                   ),
                                                 ],
@@ -2647,7 +2718,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     CrossAxisAlignment.stretch,
                                                 children: [
                                                   Text(
-                                                    'Uitgaven',
+                                                    'Recente uitgaven',
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .titleMedium
@@ -2906,6 +2977,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 myUid: user.uid,
                                 otherName: otherName,
                                 canInvite: canInvite,
+                                myName: myProfileName,
                               ),
                               icon: const Icon(Icons.more_horiz),
                               tooltip: 'Menu',
@@ -2913,139 +2985,162 @@ class _DashboardPageState extends State<DashboardPage> {
                           ]
                         : [],
                   ),
-                  floatingActionButton: canAddExpenses
-                      ? ValueListenableBuilder<bool>(
-                          valueListenable: _addExpenseDialogOpenVN,
-                          builder: (context, dialogOpen, _) {
-                            // Only the FAB subtree rebuilds when the dialog
-                            // opens/closes — the rest of the dashboard is
-                            // untouched.
-                            if (dialogOpen) return const SizedBox.shrink();
-                            return ValueListenableBuilder<bool>(
-                              valueListenable: _addExpenseCheckBusyVN,
-                              builder: (context, fabBusy, _) {
-                                final bool addExpenseBusy =
-                                    fabBusy ||
-                                    _expenseBusy ||
-                                    _setupBusy ||
-                                    _inviteBusy ||
-                                    _switchBusy;
+                  floatingActionButtonLocation:
+                      FloatingActionButtonLocation.centerFloat,
+                  floatingActionButton: Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width - 48,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          FloatingActionButton.small(
+                            heroTag: 'logboek_fab',
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => _LogboekPage(
+                                  householdId: householdIdStr,
+                                  uid: user.uid,
+                                  myName: myName,
+                                  otherName: otherName,
+                                ),
+                              ),
+                            ),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                            elevation: 3,
+                            tooltip: 'Logboek',
+                            child: const Icon(Icons.menu_book, size: 20),
+                          ),
+                          if (canAddExpenses)
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _addExpenseDialogOpenVN,
+                              builder: (context, dialogOpen, _) {
+                                return ValueListenableBuilder<bool>(
+                                  valueListenable: _addExpenseCheckBusyVN,
+                                  builder: (context, fabBusy, _) {
+                                    final bool addExpenseBusy =
+                                        dialogOpen ||
+                                        fabBusy ||
+                                        _setupBusy ||
+                                        _inviteBusy ||
+                                        _switchBusy;
 
-                                return FloatingActionButton(
-                                  onPressed: addExpenseBusy
-                                      ? null
-                                      : () async {
-                                          if (_addExpenseCheckBusyVN.value ||
-                                              _addExpenseDialogOpenVN.value) {
-                                            return;
-                                          }
-                                          // Capture before any awaits so the
-                                          // local builder context isn't used
-                                          // across async gaps.
-                                          final messenger =
-                                              ScaffoldMessenger.of(context);
-                                          final nav = Navigator.of(context);
-                                          _addExpenseCheckBusyVN.value = true;
-                                          var didOpenDialog = false;
-                                          try {
-                                            if (!await _canWriteExpenseNow()) {
-                                              _showSnackBar(
-                                                'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
-                                              );
-                                              return;
-                                            }
-                                            final kids =
-                                                await _loadActiveChildren(
-                                                  householdIdStr,
-                                                );
-                                            if (kids.isEmpty) {
-                                              if (!mounted) return;
-                                              messenger.hideCurrentSnackBar();
-                                              messenger.showSnackBar(
-                                                SnackBar(
-                                                  content: const Text(
-                                                    'Voeg eerst een kind toe om een uitgave te registreren.',
-                                                  ),
-                                                  action: SnackBarAction(
-                                                    label: 'Kinderen',
-                                                    onPressed: () => nav.push(
-                                                      MaterialPageRoute<void>(
-                                                        builder: (_) =>
-                                                            _KinderenPage(
-                                                              householdId:
-                                                                  householdIdStr,
-                                                            ),
+                                    return FloatingActionButton(
+                                      heroTag: 'add_expense_fab',
+                                      onPressed: addExpenseBusy
+                                          ? null
+                                          : () async {
+                                              if (_addExpenseCheckBusyVN
+                                                      .value ||
+                                                  _addExpenseDialogOpenVN
+                                                      .value) {
+                                                return;
+                                              }
+                                              // Capture before any awaits so the
+                                              // local builder context isn't used
+                                              // across async gaps.
+                                              final messenger =
+                                                  ScaffoldMessenger.of(context);
+                                              final nav = Navigator.of(context);
+                                              _addExpenseCheckBusyVN.value =
+                                                  true;
+                                              var didOpenDialog = false;
+                                              try {
+                                                if (!await _canWriteExpenseNow()) {
+                                                  _showSnackBar(
+                                                    'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                                                  );
+                                                  return;
+                                                }
+                                                final kids =
+                                                    await _loadActiveChildren(
+                                                      householdIdStr,
+                                                    );
+                                                if (kids.isEmpty) {
+                                                  if (!mounted) return;
+                                                  messenger
+                                                      .hideCurrentSnackBar();
+                                                  messenger.showSnackBar(
+                                                    SnackBar(
+                                                      content: const Text(
+                                                        'Voeg eerst een kind toe om een uitgave te registreren.',
+                                                      ),
+                                                      action: SnackBarAction(
+                                                        label: 'Kinderen',
+                                                        onPressed: () => nav.push(
+                                                          MaterialPageRoute<
+                                                            void
+                                                          >(
+                                                            builder: (_) =>
+                                                                _KinderenPage(
+                                                                  householdId:
+                                                                      householdIdStr,
+                                                                ),
+                                                          ),
+                                                        ),
                                                       ),
                                                     ),
-                                                  ),
-                                                ),
-                                              );
-                                              return;
-                                            }
-                                            // Pre-load done: stop spinner and
-                                            // hide FAB for the dialog duration.
-                                            _addExpenseCheckBusyVN.value =
-                                                false;
-                                            if (!mounted) return;
-                                            _addExpenseDialogOpenVN.value =
-                                                true;
-                                            didOpenDialog = true;
-                                            await _openAddExpenseDialog(
-                                              householdIdStr,
-                                              coparentName: otherName,
-                                              children: kids,
-                                            );
-                                          } finally {
-                                            // Wait for the pop transition to
-                                            // finish before restoring the FAB.
-                                            if (didOpenDialog) {
-                                              await Future<void>.delayed(
-                                                kThemeAnimationDuration,
-                                              );
-                                            }
-                                            _addExpenseDialogOpenVN.value =
-                                                false;
-                                            _addExpenseCheckBusyVN.value =
-                                                false;
-                                          }
-                                        },
-                                  child: SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: addExpenseBusy
-                                        ? Center(
-                                            child: SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onPrimaryContainer,
-                                              ),
-                                            ),
-                                          )
-                                        : const Icon(Icons.add, size: 24),
-                                  ),
+                                                  );
+                                                  return;
+                                                }
+                                                _addExpenseCheckBusyVN.value =
+                                                    false;
+                                                if (!mounted) return;
+                                                _addExpenseDialogOpenVN.value =
+                                                    true;
+                                                didOpenDialog = true;
+                                                await _openAddExpenseDialog(
+                                                  householdIdStr,
+                                                  coparentName: otherName,
+                                                  children: kids,
+                                                );
+                                              } finally {
+                                                if (didOpenDialog) {
+                                                  await Future<void>.delayed(
+                                                    kThemeAnimationDuration,
+                                                  );
+                                                }
+                                                _addExpenseDialogOpenVN.value =
+                                                    false;
+                                                _addExpenseCheckBusyVN.value =
+                                                    false;
+                                              }
+                                            },
+                                      child: const Icon(Icons.add, size: 24),
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                        )
-                      : null,
+                            )
+                          else
+                            const SizedBox(width: 40, height: 40),
+                        ],
+                      ),
+                    ),
+                  ),
                   body: MediaQuery.removeViewInsets(
                     context: context,
                     removeBottom: true,
                     child: SafeArea(
+                      top: false,
                       child: Padding(
-                        padding: const EdgeInsets.all(_pagePadding),
+                        padding: const EdgeInsets.fromLTRB(
+                          _pagePadding,
+                          24,
+                          _pagePadding,
+                          80,
+                        ),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             return Align(
                               alignment: Alignment.topCenter,
                               child: SizedBox(
                                 width: min(constraints.maxWidth, 520.0),
-                                height: constraints.maxHeight,
                                 child: ValueListenableBuilder<bool>(
                                   valueListenable: _freezeExpensesVN,
                                   builder: (context, frozen, _) {
@@ -3060,7 +3155,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'createdAt',
                                             descending: true,
                                           )
-                                          .limit(20)
+                                          .limit(6)
                                           .snapshots(
                                             includeMetadataChanges: true,
                                           ),
@@ -3126,21 +3221,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                         if (docs.isNotEmpty) {
                                           final first = docs.first;
                                           final e = first.data();
-                                          final createdBy =
-                                              (e['createdBy'] as String?)
-                                                  ?.trim();
                                           final createdAt =
                                               e['createdAt'] as Timestamp?;
-                                          final name = createdBy == user.uid
-                                              ? myName
-                                              : otherName;
                                           final timeStr = createdAt == null
                                               ? 'zojuist'
                                               : _formatRelativeNl(
                                                   createdAt.toDate(),
                                                 );
                                           lastActivityText =
-                                              'Laatste activiteit: $name · $timeStr';
+                                              'Laatste activiteit · $timeStr';
                                         }
 
                                         return Column(
@@ -3156,11 +3245,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     ?.copyWith(
                                                       color: onSurface(
                                                         context,
-                                                        a60,
+                                                        a50,
                                                       ),
                                                     ),
                                               ),
-                                              const SizedBox(height: 8),
+                                              const SizedBox(height: 10),
                                             ],
                                             KiduCard(
                                               child: Column(
@@ -3180,7 +3269,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   // Compact summary: replace three separate rows.
                                                   const SizedBox(height: 8),
                                                   _balanceRow(
-                                                    label: 'Samen uitgegeven',
+                                                    label:
+                                                        'Totaal samen uitgegeven',
                                                     value: _formatEur(
                                                       totalCents,
                                                     ),
@@ -3197,7 +3287,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ?.copyWith(
                                                           color: onSurface(
                                                             context,
-                                                            a68,
+                                                            a62,
                                                           ),
                                                           height: 1.3,
                                                         ),
@@ -3208,7 +3298,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     height: 1,
                                                     color: outlineV(
                                                       context,
-                                                      a45,
+                                                      a40,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 8),
@@ -3232,195 +3322,253 @@ class _DashboardPageState extends State<DashboardPage> {
                                               ),
                                             ),
                                             const SizedBox(height: _cardGap),
-                                            Expanded(
-                                              child: KiduCard(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    Text(
-                                                      'Uitgaven',
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .titleMedium
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w700,
+                                            KiduCard(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 12,
+                                                  ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  Text(
+                                                    'Recente uitgaven',
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.copyWith(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  effectiveSnap == null
+                                                      ? const SizedBox(
+                                                          height: 48,
+                                                          child: Center(
+                                                            child:
+                                                                CircularProgressIndicator(),
                                                           ),
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Expanded(
-                                                      child:
-                                                          effectiveSnap == null
-                                                          ? const Center(
-                                                              child:
-                                                                  CircularProgressIndicator(),
-                                                            )
-                                                          : docs.isEmpty
-                                                          ? Align(
-                                                              alignment:
-                                                                  Alignment
-                                                                      .topLeft,
-                                                              child: Text(
-                                                                canAddExpenses
-                                                                    ? 'Nog geen uitgaven. Voeg er een toe met +.'
-                                                                    : 'Nog geen uitgaven.',
-                                                                style: Theme.of(context)
-                                                                    .textTheme
-                                                                    .bodyMedium
-                                                                    ?.copyWith(
-                                                                      color: onSurface(
+                                                        )
+                                                      : docs.isEmpty
+                                                      ? Align(
+                                                          alignment:
+                                                              Alignment.topLeft,
+                                                          child: Text(
+                                                            canAddExpenses
+                                                                ? 'Nog geen uitgaven. Voeg er een toe met +.'
+                                                                : 'Nog geen uitgaven.',
+                                                            style: Theme.of(context)
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.copyWith(
+                                                                  color:
+                                                                      onSurface(
                                                                         context,
                                                                         a62,
                                                                       ),
-                                                                      height:
-                                                                          1.35,
-                                                                    ),
+                                                                  height: 1.35,
+                                                                ),
+                                                          ),
+                                                        )
+                                                      : ListView.separated(
+                                                          shrinkWrap: true,
+                                                          padding:
+                                                              EdgeInsets.zero,
+                                                          physics:
+                                                              const NeverScrollableScrollPhysics(),
+                                                          itemCount:
+                                                              docs.length,
+                                                          separatorBuilder:
+                                                              (
+                                                                context,
+                                                                index,
+                                                              ) => Divider(
+                                                                height: 14,
+                                                                color: outlineV(
+                                                                  context,
+                                                                  a40,
+                                                                ),
                                                               ),
-                                                            )
-                                                          : ListView.separated(
-                                                              itemCount:
-                                                                  docs.length,
-                                                              separatorBuilder:
-                                                                  (
-                                                                    context,
-                                                                    index,
-                                                                  ) => Divider(
-                                                                    height: 16,
-                                                                    color:
-                                                                        outlineV(
-                                                                          context,
-                                                                          a40,
-                                                                        ),
-                                                                  ),
-                                                              itemBuilder: (context, index) {
-                                                                final d =
-                                                                    docs[index];
-                                                                final e = d
-                                                                    .data();
-                                                                final title =
-                                                                    (e['title']
-                                                                            as String?)
-                                                                        ?.trim() ??
-                                                                    '(zonder)';
-                                                                final amountCents =
-                                                                    (e['amountCents']
-                                                                            as num?)
-                                                                        ?.toInt() ??
-                                                                    0;
-                                                                final createdBy =
-                                                                    (e['createdBy']
-                                                                            as String?)
-                                                                        ?.trim();
+                                                          itemBuilder: (context, index) {
+                                                            final d =
+                                                                docs[index];
+                                                            final e = d.data();
+                                                            final title =
+                                                                (e['title']
+                                                                        as String?)
+                                                                    ?.trim() ??
+                                                                '(zonder)';
+                                                            final amountCents =
+                                                                (e['amountCents']
+                                                                        as num?)
+                                                                    ?.toInt() ??
+                                                                0;
+                                                            final createdBy =
+                                                                (e['createdBy']
+                                                                        as String?)
+                                                                    ?.trim();
 
-                                                                final who =
-                                                                    createdBy ==
-                                                                        user.uid
-                                                                    ? myName
-                                                                    : (otherUid !=
-                                                                              null &&
-                                                                          createdBy ==
-                                                                              otherUid)
-                                                                    ? otherName
-                                                                    : 'Co-parent';
-                                                                final isPending = d
-                                                                    .metadata
-                                                                    .hasPendingWrites;
-                                                                final createdAtRaw =
-                                                                    e['createdAt'];
-                                                                DateTime?
-                                                                createdAtDateTime;
-                                                                if (createdAtRaw
-                                                                    is Timestamp) {
-                                                                  createdAtDateTime =
-                                                                      createdAtRaw
-                                                                          .toDate()
-                                                                          .toLocal();
-                                                                } else if (createdAtRaw
-                                                                    is DateTime) {
-                                                                  createdAtDateTime =
-                                                                      createdAtRaw
-                                                                          .toLocal();
-                                                                }
-                                                                final subtitleText =
-                                                                    createdAtDateTime ==
-                                                                        null
-                                                                    ? who
-                                                                    : (() {
-                                                                        final dt =
-                                                                            createdAtDateTime;
-                                                                        if (dt ==
-                                                                            null) {
-                                                                          return who;
-                                                                        }
-                                                                        const nlMonths =
-                                                                            <
-                                                                              String
-                                                                            >[
-                                                                              'jan',
-                                                                              'feb',
-                                                                              'mrt',
-                                                                              'apr',
-                                                                              'mei',
-                                                                              'jun',
-                                                                              'jul',
-                                                                              'aug',
-                                                                              'sep',
-                                                                              'okt',
-                                                                              'nov',
-                                                                              'dec',
-                                                                            ];
-                                                                        final shortDateTime =
-                                                                            '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                                                                        return '$who • $shortDateTime';
-                                                                      })();
-                                                                final expChildIds =
-                                                                    (e['childIds']
-                                                                            as List?)
-                                                                        ?.whereType<
+                                                            final who =
+                                                                createdBy ==
+                                                                    user.uid
+                                                                ? myName
+                                                                : (otherUid !=
+                                                                          null &&
+                                                                      createdBy ==
+                                                                          otherUid)
+                                                                ? otherName
+                                                                : 'Co-parent';
+                                                            final isPending = d
+                                                                .metadata
+                                                                .hasPendingWrites;
+                                                            final createdAtRaw =
+                                                                e['createdAt'];
+                                                            DateTime?
+                                                            createdAtDateTime;
+                                                            if (createdAtRaw
+                                                                is Timestamp) {
+                                                              createdAtDateTime =
+                                                                  createdAtRaw
+                                                                      .toDate()
+                                                                      .toLocal();
+                                                            } else if (createdAtRaw
+                                                                is DateTime) {
+                                                              createdAtDateTime =
+                                                                  createdAtRaw
+                                                                      .toLocal();
+                                                            }
+                                                            final subtitleText =
+                                                                createdAtDateTime ==
+                                                                    null
+                                                                ? who
+                                                                : (() {
+                                                                    final dt =
+                                                                        createdAtDateTime;
+                                                                    if (dt ==
+                                                                        null) {
+                                                                      return who;
+                                                                    }
+                                                                    const nlMonths =
+                                                                        <
                                                                           String
-                                                                        >()
-                                                                        .toList() ??
-                                                                    const <
+                                                                        >[
+                                                                          'jan',
+                                                                          'feb',
+                                                                          'mrt',
+                                                                          'apr',
+                                                                          'mei',
+                                                                          'jun',
+                                                                          'jul',
+                                                                          'aug',
+                                                                          'sep',
+                                                                          'okt',
+                                                                          'nov',
+                                                                          'dec',
+                                                                        ];
+                                                                    final shortDateTime =
+                                                                        '${dt.day} ${nlMonths[dt.month - 1]}';
+                                                                    return '$who • $shortDateTime';
+                                                                  })();
+                                                            final expChildIds =
+                                                                (e['childIds']
+                                                                        as List?)
+                                                                    ?.whereType<
                                                                       String
-                                                                    >[];
+                                                                    >()
+                                                                    .toList() ??
+                                                                const <
+                                                                  String
+                                                                >[];
 
-                                                                if (createdBy !=
-                                                                    user.uid) {
-                                                                  return ListTile(
+                                                            if (createdBy !=
+                                                                user.uid) {
+                                                              return Material(
+                                                                type: MaterialType
+                                                                    .transparency,
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                                child: InkWell(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                  highlightColor:
+                                                                      Theme.of(
+                                                                        context,
+                                                                      ).colorScheme.primary.withValues(
+                                                                        alpha:
+                                                                            0.10,
+                                                                      ),
+                                                                  splashColor:
+                                                                      Theme.of(
+                                                                        context,
+                                                                      ).colorScheme.primary.withValues(
+                                                                        alpha:
+                                                                            0.08,
+                                                                      ),
+                                                                  onTap: () {
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).push(
+                                                                      MaterialPageRoute<
+                                                                        void
+                                                                      >(
+                                                                        builder:
+                                                                            (
+                                                                              context,
+                                                                            ) => _ExpenseDetailPage(
+                                                                              householdId: householdIdStr,
+                                                                              expenseId: d.id,
+                                                                              uid: user.uid,
+                                                                              title: title,
+                                                                              amountCents: amountCents,
+                                                                              paidByName: who,
+                                                                              createdAt: createdAtDateTime,
+                                                                              isPending: isPending,
+                                                                              onManageNote: null,
+                                                                              childIds: expChildIds,
+                                                                              childNames: _dashChildren.isNotEmpty
+                                                                                  ? expChildIds
+                                                                                        .map(
+                                                                                          (
+                                                                                            id,
+                                                                                          ) =>
+                                                                                              _dashChildren
+                                                                                                  .where(
+                                                                                                    (
+                                                                                                      c,
+                                                                                                    ) =>
+                                                                                                        c.id ==
+                                                                                                        id,
+                                                                                                  )
+                                                                                                  .map(
+                                                                                                    (
+                                                                                                      c,
+                                                                                                    ) => c.name,
+                                                                                                  )
+                                                                                                  .firstOrNull ??
+                                                                                              'Verwijderd kind',
+                                                                                        )
+                                                                                        .toList()
+                                                                                  : null,
+                                                                            ),
+                                                                      ),
+                                                                    );
+                                                                  },
+                                                                  child: ListTile(
                                                                     contentPadding:
-                                                                        EdgeInsets
-                                                                            .zero,
+                                                                        const EdgeInsets.symmetric(
+                                                                          horizontal:
+                                                                              5,
+                                                                        ),
                                                                     dense: true,
                                                                     visualDensity:
                                                                         VisualDensity
                                                                             .compact,
-                                                                    onTap: () {
-                                                                      Navigator.of(
-                                                                        context,
-                                                                      ).push(
-                                                                        MaterialPageRoute<
-                                                                          void
-                                                                        >(
-                                                                          builder:
-                                                                              (
-                                                                                context,
-                                                                              ) => _ExpenseDetailPage(
-                                                                                householdId: householdIdStr,
-                                                                                expenseId: d.id,
-                                                                                uid: user.uid,
-                                                                                title: title,
-                                                                                amountCents: amountCents,
-                                                                                paidByName: who,
-                                                                                createdAt: createdAtDateTime,
-                                                                                isPending: isPending,
-                                                                                onManageNote: null,
-                                                                                childIds: expChildIds,
-                                                                              ),
-                                                                        ),
-                                                                      );
-                                                                    },
                                                                     title: Text(
                                                                       title,
                                                                       maxLines:
@@ -3468,190 +3616,219 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               Theme.of(
                                                                                 context,
                                                                               ).textTheme.bodyMedium?.copyWith(
-                                                                                fontWeight: FontWeight.w700,
+                                                                                fontWeight: FontWeight.w600,
                                                                               ),
                                                                         ),
                                                                       ],
                                                                     ),
-                                                                  );
-                                                                }
-
-                                                                return FutureBuilder<
-                                                                  String?
-                                                                >(
-                                                                  key: ValueKey(
-                                                                    'note_${d.id}_$_notesRefreshTick',
                                                                   ),
-                                                                  future: _loadMyPrivateNote(
+                                                                ),
+                                                              );
+                                                            }
+
+                                                            return FutureBuilder<
+                                                              String?
+                                                            >(
+                                                              key: ValueKey(
+                                                                'note_${d.id}_$_notesRefreshTick',
+                                                              ),
+                                                              future:
+                                                                  _getNoteFuture(
+                                                                    householdIdStr,
+                                                                    d.id,
+                                                                  ),
+                                                              builder: (context, noteSnap) {
+                                                                final note =
+                                                                    noteSnap
+                                                                        .data;
+                                                                final hasNote =
+                                                                    note !=
+                                                                        null &&
+                                                                    note.isNotEmpty;
+
+                                                                Future<void>
+                                                                openNoteFlow() async {
+                                                                  if (!await _canWriteExpenseNow()) {
+                                                                    if (mounted) {
+                                                                      final msg =
+                                                                          hasNote
+                                                                          ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                          : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
+                                                                      _showSnackBar(
+                                                                        msg,
+                                                                      );
+                                                                    }
+                                                                    return;
+                                                                  }
+                                                                  final snap =
+                                                                      await FirebaseFirestore
+                                                                          .instance
+                                                                          .doc(
+                                                                            'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
+                                                                          )
+                                                                          .get();
+                                                                  final latestNote =
+                                                                      ((snap.data()?['note']
+                                                                                  as String?) ??
+                                                                              '')
+                                                                          .trim();
+                                                                  await _openEditPrivateNoteDialog(
                                                                     householdId:
                                                                         householdIdStr,
                                                                     expenseId:
                                                                         d.id,
                                                                     uid: user
                                                                         .uid,
-                                                                  ),
-                                                                  builder:
-                                                                      (
+                                                                    initialNote:
+                                                                        latestNote,
+                                                                  );
+                                                                }
+
+                                                                return Material(
+                                                                  type: MaterialType
+                                                                      .transparency,
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
+                                                                      ),
+                                                                  child: InkWell(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          8,
+                                                                        ),
+                                                                    highlightColor: Theme.of(context)
+                                                                        .colorScheme
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.10,
+                                                                        ),
+                                                                    splashColor: Theme.of(context)
+                                                                        .colorScheme
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.08,
+                                                                        ),
+                                                                    onTap: () {
+                                                                      Navigator.of(
                                                                         context,
-                                                                        noteSnap,
-                                                                      ) {
-                                                                        final note =
-                                                                            noteSnap.data;
-                                                                        final hasNote =
-                                                                            note !=
-                                                                                null &&
-                                                                            note.isNotEmpty;
-
-                                                                        Future<
+                                                                      ).push(
+                                                                        MaterialPageRoute<
                                                                           void
-                                                                        >
-                                                                        openNoteFlow() async {
-                                                                          if (!await _canWriteExpenseNow()) {
-                                                                            if (mounted) {
-                                                                              final msg = hasNote
-                                                                                  ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                                  : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
-                                                                              _showSnackBar(
-                                                                                msg,
-                                                                              );
-                                                                            }
-                                                                            return;
-                                                                          }
-                                                                          final snap = await FirebaseFirestore
-                                                                              .instance
-                                                                              .doc(
-                                                                                'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
-                                                                              )
-                                                                              .get();
-                                                                          final latestNote =
-                                                                              ((snap.data()?['note']
-                                                                                          as String?) ??
-                                                                                      '')
-                                                                                  .trim();
-                                                                          await _openEditPrivateNoteDialog(
-                                                                            householdId:
-                                                                                householdIdStr,
-                                                                            expenseId:
-                                                                                d.id,
-                                                                            uid:
-                                                                                user.uid,
-                                                                            initialNote:
-                                                                                latestNote,
-                                                                          );
-                                                                        }
-
-                                                                        return ListTile(
-                                                                          contentPadding:
-                                                                              EdgeInsets.zero,
-                                                                          dense:
-                                                                              true,
-                                                                          visualDensity:
-                                                                              VisualDensity.compact,
-                                                                          onTap: () {
-                                                                            Navigator.of(
-                                                                              context,
-                                                                            ).push(
-                                                                              MaterialPageRoute<
-                                                                                void
-                                                                              >(
-                                                                                builder:
-                                                                                    (
-                                                                                      context,
-                                                                                    ) => _ExpenseDetailPage(
-                                                                                      householdId: householdIdStr,
-                                                                                      expenseId: d.id,
-                                                                                      uid: user.uid,
-                                                                                      title: title,
-                                                                                      amountCents: amountCents,
-                                                                                      paidByName: who,
-                                                                                      createdAt: createdAtDateTime,
-                                                                                      isPending: isPending,
-                                                                                      onManageNote: openNoteFlow,
-                                                                                      childIds: expChildIds,
-                                                                                    ),
+                                                                        >(
+                                                                          builder:
+                                                                              (
+                                                                                context,
+                                                                              ) => _ExpenseDetailPage(
+                                                                                householdId: householdIdStr,
+                                                                                expenseId: d.id,
+                                                                                uid: user.uid,
+                                                                                title: title,
+                                                                                amountCents: amountCents,
+                                                                                paidByName: who,
+                                                                                createdAt: createdAtDateTime,
+                                                                                isPending: isPending,
+                                                                                onManageNote: openNoteFlow,
+                                                                                childIds: expChildIds,
+                                                                                childNames: _dashChildren.isNotEmpty
+                                                                                    ? expChildIds
+                                                                                          .map(
+                                                                                            (
+                                                                                              id,
+                                                                                            ) =>
+                                                                                                _dashChildren
+                                                                                                    .where(
+                                                                                                      (
+                                                                                                        c,
+                                                                                                      ) =>
+                                                                                                          c.id ==
+                                                                                                          id,
+                                                                                                    )
+                                                                                                    .map(
+                                                                                                      (
+                                                                                                        c,
+                                                                                                      ) => c.name,
+                                                                                                    )
+                                                                                                    .firstOrNull ??
+                                                                                                'Verwijderd kind',
+                                                                                          )
+                                                                                          .toList()
+                                                                                    : null,
                                                                               ),
-                                                                            );
-                                                                          },
-                                                                          title: Text(
-                                                                            title,
-                                                                            maxLines:
-                                                                                1,
-                                                                            overflow:
-                                                                                TextOverflow.ellipsis,
+                                                                        ),
+                                                                      );
+                                                                    },
+                                                                    child: ListTile(
+                                                                      contentPadding:
+                                                                          const EdgeInsets.symmetric(
+                                                                            horizontal:
+                                                                                5,
                                                                           ),
-                                                                          subtitle:
-                                                                              (noteSnap.hasError ||
-                                                                                  !noteSnap.hasData)
-                                                                              ? Text(
-                                                                                  subtitleText,
-                                                                                  maxLines: 1,
-                                                                                  overflow: TextOverflow.ellipsis,
-                                                                                )
-                                                                              : (hasNote
-                                                                                    ? Column(
-                                                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                                                        mainAxisSize: MainAxisSize.min,
-                                                                                        children: [
-                                                                                          Text(
-                                                                                            subtitleText,
-                                                                                            maxLines: 1,
-                                                                                            overflow: TextOverflow.ellipsis,
-                                                                                          ),
-                                                                                          Text(
-                                                                                            note,
-                                                                                            maxLines: 1,
-                                                                                            overflow: TextOverflow.ellipsis,
-                                                                                          ),
-                                                                                        ],
-                                                                                      )
-                                                                                    : Text(
-                                                                                        subtitleText,
-                                                                                        maxLines: 1,
-                                                                                        overflow: TextOverflow.ellipsis,
-                                                                                      )),
-                                                                          trailing: Row(
-                                                                            mainAxisSize:
-                                                                                MainAxisSize.min,
-                                                                            mainAxisAlignment:
-                                                                                MainAxisAlignment.end,
-                                                                            children: [
-                                                                              if (isPending)
-                                                                                Tooltip(
-                                                                                  message: 'Nog niet gesynchroniseerd',
-                                                                                  child: Icon(
-                                                                                    Icons.cloud_off,
-                                                                                    size: 16,
-                                                                                    color: onSurface(
-                                                                                      context,
-                                                                                      a50,
-                                                                                    ),
-                                                                                  ),
+                                                                      dense:
+                                                                          true,
+                                                                      visualDensity:
+                                                                          VisualDensity
+                                                                              .compact,
+                                                                      title: Text(
+                                                                        title,
+                                                                        maxLines:
+                                                                            1,
+                                                                        overflow:
+                                                                            TextOverflow.ellipsis,
+                                                                      ),
+                                                                      subtitle: Text(
+                                                                        hasNote
+                                                                            ? '$subtitleText · $note'
+                                                                            : subtitleText,
+                                                                        maxLines:
+                                                                            1,
+                                                                        overflow:
+                                                                            TextOverflow.ellipsis,
+                                                                      ),
+                                                                      trailing: Row(
+                                                                        mainAxisSize:
+                                                                            MainAxisSize.min,
+                                                                        mainAxisAlignment:
+                                                                            MainAxisAlignment.end,
+                                                                        children: [
+                                                                          if (isPending)
+                                                                            Tooltip(
+                                                                              message: 'Nog niet gesynchroniseerd',
+                                                                              child: Icon(
+                                                                                Icons.cloud_off,
+                                                                                size: 16,
+                                                                                color: onSurface(
+                                                                                  context,
+                                                                                  a50,
                                                                                 ),
-                                                                              if (isPending)
-                                                                                const SizedBox(
-                                                                                  width: 4,
-                                                                                ),
-                                                                              Text(
-                                                                                _formatEur(
-                                                                                  amountCents,
-                                                                                ),
-                                                                                style:
-                                                                                    Theme.of(
-                                                                                      context,
-                                                                                    ).textTheme.bodyMedium?.copyWith(
-                                                                                      fontWeight: FontWeight.w700,
-                                                                                    ),
                                                                               ),
-                                                                            ],
+                                                                            ),
+                                                                          if (isPending)
+                                                                            const SizedBox(
+                                                                              width: 4,
+                                                                            ),
+                                                                          Text(
+                                                                            _formatEur(
+                                                                              amountCents,
+                                                                            ),
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.bodyMedium?.copyWith(
+                                                                                  fontWeight: FontWeight.w600,
+                                                                                ),
                                                                           ),
-                                                                        );
-                                                                      },
+                                                                        ],
+                                                                      ),
+                                                                    ),
+                                                                  ),
                                                                 );
                                                               },
-                                                            ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                            );
+                                                          },
+                                                        ),
+                                                ],
                                               ),
                                             ),
                                           ],
@@ -3683,7 +3860,7 @@ Widget _balanceRow({required String label, required String value}) {
     children: [
       Expanded(child: Text(label, overflow: TextOverflow.ellipsis)),
       const SizedBox(width: 12),
-      Text(value),
+      Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
     ],
   );
 }
@@ -3700,6 +3877,7 @@ class _ExpenseDetailPage extends StatefulWidget {
     required this.isPending,
     this.onManageNote,
     this.childIds = const [],
+    this.childNames,
   });
 
   final String householdId;
@@ -3712,6 +3890,9 @@ class _ExpenseDetailPage extends StatefulWidget {
   final bool isPending;
   final Future<void> Function()? onManageNote;
   final List<String> childIds;
+  // Pre-resolved display names; when non-null the Voor section renders
+  // synchronously without a FutureBuilder round-trip.
+  final List<String>? childNames;
 
   /// Resolves child IDs to display names; falls back to "Verwijderd kind".
   static Future<List<String>> _resolveChildNames(
@@ -3805,15 +3986,70 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
+                    title: const Text('Betaald door'),
+                    subtitle: Text(widget.paidByName),
+                  ),
+                  if (widget.childIds.isNotEmpty)
+                    widget.childNames != null
+                        ? ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Voor'),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: widget.childNames!
+                                    .map(
+                                      (n) => Chip(
+                                        label: Text(n),
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          )
+                        : FutureBuilder<List<String>>(
+                            future: _ExpenseDetailPage._resolveChildNames(
+                              widget.householdId,
+                              widget.childIds,
+                            ),
+                            builder: (context, snap) {
+                              if (!snap.hasData) return const SizedBox.shrink();
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Voor'),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: snap.data!
+                                        .map(
+                                          (n) => Chip(
+                                            label: Text(n),
+                                            materialTapTargetSize:
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
                     title: const Text('Bedrag'),
                     subtitle: Text(
                       _ExpenseDetailPage._formatEur(widget.amountCents),
                     ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Betaald door'),
-                    subtitle: Text(widget.paidByName),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -3839,37 +4075,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           )
                         : const Text('Gesynchroniseerd'),
                   ),
-                  if (widget.childIds.isNotEmpty)
-                    FutureBuilder<List<String>>(
-                      future: _ExpenseDetailPage._resolveChildNames(
-                        widget.householdId,
-                        widget.childIds,
-                      ),
-                      builder: (context, snap) {
-                        if (!snap.hasData) return const SizedBox.shrink();
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Voor wie'),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: snap.data!
-                                  .map(
-                                    (n) => Chip(
-                                      label: Text(n),
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
@@ -3957,10 +4162,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _LogboekPage extends StatefulWidget {
-  const _LogboekPage({required this.householdId, required this.uid});
+  const _LogboekPage({
+    required this.householdId,
+    required this.uid,
+    this.myName,
+    this.otherName,
+  });
 
   final String householdId;
   final String uid;
+  final String? myName;
+  final String? otherName;
 
   @override
   State<_LogboekPage> createState() => _LogboekPageState();
@@ -3970,11 +4182,38 @@ class _LogboekPageState extends State<_LogboekPage> {
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   String? _filterChildId; // null = alle, childId = selected child
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
+  bool _initialDataReady = false;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
-    _loadChildren();
+    _expensesStream = FirebaseFirestore.instance
+        .collection('households/${widget.householdId}/expenses')
+        .orderBy('createdAt', descending: true)
+        .limit(200)
+        .snapshots();
+    Future.wait([
+      _loadChildren(),
+      _expensesStream.first.then((_) {}).catchError((_) {}),
+    ]).then((_) {
+      if (mounted) setState(() => _initialDataReady = true);
+    });
+    _checkOffline();
+  }
+
+  Future<void> _checkOffline() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .doc('users/$uid')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      if (mounted) setState(() => _isOffline = true);
+    }
   }
 
   Future<void> _loadChildren() async {
@@ -4053,33 +4292,57 @@ class _LogboekPageState extends State<_LogboekPage> {
       ),
     );
 
-    return Scaffold(
-      appBar: appBar,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_childrenLoaded) _buildFilterRow(context),
-          Expanded(child: _buildExpenseList(context)),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: appBar,
+        body: !_initialDataReady
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_isOffline)
+                    Container(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        'Offline — je ziet de laatst geladen gegevens.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a62),
+                        ),
+                      ),
+                    ),
+                  Expanded(child: _buildExpenseList(context)),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildFilterRow(BuildContext context) {
+  Widget _buildFilterRow(BuildContext context, Map<String?, int> counts) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          FilterChip(
-            label: const Text('Alle'),
-            selected: _filterChildId == null,
-            onSelected: (_) => setState(() => _filterChildId = null),
-          ),
+          if (_children.length > 1)
+            FilterChip(
+              label: Text('Alle (${counts[null] ?? 0})'),
+              selected: _filterChildId == null,
+              onSelected: (_) => setState(() => _filterChildId = null),
+            ),
           for (final child in _children) ...[
             const SizedBox(width: 8),
             FilterChip(
-              label: Text(child.name),
+              label: Text('${child.name} (${counts[child.id] ?? 0})'),
               selected: _filterChildId == child.id,
               onSelected: (v) =>
                   setState(() => _filterChildId = v ? child.id : null),
@@ -4092,11 +4355,7 @@ class _LogboekPageState extends State<_LogboekPage> {
 
   Widget _buildExpenseList(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('households/${widget.householdId}/expenses')
-          .orderBy('createdAt', descending: true)
-          .limit(200)
-          .snapshots(),
+      stream: _expensesStream,
       builder: (context, snap) {
         if (snap.hasError) {
           return Center(
@@ -4109,85 +4368,133 @@ class _LogboekPageState extends State<_LogboekPage> {
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snap.data!.docs
-            .where((d) => _matchesFilter(d.data()))
-            .toList();
+        final allDocs = snap.data!.docs;
+        final counts = <String?, int>{
+          null: allDocs.length,
+          for (final child in _children)
+            child.id: allDocs
+                .where(
+                  (d) =>
+                      (d.data()['childIds'] as List?)?.contains(child.id) ==
+                      true,
+                )
+                .length,
+        };
+        final docs = allDocs.where((d) => _matchesFilter(d.data())).toList();
+        final Widget listWidget;
         if (docs.isEmpty) {
-          return const Center(
+          listWidget = const Center(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text('Geen uitgaven gevonden.'),
             ),
           );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          itemCount: docs.length,
-          separatorBuilder: (context, _) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final d = docs[i];
-            final e = d.data();
-            final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
-            final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
-            final createdAtRaw = e['createdAt'];
-            DateTime? createdAt;
-            if (createdAtRaw is Timestamp) {
-              createdAt = createdAtRaw.toDate().toLocal();
-            } else if (createdAtRaw is DateTime) {
-              createdAt = createdAtRaw.toLocal();
-            }
-            final childIds =
-                (e['childIds'] as List?)?.whereType<String>().toList() ??
-                const <String>[];
-            final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-            final paidByName = createdBy == widget.uid ? 'Jij' : 'Co-parent';
-            final nKids = childIds.length;
-            final isFiltered = _filterChildId != null && nKids > 0;
-            final displayCents = isFiltered
-                ? (amountCents / nKids).round()
-                : amountCents;
-            final dateStr = _fmtDate(createdAt);
-            final subtitleStr = isFiltered
-                ? '$dateStr · Aandeel: 1/$nKids'
-                : nKids > 0
-                ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
-                : dateStr;
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              visualDensity: VisualDensity.compact,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _ExpenseDetailPage(
-                    householdId: widget.householdId,
-                    expenseId: d.id,
-                    uid: widget.uid,
-                    title: title,
-                    amountCents: amountCents,
-                    paidByName: paidByName,
-                    createdAt: createdAt,
-                    isPending: false,
-                    childIds: childIds,
+        } else {
+          listWidget = ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: docs.length,
+            separatorBuilder: (context, _) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final d = docs[i];
+              final e = d.data();
+              final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+              final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+              final createdAtRaw = e['createdAt'];
+              DateTime? createdAt;
+              if (createdAtRaw is Timestamp) {
+                createdAt = createdAtRaw.toDate().toLocal();
+              } else if (createdAtRaw is DateTime) {
+                createdAt = createdAtRaw.toLocal();
+              }
+              final childIds =
+                  (e['childIds'] as List?)?.whereType<String>().toList() ??
+                  const <String>[];
+              final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+              final paidByName = createdBy == widget.uid
+                  ? (widget.myName ?? 'Jij')
+                  : (widget.otherName ?? 'Co-parent');
+              final nKids = childIds.length;
+              final isFiltered = _filterChildId != null && nKids > 0;
+              final displayCents = isFiltered
+                  ? (amountCents / nKids).round()
+                  : amountCents;
+              final dateStr = _fmtDate(createdAt);
+              final subtitleStr = isFiltered
+                  ? '$dateStr · Aandeel: 1/$nKids'
+                  : nKids > 0
+                  ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
+                  : dateStr;
+              return Material(
+                type: MaterialType.transparency,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  highlightColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.10),
+                  splashColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.08),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ExpenseDetailPage(
+                        householdId: widget.householdId,
+                        expenseId: d.id,
+                        uid: widget.uid,
+                        title: title,
+                        amountCents: amountCents,
+                        paidByName: paidByName,
+                        createdAt: createdAt,
+                        isPending: false,
+                        childIds: childIds,
+                        childNames: childIds
+                            .map(
+                              (id) =>
+                                  _children
+                                      .where((c) => c.id == id)
+                                      .map((c) => c.name)
+                                      .firstOrNull ??
+                                  'Verwijderd kind',
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                  child: ListTile(
+                    key: ValueKey(d.id),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    title: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      subtitleStr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a62),
+                      ),
+                    ),
+                    trailing: Text(
+                      _fmtEur(displayCents),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                subtitleStr,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: onSurface(context, a62)),
-              ),
-              trailing: Text(
-                _fmtEur(displayCents),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            );
-          },
+              );
+            },
+          );
+        }
+        return Column(
+          children: [
+            if (_childrenLoaded) _buildFilterRow(context, counts),
+            Expanded(child: listWidget),
+          ],
         );
       },
     );
@@ -5145,7 +5452,7 @@ class _JoinSuccessOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
+    return const PopScope(
       canPop: false,
       child: Material(
         color: _kSuccessGreen,
