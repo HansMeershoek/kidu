@@ -4321,7 +4321,19 @@ class _LogboekPageState extends State<_LogboekPage> {
     return ids.contains(_filterChildId);
   }
 
-  static String _fmtEur(int cents) => '€${(cents / 100.0).toStringAsFixed(2)}';
+  static String _fmtEur(int cents) {
+    final negative = cents < 0;
+    final abs = cents.abs();
+    final euros = abs ~/ 100;
+    final rem = abs % 100;
+    final euroStr = euros.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < euroStr.length; i++) {
+      if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+      buf.write(euroStr[i]);
+    }
+    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
+  }
 
   static String _fmtDate(DateTime? dt) {
     if (dt == null) return '—';
@@ -4339,7 +4351,7 @@ class _LogboekPageState extends State<_LogboekPage> {
       'nov',
       'dec',
     ];
-    return '${dt.day} ${mo[dt.month - 1]} ${dt.year}';
+    return '${dt.day} ${mo[dt.month - 1]}';
   }
 
   @override
@@ -4401,6 +4413,7 @@ class _LogboekPageState extends State<_LogboekPage> {
             FilterChip(
               label: Text('Alle (${counts[null] ?? 0})'),
               selected: _filterChildId == null,
+              showCheckmark: false,
               onSelected: (_) => setState(() => _filterChildId = null),
             ),
           for (final child in _children) ...[
@@ -4408,6 +4421,7 @@ class _LogboekPageState extends State<_LogboekPage> {
             FilterChip(
               label: Text('${child.name} (${counts[child.id] ?? 0})'),
               selected: _filterChildId == child.id,
+              showCheckmark: false,
               onSelected: (v) =>
                   setState(() => _filterChildId = v ? child.id : null),
             ),
@@ -4457,7 +4471,13 @@ class _LogboekPageState extends State<_LogboekPage> {
           listWidget = ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: docs.length,
-            separatorBuilder: (context, _) => const Divider(height: 1),
+            separatorBuilder: (context, _) => Divider(
+              height: 1,
+              thickness: 0.4,
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+            ),
             itemBuilder: (context, i) {
               final d = docs[i];
               final e = d.data();
@@ -4484,9 +4504,9 @@ class _LogboekPageState extends State<_LogboekPage> {
                   : amountCents;
               final dateStr = _fmtDate(createdAt);
               final subtitleStr = isFiltered
-                  ? '$dateStr · Aandeel: 1/$nKids'
+                  ? '$dateStr · aandeel 1/$nKids'
                   : nKids > 0
-                  ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
+                  ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
                   : dateStr;
               return Material(
                 type: MaterialType.transparency,
@@ -4531,15 +4551,21 @@ class _LogboekPageState extends State<_LogboekPage> {
                     visualDensity: VisualDensity.compact,
                     title: Text(
                       title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                    subtitle: Text(
-                      subtitleStr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a62),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitleStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a55),
+                        ),
                       ),
                     ),
                     trailing: Text(
