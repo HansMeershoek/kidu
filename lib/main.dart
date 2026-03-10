@@ -26,6 +26,7 @@ const double a55 = 0.55;
 const double a60 = 0.60;
 const double a62 = 0.62;
 const double a68 = 0.68;
+const double a70 = 0.70;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
@@ -3918,8 +3919,17 @@ class _ExpenseDetailPage extends StatefulWidget {
   }
 
   static String _formatEur(int cents) {
-    final value = (cents / 100.0).toStringAsFixed(2);
-    return '€$value';
+    final negative = cents < 0;
+    final abs = cents.abs();
+    final euros = abs ~/ 100;
+    final rem = abs % 100;
+    final euroStr = euros.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < euroStr.length; i++) {
+      if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+      buf.write(euroStr[i]);
+    }
+    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
   }
 
   static String _formatDateTime(DateTime? dt) {
@@ -3938,7 +3948,7 @@ class _ExpenseDetailPage extends StatefulWidget {
       'nov',
       'dec',
     ];
-    return '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return '${dt.day} ${nlMonths[dt.month - 1]} \u2022 ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -3981,19 +3991,34 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Titel'),
+                    title: Text(
+                      'Titel',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: Text(widget.title),
                   ),
+                  const SizedBox(height: 4),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Betaald door'),
+                    title: Text(
+                      'Betaald door',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: Text(widget.paidByName),
                   ),
                   if (widget.childIds.isNotEmpty)
                     widget.childNames != null
                         ? ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Voor'),
+                            title: Text(
+                              'Voor',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Wrap(
@@ -4003,6 +4028,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     .map(
                                       (n) => Chip(
                                         label: Text(n),
+                                        labelStyle: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest,
                                         materialTapTargetSize:
                                             MaterialTapTargetSize.shrinkWrap,
                                         visualDensity: VisualDensity.compact,
@@ -4021,7 +4052,13 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               if (!snap.hasData) return const SizedBox.shrink();
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
-                                title: const Text('Voor'),
+                                title: Text(
+                                  'Voor',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: onSurface(context, a70),
+                                      ),
+                                ),
                                 subtitle: Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: Wrap(
@@ -4031,6 +4068,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                         .map(
                                           (n) => Chip(
                                             label: Text(n),
+                                            labelStyle: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                            backgroundColor: Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
                                             materialTapTargetSize:
                                                 MaterialTapTargetSize
                                                     .shrinkWrap,
@@ -4044,23 +4087,44 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               );
                             },
                           ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Bedrag'),
-                    subtitle: Text(
-                      _ExpenseDetailPage._formatEur(widget.amountCents),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bedrag',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _ExpenseDetailPage._formatEur(widget.amountCents),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Datum/tijd'),
+                    title: Text(
+                      'Datum/tijd',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: Text(
                       _ExpenseDetailPage._formatDateTime(widget.createdAt),
                     ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Status'),
+                    title: Text(
+                      'Status',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: widget.isPending
                         ? Row(
                             children: [
@@ -4073,8 +4137,19 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               const Text('Nog niet gesynchroniseerd'),
                             ],
                           )
-                        : const Text('Gesynchroniseerd'),
+                        : Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('Gesynchroniseerd'),
+                            ],
+                          ),
                   ),
+                  const SizedBox(height: 12),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
@@ -4092,13 +4167,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           if (hasNoteLive)
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: const Text('Notitie'),
+                              title: Text(
+                                'Notitie',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
                               subtitle: Text(note),
                             ),
                           if (widget.onManageNote != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 16),
-                              child: FilledButton.icon(
+                              child: FilledButton.tonalIcon(
                                 onPressed: _noteActionBusy
                                     ? null
                                     : () async {
@@ -4114,32 +4193,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                           }
                                         }
                                       },
-                                icon: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: _noteActionBusy
-                                      ? Center(
-                                          child: SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onPrimary,
-                                            ),
-                                          ),
-                                        )
-                                      : Icon(
-                                          hasNoteLive
-                                              ? Icons.edit_note
-                                              : Icons.note_add_outlined,
-                                        ),
+                                icon: Icon(
+                                  hasNoteLive
+                                      ? Icons.edit_note
+                                      : Icons.note_add_outlined,
+                                  size: 18,
                                 ),
                                 label: Text(
                                   hasNoteLive
                                       ? 'Notitie wijzigen'
                                       : 'Notitie toevoegen',
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ),
                             ),
