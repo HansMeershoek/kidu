@@ -239,6 +239,134 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
   }
 }
 
+// ── Shared private-note helpers (used by Dashboard and Logboek) ──────────────
+
+/// Returns true when there is a live server connection for writing.
+Future<bool> _checkCanWriteNow() async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return false;
+  try {
+    await FirebaseFirestore.instance
+        .doc('users/$uid')
+        .get(const GetOptions(source: Source.server))
+        .timeout(const Duration(seconds: 2));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Shows the private-note edit dialog and returns a typed result.
+/// Pure UI only – no Firestore.
+Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
+  BuildContext context, {
+  required String initialNote,
+  required bool hasInitialNote,
+}) async {
+  final result = await showDialog<PrivateNoteDialogResult>(
+    context: context,
+    useRootNavigator: false,
+    useSafeArea: true,
+    barrierDismissible: true,
+    builder: (dialogContext) => _PrivateNoteDialogContent(
+      initialNote: initialNote,
+      hasInitialNote: hasInitialNote,
+    ),
+  );
+  return result ?? PrivateNoteDialogCancelled();
+}
+
+/// Shared note-management flow used by both Dashboard and Logboek.
+///
+/// Loads the latest note from Firestore, opens the edit dialog, verifies
+/// connectivity before writing, persists to Firestore, and shows a snackbar.
+/// Returns the committed [PrivateNoteDialogResult] so callers can bust local
+/// caches; returns null on cancel, offline block, or error.
+Future<PrivateNoteDialogResult?> _doManagePrivateNote(
+  BuildContext context, {
+  required String householdId,
+  required String expenseId,
+  required String uid,
+}) async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .doc('households/$householdId/expenses/$expenseId/privateNotes/$uid')
+        .get();
+    final initialNote = ((snap.data()?['note'] as String?) ?? '').trim();
+
+    if (!context.mounted) return null;
+    final result = await _showPrivateNoteDialog(
+      context,
+      initialNote: initialNote,
+      hasInitialNote: initialNote.isNotEmpty,
+    );
+
+    if (result is PrivateNoteDialogCancelled) return null;
+    if (!context.mounted) return null;
+
+    if (!await _checkCanWriteNow()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+              ),
+            ),
+          );
+      }
+      return null;
+    }
+
+    final ref = FirebaseFirestore.instance.doc(
+      'households/$householdId/expenses/$expenseId/privateNotes/$uid',
+    );
+    if (result is PrivateNoteDialogDelete) {
+      await ref.delete();
+    } else if (result is PrivateNoteDialogSave) {
+      await ref.set({
+        'note': result.note,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              result is PrivateNoteDialogDelete
+                  ? 'Notitie verwijderd.'
+                  : 'Notitie opgeslagen.',
+            ),
+          ),
+        );
+    }
+    return result;
+  } catch (e) {
+    debugPrint('Note save error: $e');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              mapUserFacingError(
+                e,
+                fallback: 'Opslaan mislukt. Probeer opnieuw.',
+              ),
+            ),
+          ),
+        );
+    }
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
 final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey =
@@ -948,87 +1076,31 @@ class _DashboardPageState extends State<DashboardPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Thin dashboard wrapper around [_doManagePrivateNote].
+  /// Guards against concurrent taps and busts the local note-cache on success.
   Future<void> _openEditPrivateNoteDialog({
     required String householdId,
     required String expenseId,
     required String uid,
-    required String initialNote,
   }) async {
     if (_noteWriteInFlight) return;
     _noteWriteInFlight = true;
-
     try {
-      final result = await _showPrivateNoteDialog(
-        initialNote: initialNote,
-        hasInitialNote: initialNote.trim().isNotEmpty,
+      final result = await _doManagePrivateNote(
+        context,
+        householdId: householdId,
+        expenseId: expenseId,
+        uid: uid,
       );
-
-      if (result is PrivateNoteDialogCancelled) {
-        return;
-      }
-
-      if (!mounted) return;
-
-      if (!await _canWriteExpenseNow()) {
-        if (mounted) {
-          _showSnackBar(
-            'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
-          );
-        }
-        return;
-      }
-
-      final ref = FirebaseFirestore.instance.doc(
-        'households/$householdId/expenses/$expenseId/privateNotes/$uid',
-      );
-
-      if (result is PrivateNoteDialogDelete) {
-        await ref.delete();
-      } else if (result is PrivateNoteDialogSave) {
-        await ref.set({
-          'note': result.note,
-          'updatedAt': FieldValue.serverTimestamp(),
+      if (result != null && mounted) {
+        setState(() {
+          _notesRefreshTick++;
+          _noteFutureCache.clear();
         });
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _notesRefreshTick++;
-        _noteFutureCache.clear();
-      });
-      if (result is PrivateNoteDialogDelete) {
-        _showSnackBar('Notitie verwijderd.');
-      } else if (result is PrivateNoteDialogSave) {
-        _showSnackBar('Notitie opgeslagen.');
-      }
-    } catch (e) {
-      debugPrint('Note save error: $e');
-      if (mounted) {
-        _showSnackBar(
-          mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'),
-        );
       }
     } finally {
       _noteWriteInFlight = false;
     }
-  }
-
-  /// Dialog only collects input and returns typed result. No Firestore.
-  Future<PrivateNoteDialogResult> _showPrivateNoteDialog({
-    required String initialNote,
-    required bool hasInitialNote,
-  }) async {
-    final result = await showDialog<PrivateNoteDialogResult>(
-      context: context,
-      useRootNavigator: false,
-      useSafeArea: true,
-      barrierDismissible: true,
-      builder: (dialogContext) => _PrivateNoteDialogContent(
-        initialNote: initialNote,
-        hasInitialNote: hasInitialNote,
-      ),
-    );
-    return result ?? PrivateNoteDialogCancelled();
   }
 
   int? _tryParseEurToCents(String input) {
@@ -1480,20 +1552,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<bool> _canWriteExpenseNow() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return false;
-    try {
-      await FirebaseFirestore.instance
-          .doc('users/$uid')
-          .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 2));
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   /// Returns active (non-archived) children for the household, sorted by
   /// creation time. Returns empty list on any error so the dialog still opens.
   Future<List<_ChildItem>> _loadActiveChildren(String householdId) async {
@@ -1877,7 +1935,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 }
 
                                 setLocalState(() => saving = true);
-                                if (!await _canWriteExpenseNow()) {
+                                if (!await _checkCanWriteNow()) {
                                   _showSnackBar(
                                     'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
                                   );
@@ -3052,7 +3110,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   true;
                                               var didOpenDialog = false;
                                               try {
-                                                if (!await _canWriteExpenseNow()) {
+                                                if (!await _checkCanWriteNow()) {
                                                   _showSnackBar(
                                                     'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
                                                   );
@@ -3649,30 +3707,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                                                 Future<void>
                                                                 openNoteFlow() async {
-                                                                  if (!await _canWriteExpenseNow()) {
+                                                                  if (!await _checkCanWriteNow()) {
                                                                     if (mounted) {
-                                                                      final msg =
-                                                                          hasNote
-                                                                          ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                          : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
                                                                       _showSnackBar(
-                                                                        msg,
+                                                                        hasNote
+                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
                                                                       );
                                                                     }
                                                                     return;
                                                                   }
-                                                                  final snap =
-                                                                      await FirebaseFirestore
-                                                                          .instance
-                                                                          .doc(
-                                                                            'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
-                                                                          )
-                                                                          .get();
-                                                                  final latestNote =
-                                                                      ((snap.data()?['note']
-                                                                                  as String?) ??
-                                                                              '')
-                                                                          .trim();
                                                                   await _openEditPrivateNoteDialog(
                                                                     householdId:
                                                                         householdIdStr,
@@ -3680,8 +3724,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         d.id,
                                                                     uid: user
                                                                         .uid,
-                                                                    initialNote:
-                                                                        latestNote,
                                                                   );
                                                                 }
 
@@ -4530,6 +4572,14 @@ class _LogboekPageState extends State<_LogboekPage> {
                         paidByName: paidByName,
                         createdAt: createdAt,
                         isPending: false,
+                        onManageNote: createdBy == widget.uid
+                            ? () => _doManagePrivateNote(
+                                context,
+                                householdId: widget.householdId,
+                                expenseId: d.id,
+                                uid: widget.uid,
+                              )
+                            : null,
                         childIds: childIds,
                         childNames: childIds
                             .map(
