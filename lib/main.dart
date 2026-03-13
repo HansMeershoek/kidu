@@ -19,10 +19,12 @@ import 'firebase_options.dart';
 // ------------------------------------------------------------
 // Common semantic opacities used across the UI.
 const double a06 = 0.06;
+const double a32 = 0.32;
 const double a40 = 0.40;
 const double a45 = 0.45;
 const double a50 = 0.50;
 const double a55 = 0.55;
+const double a58 = 0.58;
 const double a60 = 0.60;
 const double a62 = 0.62;
 const double a68 = 0.68;
@@ -1237,6 +1239,7 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1284,7 +1287,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 height: 1.35,
                               ),
                         ),
-                      const SizedBox(height: _cardGap),
+                      const SizedBox(height: 22),
                       if (!isPaired && hasHousehold && canInvite) ...[
                         SizedBox(
                           height: 48,
@@ -1341,17 +1344,24 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                         ),
                       ],
-                      const Divider(height: 24),
+                      Divider(height: 24, color: outlineV(context, a32)),
                       Text(
                         'Account',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: onSurface(context, a58),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
+                      const SizedBox(height: 8),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.edit),
+                        leading: Icon(
+                          Icons.edit,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Naam'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1365,19 +1375,25 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       Text(
                         'Huishouden',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: onSurface(context, a58),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 8),
                       if (hasHousehold)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
-                          leading: const Icon(Icons.child_care),
+                          leading: Icon(
+                            Icons.child_care,
+                            color: onSurface(context, a58),
+                          ),
                           title: const Text('Kinderen'),
                           onTap: () {
                             Navigator.of(context).pop();
@@ -1394,7 +1410,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
-                          leading: const Icon(Icons.menu_book_outlined),
+                          leading: Icon(
+                            Icons.menu_book_outlined,
+                            color: onSurface(context, a58),
+                          ),
                           title: const Text('Logboek'),
                           onTap: () {
                             Navigator.of(context).pop();
@@ -1410,18 +1429,24 @@ class _DashboardPageState extends State<DashboardPage> {
                             );
                           },
                         ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       Text(
                         'Info',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: onSurface(context, a58),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 8),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.privacy_tip_outlined),
+                        leading: Icon(
+                          Icons.privacy_tip_outlined,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Privacy'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1481,7 +1506,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.info_outline),
+                        leading: Icon(
+                          Icons.info_outline,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Over KiDu'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1503,13 +1531,16 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
-                      const Divider(height: 32),
+                      Divider(height: 32, color: outlineV(context, a32)),
                       if (kDebugMode)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
-                          leading: const Icon(Icons.switch_account),
+                          leading: Icon(
+                            Icons.switch_account,
+                            color: onSurface(context, a58),
+                          ),
                           title: const Text('Wissel account'),
                           onTap: _switchBusy
                               ? null
@@ -1529,7 +1560,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.logout),
+                        leading: Icon(
+                          Icons.logout,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Uitloggen'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -3214,7 +3248,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'createdAt',
                                             descending: true,
                                           )
-                                          .limit(6)
                                           .snapshots(
                                             includeMetadataChanges: true,
                                           ),
@@ -3438,7 +3471,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           physics:
                                                               const NeverScrollableScrollPhysics(),
                                                           itemCount:
-                                                              docs.length,
+                                                              docs.length > 6
+                                                              ? 6
+                                                              : docs.length,
                                                           separatorBuilder:
                                                               (
                                                                 context,
