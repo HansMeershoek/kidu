@@ -4322,7 +4322,11 @@ class _LogboekPage extends StatefulWidget {
 class _LogboekPageState extends State<_LogboekPage> {
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
+  List<({String uid, String name})> _parentItems = [];
+  bool _parentsLoaded = false;
+  bool _perOuder = false; // false = per kind, true = per ouder
   String? _filterChildId; // null = alle, childId = selected child
+  String? _filterParentUid; // null = alle, uid = selected parent
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
   bool _initialDataReady = false;
   bool _isOffline = false;
@@ -4337,6 +4341,7 @@ class _LogboekPageState extends State<_LogboekPage> {
         .snapshots();
     Future.wait([
       _loadChildren(),
+      _loadParents(),
       _expensesStream.first.then((_) {}).catchError((_) {}),
     ]).then((_) {
       if (mounted) setState(() => _initialDataReady = true);
@@ -4390,7 +4395,44 @@ class _LogboekPageState extends State<_LogboekPage> {
     }
   }
 
+  Future<void> _loadParents() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/members')
+          .limit(2)
+          .get();
+      final uids = snap.docs.map((d) => d.id).toList();
+      // Current user first, then others.
+      final sorted = [
+        if (uids.contains(widget.uid)) widget.uid,
+        ...uids.where((id) => id != widget.uid),
+      ];
+      final items = [
+        for (final uid in sorted)
+          (
+            uid: uid,
+            name: uid == widget.uid
+                ? (widget.myName ?? 'Jij')
+                : (widget.otherName ?? 'Co-parent'),
+          ),
+      ];
+      if (mounted) {
+        setState(() {
+          _parentItems = items;
+          _parentsLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _parentsLoaded = true);
+    }
+  }
+
   bool _matchesFilter(Map<String, dynamic> data) {
+    if (_perOuder) {
+      if (_filterParentUid == null) return true;
+      final createdBy = (data['createdBy'] as String?)?.trim() ?? '';
+      return createdBy == _filterParentUid;
+    }
     if (_filterChildId == null) return true;
     final ids =
         (data['childIds'] as List?)?.whereType<String>().toList() ??
@@ -4480,30 +4522,94 @@ class _LogboekPageState extends State<_LogboekPage> {
     );
   }
 
-  Widget _buildFilterRow(BuildContext context, Map<String?, int> counts) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  Widget _buildPerspectiveToggle(BuildContext context) {
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          if (_children.length > 1)
-            FilterChip(
-              label: Text('Alle (${counts[null] ?? 0})'),
-              selected: _filterChildId == null,
-              showCheckmark: false,
-              onSelected: (_) => setState(() => _filterChildId = null),
-            ),
-          for (final child in _children) ...[
-            const SizedBox(width: 8),
-            FilterChip(
-              label: Text('${child.name} (${counts[child.id] ?? 0})'),
-              selected: _filterChildId == child.id,
-              showCheckmark: false,
-              onSelected: (v) =>
-                  setState(() => _filterChildId = v ? child.id : null),
-            ),
-          ],
+          FilterChip(
+            label: const Text('Per kind'),
+            selected: !_perOuder,
+            showCheckmark: false,
+            onSelected: (_) => setState(() {
+              _perOuder = false;
+              _filterParentUid = null;
+            }),
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: const Text('Per ouder'),
+            selected: _perOuder,
+            showCheckmark: false,
+            onSelected: (_) => setState(() {
+              _perOuder = true;
+              _filterChildId = null;
+            }),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterRow(
+    BuildContext context,
+    Map<String?, int> childCounts,
+    Map<String?, int> parentCounts,
+    List<({String uid, String name})> parentItems,
+  ) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 21, right: 16, top: 8, bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: _perOuder
+            ? [
+                if (parentItems.length > 1)
+                  FilterChip(
+                    label: Text('Alle (${parentCounts[null] ?? 0})'),
+                    selected: _filterParentUid == null,
+                    showCheckmark: false,
+                    onSelected: (_) =>
+                        setState(() => _filterParentUid = null),
+                  ),
+                for (final (i, p) in parentItems.indexed) ...[
+                  if (i > 0 || parentItems.length > 1)
+                    const SizedBox(width: 8),
+                  FilterChip(
+                    label: Text('${p.name} (${parentCounts[p.uid] ?? 0})'),
+                    selected: _filterParentUid == p.uid,
+                    showCheckmark: false,
+                    onSelected: (v) => setState(
+                      () => _filterParentUid = v ? p.uid : null,
+                    ),
+                  ),
+                ],
+              ]
+            : [
+                if (_children.length > 1)
+                  FilterChip(
+                    label: Text('Alle (${childCounts[null] ?? 0})'),
+                    selected: _filterChildId == null,
+                    showCheckmark: false,
+                    onSelected: (_) => setState(() => _filterChildId = null),
+                  ),
+                for (final (i, child) in _children.indexed) ...[
+                  if (i > 0 || _children.length > 1)
+                    const SizedBox(width: 8),
+                  FilterChip(
+                    label: Text(
+                      '${child.name} (${childCounts[child.id] ?? 0})',
+                    ),
+                    selected: _filterChildId == child.id,
+                    showCheckmark: false,
+                    onSelected: (v) =>
+                        setState(() => _filterChildId = v ? child.id : null),
+                  ),
+                ],
+              ],
+        ),
       ),
     );
   }
@@ -4524,7 +4630,7 @@ class _LogboekPageState extends State<_LogboekPage> {
           return const Center(child: CircularProgressIndicator());
         }
         final allDocs = snap.data!.docs;
-        final counts = <String?, int>{
+        final childCounts = <String?, int>{
           null: allDocs.length,
           for (final child in _children)
             child.id: allDocs
@@ -4532,6 +4638,17 @@ class _LogboekPageState extends State<_LogboekPage> {
                   (d) =>
                       (d.data()['childIds'] as List?)?.contains(child.id) ==
                       true,
+                )
+                .length,
+        };
+        // Use _parentItems from household members; counts include 0 for parents with no expenses.
+        final parentCounts = <String?, int>{
+          null: allDocs.length,
+          for (final p in _parentItems)
+            p.uid: allDocs
+                .where(
+                  (d) =>
+                      (d.data()['createdBy'] as String?)?.trim() == p.uid,
                 )
                 .length,
         };
@@ -4666,8 +4783,16 @@ class _LogboekPageState extends State<_LogboekPage> {
           );
         }
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_childrenLoaded) _buildFilterRow(context, counts),
+            _buildPerspectiveToggle(context),
+            if ((_perOuder && _parentsLoaded) || (!_perOuder && _childrenLoaded))
+              _buildFilterRow(
+                context,
+                childCounts,
+                parentCounts,
+                _parentItems,
+              ),
             Expanded(child: listWidget),
           ],
         );
