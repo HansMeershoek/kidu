@@ -4302,7 +4302,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
 // Logboek – read-only expense history with child filter
 // ────────────────────────────────────────────────────────────────────────────
 
-enum _PeriodFilter { all, week, month, year, custom }
+enum _PeriodFilter { all, custom }
 
 class _LogboekPage extends StatefulWidget {
   const _LogboekPage({
@@ -4465,18 +4465,6 @@ class _LogboekPageState extends State<_LogboekPage> {
     final pageContext = context;
     final now = DateTime.now();
 
-    DateTime startOfWeek() {
-      final d = now.subtract(Duration(days: now.weekday - 1));
-      return DateTime(d.year, d.month, d.day);
-    }
-
-    DateTime endOfWeekExclusive() => startOfWeek().add(const Duration(days: 7));
-
-    final DateTime startOfMonth = DateTime(now.year, now.month, 1);
-    final DateTime endOfMonth = DateTime(now.year, now.month + 1, 1);
-    final DateTime startOfYear = DateTime(now.year, 1, 1);
-    final DateTime endOfYear = DateTime(now.year + 1, 1, 1);
-
     void selectPeriod(_PeriodFilter filter, DateTime? start, DateTime? end) {
       setState(() {
         _periodFilter = filter;
@@ -4489,10 +4477,7 @@ class _LogboekPageState extends State<_LogboekPage> {
 
     final options = [
       ('Alle tijd', _PeriodFilter.all, null, null),
-      ('Deze week', _PeriodFilter.week, startOfWeek(), endOfWeekExclusive()),
-      ('Deze maand', _PeriodFilter.month, startOfMonth, endOfMonth),
-      ('Dit jaar', _PeriodFilter.year, startOfYear, endOfYear),
-      ('Aangepast bereik', _PeriodFilter.custom, null, null),
+      ('Periode kiezen', _PeriodFilter.custom, null, null),
     ];
 
     showModalBottomSheet<void>(
@@ -4530,18 +4515,18 @@ class _LogboekPageState extends State<_LogboekPage> {
                       Navigator.of(context).pop();
                       final initialRange =
                           (_periodFilter == _PeriodFilter.custom &&
-                                  _filterStart != null &&
-                                  _filterEnd != null)
-                              ? DateTimeRange(
-                                  start: _filterStart!,
-                                  end: _filterEnd!.subtract(
-                                    const Duration(days: 1),
-                                  ),
-                                )
-                              : DateTimeRange(
-                                  start: now.subtract(const Duration(days: 29)),
-                                  end: now,
-                                );
+                              _filterStart != null &&
+                              _filterEnd != null)
+                          ? DateTimeRange(
+                              start: _filterStart!,
+                              end: _filterEnd!.subtract(
+                                const Duration(days: 1),
+                              ),
+                            )
+                          : DateTimeRange(
+                              start: now.subtract(const Duration(days: 29)),
+                              end: now,
+                            );
                       final range = await showDateRangePicker(
                         context: pageContext,
                         initialDateRange: initialRange,
@@ -4816,7 +4801,10 @@ class _LogboekPageState extends State<_LogboekPage> {
               );
             } else {
               listWidget = ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 itemCount: docs.length,
                 separatorBuilder: (context, _) => Divider(
                   height: 1,
@@ -4828,7 +4816,8 @@ class _LogboekPageState extends State<_LogboekPage> {
                 itemBuilder: (context, i) {
                   final d = docs[i];
                   final e = d.data();
-                  final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+                  final title =
+                      (e['title'] as String?)?.trim() ?? '(zonder naam)';
                   final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
                   final createdAtRaw = e['createdAt'];
                   DateTime? createdAt;
@@ -4901,16 +4890,17 @@ class _LogboekPageState extends State<_LogboekPage> {
                       ),
                       child: ListTile(
                         key: ValueKey(d.id),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                        ),
                         dense: true,
                         visualDensity: VisualDensity.compact,
                         title: Text(
                           title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w500),
                         ),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 2),
@@ -4918,16 +4908,14 @@ class _LogboekPageState extends State<_LogboekPage> {
                             subtitleStr,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: onSurface(context, a55),
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a55)),
                           ),
                         ),
                         trailing: Text(
                           _fmtEur(displayCents),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -4941,7 +4929,12 @@ class _LogboekPageState extends State<_LogboekPage> {
                 _buildPerspectiveToggle(context),
                 if ((_perOuder && _parentsLoaded) ||
                     (!_perOuder && _childrenLoaded))
-                  _buildFilterRow(context, childCounts, parentCounts, _parentItems),
+                  _buildFilterRow(
+                    context,
+                    childCounts,
+                    parentCounts,
+                    _parentItems,
+                  ),
                 Expanded(child: listWidget),
               ],
             );
