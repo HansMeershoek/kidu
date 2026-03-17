@@ -3371,7 +3371,166 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       .withValues(
                                                         alpha: 0.08,
                                                       ),
-                                                  onTap: () {},
+                                                  onTap: () {
+                                                    showModalBottomSheet<void>(
+                                                      context: context,
+                                                      shape:
+                                                          const RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius.vertical(
+                                                                  top: Radius.circular(
+                                                                    20,
+                                                                  ),
+                                                                ),
+                                                          ),
+                                                      builder: (sheetCtx) {
+                                                        return SafeArea(
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.fromLTRB(
+                                                                  24,
+                                                                  20,
+                                                                  24,
+                                                                  28,
+                                                                ),
+                                                            child: Column(
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .stretch,
+                                                              children: [
+                                                                Center(
+                                                                  child:
+                                                                      Container(
+                                                                        width:
+                                                                            36,
+                                                                        height:
+                                                                            4,
+                                                                        decoration:
+                                                                            BoxDecoration(
+                                                                              color:
+                                                                                  Theme.of(
+                                                                                    context,
+                                                                                  ).colorScheme.outlineVariant,
+                                                                              borderRadius:
+                                                                                  BorderRadius.circular(
+                                                                                    2,
+                                                                                  ),
+                                                                            ),
+                                                                      ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 20,
+                                                                ),
+                                                                Text(
+                                                                  'Balans vereffenen',
+                                                                  style: Theme.of(
+                                                                    context,
+                                                                  ).textTheme.titleMedium
+                                                                      ?.copyWith(
+                                                                        fontWeight:
+                                                                            FontWeight.w700,
+                                                                      ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 12,
+                                                                ),
+                                                                Text(
+                                                                  settlementText,
+                                                                  style: Theme.of(
+                                                                    context,
+                                                                  ).textTheme.bodyMedium
+                                                                      ?.copyWith(
+                                                                        color:
+                                                                            onSurface(
+                                                                              context,
+                                                                              a84,
+                                                                            ),
+                                                                        height:
+                                                                            1.4,
+                                                                      ),
+                                                                ),
+                                                                if (settlementCents !=
+                                                                    0) ...[
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
+                                                                  FilledButton(
+                                                                    onPressed:
+                                                                        () {
+                                                                          Navigator.of(
+                                                                            sheetCtx,
+                                                                          ).pop();
+                                                                          showDialog<
+                                                                            bool
+                                                                          >(
+                                                                            context:
+                                                                                context,
+                                                                            builder:
+                                                                                (
+                                                                                  dialogCtx,
+                                                                                ) => AlertDialog(
+                                                                                  title:
+                                                                                      const Text(
+                                                                                        'Balans vereffenen',
+                                                                                      ),
+                                                                                  content:
+                                                                                      const Text(
+                                                                                        'Weet je zeker dat deze balans is vereffend?',
+                                                                                      ),
+                                                                                  actions: [
+                                                                                    TextButton(
+                                                                                      onPressed:
+                                                                                          () => Navigator.of(
+                                                                                            dialogCtx,
+                                                                                          ).pop(
+                                                                                            false,
+                                                                                          ),
+                                                                                      child:
+                                                                                          const Text(
+                                                                                            'Annuleren',
+                                                                                          ),
+                                                                                    ),
+                                                                                    FilledButton(
+                                                                                      onPressed:
+                                                                                          () => Navigator.of(
+                                                                                            dialogCtx,
+                                                                                          ).pop(
+                                                                                            true,
+                                                                                          ),
+                                                                                      child:
+                                                                                          const Text(
+                                                                                            'Bevestigen',
+                                                                                          ),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
+                                                                          ).then((
+                                                                            confirmed,
+                                                                          ) {
+                                                                            if (confirmed ==
+                                                                                true) {
+                                                                              _showSnackBar(
+                                                                                'Vereffening nog niet opgeslagen – dit volgt in een volgende stap.',
+                                                                              );
+                                                                            }
+                                                                          });
+                                                                        },
+                                                                    child:
+                                                                        const Text(
+                                                                          'Balans vereffenen',
+                                                                        ),
+                                                                  ),
+                                                                ],
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                    );
+                                                  },
                                                   child: Padding(
                                                     padding:
                                                         const EdgeInsets.all(
