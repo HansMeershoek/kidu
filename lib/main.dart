@@ -4302,6 +4302,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
 // Logboek – read-only expense history with child filter
 // ────────────────────────────────────────────────────────────────────────────
 
+enum _PeriodFilter { all, week, month, year, custom }
+
 class _LogboekPage extends StatefulWidget {
   const _LogboekPage({
     required this.householdId,
@@ -4327,18 +4329,50 @@ class _LogboekPageState extends State<_LogboekPage> {
   bool _perOuder = false; // false = per kind, true = per ouder
   String? _filterChildId; // null = alle, childId = selected child
   String? _filterParentUid; // null = alle, uid = selected parent
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
+  _PeriodFilter _periodFilter = _PeriodFilter.all;
+  DateTime? _filterStart;
+  DateTime? _filterEnd;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _countsStream;
   bool _initialDataReady = false;
   bool _isOffline = false;
+
+  Query<Map<String, dynamic>> _basePeriodQuery() {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/expenses',
+    );
+    if (_periodFilter != _PeriodFilter.all &&
+        _filterStart != null &&
+        _filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStart!),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(_filterEnd!));
+    }
+    return q;
+  }
+
+  void _rebuildExpensesStream() {
+    Query<Map<String, dynamic>> q = _basePeriodQuery();
+
+    if (_perOuder && _filterParentUid != null) {
+      q = q.where('createdBy', isEqualTo: _filterParentUid);
+    }
+    if (!_perOuder && _filterChildId != null) {
+      q = q.where('childIds', arrayContains: _filterChildId);
+    }
+
+    q = q.orderBy('createdAt', descending: true);
+    _expensesStream = q.snapshots();
+    _countsStream = _basePeriodQuery().snapshots();
+  }
 
   @override
   void initState() {
     super.initState();
-    _expensesStream = FirebaseFirestore.instance
-        .collection('households/${widget.householdId}/expenses')
-        .orderBy('createdAt', descending: true)
-        .limit(200)
-        .snapshots();
+    _rebuildExpensesStream();
     Future.wait([
       _loadChildren(),
       _loadParents(),
@@ -4427,17 +4461,82 @@ class _LogboekPageState extends State<_LogboekPage> {
     }
   }
 
-  bool _matchesFilter(Map<String, dynamic> data) {
-    if (_perOuder) {
-      if (_filterParentUid == null) return true;
-      final createdBy = (data['createdBy'] as String?)?.trim() ?? '';
-      return createdBy == _filterParentUid;
+  void _showPeriodFilterSheet() {
+    final now = DateTime.now();
+
+    DateTime startOfWeek() {
+      final d = now.subtract(Duration(days: now.weekday - 1));
+      return DateTime(d.year, d.month, d.day);
     }
-    if (_filterChildId == null) return true;
-    final ids =
-        (data['childIds'] as List?)?.whereType<String>().toList() ??
-        const <String>[];
-    return ids.contains(_filterChildId);
+
+    DateTime endOfWeekExclusive() => startOfWeek().add(const Duration(days: 7));
+
+    final DateTime startOfMonth = DateTime(now.year, now.month, 1);
+    final DateTime endOfMonth = DateTime(now.year, now.month + 1, 1);
+    final DateTime startOfYear = DateTime(now.year, 1, 1);
+    final DateTime endOfYear = DateTime(now.year + 1, 1, 1);
+
+    void selectPeriod(_PeriodFilter filter, DateTime? start, DateTime? end) {
+      setState(() {
+        _periodFilter = filter;
+        _filterStart = start;
+        _filterEnd = end;
+        _rebuildExpensesStream();
+      });
+      Navigator.of(context).pop();
+    }
+
+    final options = [
+      ('Alle tijd', _PeriodFilter.all, null, null),
+      ('Deze week', _PeriodFilter.week, startOfWeek(), endOfWeekExclusive()),
+      ('Deze maand', _PeriodFilter.month, startOfMonth, endOfMonth),
+      ('Dit jaar', _PeriodFilter.year, startOfYear, endOfYear),
+      ('Aangepast bereik', _PeriodFilter.custom, null, null),
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Text(
+                  'Periode',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              for (final (label, filter, start, end) in options)
+                ListTile(
+                  title: Text(label),
+                  leading: _periodFilter == filter
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () {
+                    if (filter == _PeriodFilter.custom) {
+                      // Placeholder: aangepast bereik volgt in een latere stap.
+                      return;
+                    }
+                    selectPeriod(filter, start, end);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   static String _fmtEur(int cents) {
@@ -4485,6 +4584,13 @@ class _LogboekPageState extends State<_LogboekPage> {
           letterSpacing: 0.4,
         ),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.filter_list_outlined),
+          onPressed: _showPeriodFilterSheet,
+          tooltip: 'Filter',
+        ),
+      ],
     );
 
     return PopScope(
@@ -4534,6 +4640,7 @@ class _LogboekPageState extends State<_LogboekPage> {
             onSelected: (_) => setState(() {
               _perOuder = false;
               _filterParentUid = null;
+              _rebuildExpensesStream();
             }),
           ),
           const SizedBox(width: 8),
@@ -4544,6 +4651,7 @@ class _LogboekPageState extends State<_LogboekPage> {
             onSelected: (_) => setState(() {
               _perOuder = true;
               _filterChildId = null;
+              _rebuildExpensesStream();
             }),
           ),
         ],
@@ -4565,50 +4673,57 @@ class _LogboekPageState extends State<_LogboekPage> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: _perOuder
-            ? [
-                if (parentItems.length > 1)
-                  FilterChip(
-                    label: Text('Alle (${parentCounts[null] ?? 0})'),
-                    selected: _filterParentUid == null,
-                    showCheckmark: false,
-                    onSelected: (_) =>
-                        setState(() => _filterParentUid = null),
-                  ),
-                for (final (i, p) in parentItems.indexed) ...[
-                  if (i > 0 || parentItems.length > 1)
-                    const SizedBox(width: 8),
-                  FilterChip(
-                    label: Text('${p.name} (${parentCounts[p.uid] ?? 0})'),
-                    selected: _filterParentUid == p.uid,
-                    showCheckmark: false,
-                    onSelected: (v) => setState(
-                      () => _filterParentUid = v ? p.uid : null,
+              ? [
+                  if (parentItems.length > 1)
+                    FilterChip(
+                      label: Text('Alle (${parentCounts[null] ?? 0})'),
+                      selected: _filterParentUid == null,
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() {
+                        _filterParentUid = null;
+                        _rebuildExpensesStream();
+                      }),
                     ),
-                  ),
-                ],
-              ]
-            : [
-                if (_children.length > 1)
-                  FilterChip(
-                    label: Text('Alle (${childCounts[null] ?? 0})'),
-                    selected: _filterChildId == null,
-                    showCheckmark: false,
-                    onSelected: (_) => setState(() => _filterChildId = null),
-                  ),
-                for (final (i, child) in _children.indexed) ...[
-                  if (i > 0 || _children.length > 1)
-                    const SizedBox(width: 8),
-                  FilterChip(
-                    label: Text(
-                      '${child.name} (${childCounts[child.id] ?? 0})',
+                  for (final (i, p) in parentItems.indexed) ...[
+                    if (i > 0 || parentItems.length > 1)
+                      const SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('${p.name} (${parentCounts[p.uid] ?? 0})'),
+                      selected: _filterParentUid == p.uid,
+                      showCheckmark: false,
+                      onSelected: (v) => setState(() {
+                        _filterParentUid = v ? p.uid : null;
+                        _rebuildExpensesStream();
+                      }),
                     ),
-                    selected: _filterChildId == child.id,
-                    showCheckmark: false,
-                    onSelected: (v) =>
-                        setState(() => _filterChildId = v ? child.id : null),
-                  ),
+                  ],
+                ]
+              : [
+                  if (_children.length > 1)
+                    FilterChip(
+                      label: Text('Alle (${childCounts[null] ?? 0})'),
+                      selected: _filterChildId == null,
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() {
+                        _filterChildId = null;
+                        _rebuildExpensesStream();
+                      }),
+                    ),
+                  for (final (i, child) in _children.indexed) ...[
+                    if (i > 0 || _children.length > 1) const SizedBox(width: 8),
+                    FilterChip(
+                      label: Text(
+                        '${child.name} (${childCounts[child.id] ?? 0})',
+                      ),
+                      selected: _filterChildId == child.id,
+                      showCheckmark: false,
+                      onSelected: (v) => setState(() {
+                        _filterChildId = v ? child.id : null;
+                        _rebuildExpensesStream();
+                      }),
+                    ),
+                  ],
                 ],
-              ],
         ),
       ),
     );
@@ -4616,24 +4731,13 @@ class _LogboekPageState extends State<_LogboekPage> {
 
   Widget _buildExpenseList(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _expensesStream,
-      builder: (context, snap) {
-        if (snap.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(mapUserFacingError(snap.error!)),
-            ),
-          );
-        }
-        if (!snap.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final allDocs = snap.data!.docs;
+      stream: _countsStream,
+      builder: (context, countsSnap) {
+        final countDocs = countsSnap.data?.docs ?? const [];
         final childCounts = <String?, int>{
-          null: allDocs.length,
+          null: countDocs.length,
           for (final child in _children)
-            child.id: allDocs
+            child.id: countDocs
                 .where(
                   (d) =>
                       (d.data()['childIds'] as List?)?.contains(child.id) ==
@@ -4643,158 +4747,169 @@ class _LogboekPageState extends State<_LogboekPage> {
         };
         // Use _parentItems from household members; counts include 0 for parents with no expenses.
         final parentCounts = <String?, int>{
-          null: allDocs.length,
+          null: countDocs.length,
           for (final p in _parentItems)
-            p.uid: allDocs
+            p.uid: countDocs
                 .where(
-                  (d) =>
-                      (d.data()['createdBy'] as String?)?.trim() == p.uid,
+                  (d) => (d.data()['createdBy'] as String?)?.trim() == p.uid,
                 )
                 .length,
         };
-        final docs = allDocs.where((d) => _matchesFilter(d.data())).toList();
-        final Widget listWidget;
-        if (docs.isEmpty) {
-          listWidget = const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Geen uitgaven gevonden.'),
-            ),
-          );
-        } else {
-          listWidget = ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: docs.length,
-            separatorBuilder: (context, _) => Divider(
-              height: 1,
-              thickness: 0.4,
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: 0.6),
-            ),
-            itemBuilder: (context, i) {
-              final d = docs[i];
-              final e = d.data();
-              final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
-              final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
-              final createdAtRaw = e['createdAt'];
-              DateTime? createdAt;
-              if (createdAtRaw is Timestamp) {
-                createdAt = createdAtRaw.toDate().toLocal();
-              } else if (createdAtRaw is DateTime) {
-                createdAt = createdAtRaw.toLocal();
-              }
-              final childIds =
-                  (e['childIds'] as List?)?.whereType<String>().toList() ??
-                  const <String>[];
-              final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-              final paidByName = createdBy == widget.uid
-                  ? (widget.myName ?? 'Jij')
-                  : (widget.otherName ?? 'Co-parent');
-              final nKids = childIds.length;
-              final isFiltered = _filterChildId != null && nKids > 0;
-              final displayCents = isFiltered
-                  ? (amountCents / nKids).round()
-                  : amountCents;
-              final dateStr = _fmtDate(createdAt);
-              final subtitleStr = isFiltered
-                  ? '$dateStr · aandeel 1/$nKids'
-                  : nKids > 0
-                  ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
-                  : dateStr;
-              return Material(
-                type: MaterialType.transparency,
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  highlightColor: Theme.of(
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _expensesStream,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(mapUserFacingError(snap.error!)),
+                ),
+              );
+            }
+            if (!snap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final docs = snap.data!.docs;
+            final Widget listWidget;
+            if (docs.isEmpty) {
+              listWidget = const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Geen uitgaven gevonden.'),
+                ),
+              );
+            } else {
+              listWidget = ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: docs.length,
+                separatorBuilder: (context, _) => Divider(
+                  height: 1,
+                  thickness: 0.4,
+                  color: Theme.of(
                     context,
-                  ).colorScheme.primary.withValues(alpha: 0.10),
-                  splashColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.08),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => _ExpenseDetailPage(
-                        householdId: widget.householdId,
-                        expenseId: d.id,
-                        uid: widget.uid,
-                        title: title,
-                        amountCents: amountCents,
-                        paidByName: paidByName,
-                        createdAt: createdAt,
-                        isPending: false,
-                        onManageNote: createdBy == widget.uid
-                            ? () => _doManagePrivateNote(
-                                context,
-                                householdId: widget.householdId,
-                                expenseId: d.id,
-                                uid: widget.uid,
-                              )
-                            : null,
-                        childIds: childIds,
-                        childNames: childIds
-                            .map(
-                              (id) =>
-                                  _children
-                                      .where((c) => c.id == id)
-                                      .map((c) => c.name)
-                                      .firstOrNull ??
-                                  'Verwijderd kind',
-                            )
-                            .toList(),
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+                ),
+                itemBuilder: (context, i) {
+                  final d = docs[i];
+                  final e = d.data();
+                  final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+                  final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+                  final createdAtRaw = e['createdAt'];
+                  DateTime? createdAt;
+                  if (createdAtRaw is Timestamp) {
+                    createdAt = createdAtRaw.toDate().toLocal();
+                  } else if (createdAtRaw is DateTime) {
+                    createdAt = createdAtRaw.toLocal();
+                  }
+                  final childIds =
+                      (e['childIds'] as List?)?.whereType<String>().toList() ??
+                      const <String>[];
+                  final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+                  final paidByName = createdBy == widget.uid
+                      ? (widget.myName ?? 'Jij')
+                      : (widget.otherName ?? 'Co-parent');
+                  final nKids = childIds.length;
+                  final isFiltered = _filterChildId != null && nKids > 0;
+                  final displayCents = isFiltered
+                      ? (amountCents / nKids).round()
+                      : amountCents;
+                  final dateStr = _fmtDate(createdAt);
+                  final subtitleStr = isFiltered
+                      ? '$dateStr · aandeel 1/$nKids'
+                      : nKids > 0
+                      ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
+                      : dateStr;
+                  return Material(
+                    type: MaterialType.transparency,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      highlightColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.10),
+                      splashColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.08),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _ExpenseDetailPage(
+                            householdId: widget.householdId,
+                            expenseId: d.id,
+                            uid: widget.uid,
+                            title: title,
+                            amountCents: amountCents,
+                            paidByName: paidByName,
+                            createdAt: createdAt,
+                            isPending: false,
+                            onManageNote: createdBy == widget.uid
+                                ? () => _doManagePrivateNote(
+                                    context,
+                                    householdId: widget.householdId,
+                                    expenseId: d.id,
+                                    uid: widget.uid,
+                                  )
+                                : null,
+                            childIds: childIds,
+                            childNames: childIds
+                                .map(
+                                  (id) =>
+                                      _children
+                                          .where((c) => c.id == id)
+                                          .map((c) => c.name)
+                                          .firstOrNull ??
+                                      'Verwijderd kind',
+                                )
+                                .toList(),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  child: ListTile(
-                    key: ValueKey(d.id),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        subtitleStr,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a55),
+                      child: ListTile(
+                        key: ValueKey(d.id),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        title: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            subtitleStr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: onSurface(context, a55),
+                            ),
+                          ),
+                        ),
+                        trailing: Text(
+                          _fmtEur(displayCents),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                    trailing: Text(
-                      _fmtEur(displayCents),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
+                  );
+                },
               );
-            },
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildPerspectiveToggle(context),
-            if ((_perOuder && _parentsLoaded) || (!_perOuder && _childrenLoaded))
-              _buildFilterRow(
-                context,
-                childCounts,
-                parentCounts,
-                _parentItems,
-              ),
-            Expanded(child: listWidget),
-          ],
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildPerspectiveToggle(context),
+                if ((_perOuder && _parentsLoaded) ||
+                    (!_perOuder && _childrenLoaded))
+                  _buildFilterRow(context, childCounts, parentCounts, _parentItems),
+                Expanded(child: listWidget),
+              ],
+            );
+          },
         );
       },
     );
