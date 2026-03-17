@@ -3344,73 +3344,123 @@ class _DashboardPageState extends State<DashboardPage> {
                                               const SizedBox(height: 10),
                                             ],
                                             KiduCard(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  Text(
-                                                    'Balans',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
+                                              padding: EdgeInsets.zero,
+                                              child: Material(
+                                                type: MaterialType
+                                                    .transparency,
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      _DashboardPageState
+                                                          ._cardRadius,
+                                                    ),
+                                                child: InkWell(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        _DashboardPageState
+                                                            ._cardRadius,
+                                                      ),
+                                                  highlightColor: Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary
+                                                      .withValues(
+                                                        alpha: 0.10,
+                                                      ),
+                                                  splashColor: Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary
+                                                      .withValues(
+                                                        alpha: 0.08,
+                                                      ),
+                                                  onTap: () {},
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          16,
                                                         ),
-                                                  ),
-                                                  // Compact summary: replace three separate rows.
-                                                  const SizedBox(height: 8),
-                                                  _balanceRow(
-                                                    label:
-                                                        'Totaal samen uitgegeven',
-                                                    value: _formatEur(
-                                                      totalCents,
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .stretch,
+                                                      children: [
+                                                        Text(
+                                                          'Balans',
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.titleMedium
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                              ),
+                                                        ),
+                                                        // Compact summary: replace three separate rows.
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        _balanceRow(
+                                                          label:
+                                                              'Totaal samen uitgegeven',
+                                                          value: _formatEur(
+                                                            totalCents,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        Text(
+                                                          '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodySmall
+                                                              ?.copyWith(
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a62,
+                                                                    ),
+                                                                height: 1.3,
+                                                              ),
+                                                        ),
+                                                        // Tighter section spacing for lower card height.
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        Divider(
+                                                          height: 1,
+                                                          color: outlineV(
+                                                            context,
+                                                            a40,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        // Keep settlement as primary info.
+                                                        Text(
+                                                          settlementText,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodySmall
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a84,
+                                                                    ),
+                                                                height: 1.3,
+                                                              ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 8),
-                                                  Text(
-                                                    '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          color: onSurface(
-                                                            context,
-                                                            a62,
-                                                          ),
-                                                          height: 1.3,
-                                                        ),
-                                                  ),
-                                                  // Tighter section spacing for lower card height.
-                                                  const SizedBox(height: 8),
-                                                  Divider(
-                                                    height: 1,
-                                                    color: outlineV(
-                                                      context,
-                                                      a40,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  // Keep settlement as primary info.
-                                                  Text(
-                                                    settlementText,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: onSurface(
-                                                            context,
-                                                            a84,
-                                                          ),
-                                                          height: 1.3,
-                                                        ),
-                                                  ),
-                                                ],
+                                                ),
                                               ),
                                             ),
                                             const SizedBox(height: _cardGap),
