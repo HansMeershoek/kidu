@@ -4462,6 +4462,7 @@ class _LogboekPageState extends State<_LogboekPage> {
   }
 
   void _showPeriodFilterSheet() {
+    final pageContext = context;
     final now = DateTime.now();
 
     DateTime startOfWeek() {
@@ -4524,9 +4525,44 @@ class _LogboekPageState extends State<_LogboekPage> {
                           color: Theme.of(context).colorScheme.primary,
                         )
                       : null,
-                  onTap: () {
+                  onTap: () async {
                     if (filter == _PeriodFilter.custom) {
-                      // Placeholder: aangepast bereik volgt in een latere stap.
+                      Navigator.of(context).pop();
+                      final initialRange =
+                          (_periodFilter == _PeriodFilter.custom &&
+                                  _filterStart != null &&
+                                  _filterEnd != null)
+                              ? DateTimeRange(
+                                  start: _filterStart!,
+                                  end: _filterEnd!.subtract(
+                                    const Duration(days: 1),
+                                  ),
+                                )
+                              : DateTimeRange(
+                                  start: now.subtract(const Duration(days: 29)),
+                                  end: now,
+                                );
+                      final range = await showDateRangePicker(
+                        context: pageContext,
+                        initialDateRange: initialRange,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(now.year, now.month, now.day),
+                      );
+                      if (range == null || !mounted) return;
+                      setState(() {
+                        _periodFilter = _PeriodFilter.custom;
+                        _filterStart = DateTime(
+                          range.start.year,
+                          range.start.month,
+                          range.start.day,
+                        );
+                        _filterEnd = DateTime(
+                          range.end.year,
+                          range.end.month,
+                          range.end.day + 1,
+                        );
+                        _rebuildExpensesStream();
+                      });
                       return;
                     }
                     selectPeriod(filter, start, end);
