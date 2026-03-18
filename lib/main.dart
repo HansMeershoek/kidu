@@ -3470,22 +3470,58 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       ),
                                                                 ),
                                                                 const SizedBox(
-                                                                  height: 12,
+                                                                  height: 16,
                                                                 ),
-                                                                Text(
-                                                                  settlementText,
-                                                                  style: Theme.of(context)
-                                                                      .textTheme
-                                                                      .bodyMedium
-                                                                      ?.copyWith(
-                                                                        color: onSurface(
-                                                                          context,
-                                                                          a84,
+                                                                if (settlementCents ==
+                                                                    0)
+                                                                  Text(
+                                                                    'Jullie zijn in balans',
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a62,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
                                                                         ),
-                                                                        height:
-                                                                            1.4,
-                                                                      ),
-                                                                ),
+                                                                  )
+                                                                else ...[
+                                                                  Text(
+                                                                    'Open bedrag: ${_formatEur(absSettlement)}',
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleSmall
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                        ),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
+                                                                  Text(
+                                                                    settlementCents >
+                                                                            0
+                                                                        ? '$otherName betaalt jou'
+                                                                        : 'Jij betaalt $otherName',
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodySmall
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a62,
+                                                                          ),
+                                                                        ),
+                                                                  ),
+                                                                ],
                                                                 if (settlementCents !=
                                                                     0) ...[
                                                                   const SizedBox(
