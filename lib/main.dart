@@ -3420,16 +3420,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         otherPaidCents)
                                                 ? 1
                                                 : 0);
-                                        final rawSettlementCents =
+                                        final rawBalanceCents =
                                             myPaidCents - expectedMy;
-                                        final settlementCents =
-                                            rawSettlementCents +
+                                        final balanceCents =
+                                            rawBalanceCents +
                                             _totalPaidByMe -
                                             _totalPaidToMe +
                                             _confirmedPaidByMe -
                                             _confirmedPaidToMe;
 
-                                        final absSettlement = settlementCents
+                                        final absBalance = balanceCents
                                             .abs();
                                         final pendingInCents =
                                             (_pendingIncoming?['amountCents']
@@ -3440,23 +3440,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     as num?)
                                                 ?.toInt();
 
-                                        final String settlementText;
+                                        final String statusText;
                                         if (pendingInCents != null &&
                                             pendingInCents > 0) {
-                                          settlementText =
+                                          statusText =
                                               '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
                                         } else if (pendingOutCents != null &&
                                             pendingOutCents > 0) {
-                                          settlementText =
+                                          statusText =
                                               '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
-                                        } else if (settlementCents > 0) {
-                                          settlementText =
-                                              '$otherName betaalt jou ${_formatEur(absSettlement)}';
-                                        } else if (settlementCents < 0) {
-                                          settlementText =
-                                              'Jij betaalt $otherName ${_formatEur(absSettlement)}';
+                                        } else if (balanceCents > 0) {
+                                          statusText =
+                                              '$otherName betaalt jou ${_formatEur(absBalance)}';
+                                        } else if (balanceCents < 0) {
+                                          statusText =
+                                              'Jij betaalt $otherName ${_formatEur(absBalance)}';
                                         } else {
-                                          settlementText =
+                                          statusText =
                                               'Jullie zijn in balans';
                                         }
 
@@ -3699,10 +3699,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     final amountCtrl =
                                                         TextEditingController(
                                                           text:
-                                                              '${absSettlement ~/ 100},${(absSettlement % 100).toString().padLeft(2, '0')}',
+                                                              '${absBalance ~/ 100},${(absBalance % 100).toString().padLeft(2, '0')}',
                                                         );
                                                     int? enteredCents =
-                                                        absSettlement;
+                                                        absBalance;
                                                     showModalBottomSheet<void>(
                                                       context: context,
                                                       isScrollControlled: true,
@@ -3763,7 +3763,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           20,
                                                                     ),
                                                                     Text(
-                                                                      settlementCents < 0
+                                                                      balanceCents < 0
                                                                           ? 'Betaling melden'
                                                                           : 'Balans',
                                                                       style: Theme.of(context)
@@ -3778,7 +3778,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       height:
                                                                           16,
                                                                     ),
-                                                                    if (settlementCents ==
+                                                                    if (balanceCents ==
                                                                         0)
                                                                       Text(
                                                                         'Jullie zijn in balans',
@@ -3793,10 +3793,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               height: 1.4,
                                                                             ),
                                                                       )
-                                                                    else if (settlementCents >
+                                                                    else if (balanceCents >
                                                                         0) ...[
                                                                       Text(
-                                                                        '$otherName is jou nog ${_formatEur(absSettlement)} schuldig',
+                                                                        '$otherName is jou nog ${_formatEur(absBalance)} schuldig',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -3827,7 +3827,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       ),
                                                                     ] else ...[
                                                                       Text(
-                                                                        'Open bedrag: ${_formatEur(absSettlement)}',
+                                                                        'Open bedrag: ${_formatEur(absBalance)}',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -4071,9 +4071,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         const SizedBox(
                                                           height: 8,
                                                         ),
-                                                        // Keep settlement as primary info.
                                                         Text(
-                                                          settlementText,
+                                                          statusText,
                                                           style: Theme.of(context)
                                                               .textTheme
                                                               .bodySmall
