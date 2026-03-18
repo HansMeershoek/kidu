@@ -1045,6 +1045,20 @@ class _DashboardPageState extends State<DashboardPage> {
   int _totalPaidByMe = 0;
   int _totalPaidToMe = 0;
 
+  String? _paymentsHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _paymentsSubscription;
+  Map<String, dynamic>? _pendingIncoming;
+  String? _pendingIncomingId;
+  Map<String, dynamic>? _pendingOutgoing;
+  String? _pendingOutgoingId;
+
+  String? _confirmedPaymentsHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _confirmedPaymentsSubscription;
+  int _confirmedPaidByMe = 0;
+  int _confirmedPaidToMe = 0;
+
   Future<String?> _loadMyPrivateNote({
     required String householdId,
     required String expenseId,
@@ -1242,6 +1256,69 @@ class _DashboardPageState extends State<DashboardPage> {
           setState(() {
             _totalPaidByMe = paidByMe;
             _totalPaidToMe = paidToMe;
+          });
+        });
+  }
+
+  void _startPaymentsSubscription(String householdId, String myUid) {
+    if (_paymentsHouseholdId == householdId) return;
+    _paymentsSubscription?.cancel();
+    _paymentsHouseholdId = householdId;
+    _paymentsSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/payments')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          Map<String, dynamic>? incoming;
+          String? incomingId;
+          Map<String, dynamic>? outgoing;
+          String? outgoingId;
+          for (final doc in snap.docs) {
+            final d = doc.data();
+            final to = (d['toUserId'] as String?)?.trim();
+            final from = (d['fromUserId'] as String?)?.trim();
+            if (to == myUid && incoming == null) {
+              incoming = d;
+              incomingId = doc.id;
+            }
+            if (from == myUid && outgoing == null) {
+              outgoing = d;
+              outgoingId = doc.id;
+            }
+          }
+          setState(() {
+            _pendingIncoming = incoming;
+            _pendingIncomingId = incomingId;
+            _pendingOutgoing = outgoing;
+            _pendingOutgoingId = outgoingId;
+          });
+        });
+  }
+
+  void _startConfirmedPaymentsSubscription(String householdId, String myUid) {
+    if (_confirmedPaymentsHouseholdId == householdId) return;
+    _confirmedPaymentsSubscription?.cancel();
+    _confirmedPaymentsHouseholdId = householdId;
+    _confirmedPaymentsSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/payments')
+        .where('status', isEqualTo: 'confirmed')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          var paidByMe = 0;
+          var paidToMe = 0;
+          for (final doc in snap.docs) {
+            final d = doc.data();
+            final cents = (d['amountCents'] as num?)?.toInt() ?? 0;
+            final from = (d['fromUserId'] as String?)?.trim();
+            final to = (d['toUserId'] as String?)?.trim();
+            if (from == myUid) paidByMe += cents;
+            if (to == myUid) paidToMe += cents;
+          }
+          setState(() {
+            _confirmedPaidByMe = paidByMe;
+            _confirmedPaidToMe = paidToMe;
           });
         });
   }
@@ -2125,6 +2202,8 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     _settlementsSubscription?.cancel();
+    _paymentsSubscription?.cancel();
+    _confirmedPaymentsSubscription?.cancel();
     _addExpenseCheckBusyVN.dispose();
     _freezeExpensesVN.dispose();
     _addExpenseDialogOpenVN.dispose();
@@ -2643,6 +2722,12 @@ class _DashboardPageState extends State<DashboardPage> {
         if (householdIdStr.isNotEmpty) {
           Future.microtask(
             () => _startSettlementsSubscription(householdIdStr, user.uid),
+          );
+          Future.microtask(
+            () => _startPaymentsSubscription(householdIdStr, user.uid),
+          );
+          Future.microtask(
+            () => _startConfirmedPaymentsSubscription(householdIdStr, user.uid),
           );
         }
 
@@ -3340,16 +3425,40 @@ class _DashboardPageState extends State<DashboardPage> {
                                         final settlementCents =
                                             rawSettlementCents +
                                             _totalPaidByMe -
-                                            _totalPaidToMe;
+                                            _totalPaidToMe +
+                                            _confirmedPaidByMe -
+                                            _confirmedPaidToMe;
 
                                         final absSettlement = settlementCents
                                             .abs();
-                                        final settlementText =
-                                            settlementCents > 0
-                                            ? '$otherName betaalt jou ${_formatEur(absSettlement)}'
-                                            : settlementCents < 0
-                                            ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
-                                            : 'Jullie zijn in balans';
+                                        final pendingInCents =
+                                            (_pendingIncoming?['amountCents']
+                                                    as num?)
+                                                ?.toInt();
+                                        final pendingOutCents =
+                                            (_pendingOutgoing?['amountCents']
+                                                    as num?)
+                                                ?.toInt();
+
+                                        final String settlementText;
+                                        if (pendingInCents != null &&
+                                            pendingInCents > 0) {
+                                          settlementText =
+                                              '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
+                                        } else if (pendingOutCents != null &&
+                                            pendingOutCents > 0) {
+                                          settlementText =
+                                              '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
+                                        } else if (settlementCents > 0) {
+                                          settlementText =
+                                              '$otherName betaalt jou ${_formatEur(absSettlement)}';
+                                        } else if (settlementCents < 0) {
+                                          settlementText =
+                                              'Jij betaalt $otherName ${_formatEur(absSettlement)}';
+                                        } else {
+                                          settlementText =
+                                              'Jullie zijn in balans';
+                                        }
 
                                         String? lastActivityText;
                                         if (docs.isNotEmpty) {
@@ -3412,8 +3521,191 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       .primary
                                                       .withValues(alpha: 0.08),
                                                   onTap: () {
+                                                    if (_pendingIncoming != null && _pendingIncomingId != null) {
+                                                      final inPayment = _pendingIncoming!;
+                                                      final inId = _pendingIncomingId!;
+                                                      final inCents = (inPayment['amountCents'] as num?)?.toInt() ?? 0;
+                                                      showModalBottomSheet<void>(
+                                                        context: context,
+                                                        isScrollControlled: true,
+                                                        shape: const RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                        ),
+                                                        builder: (sheetCtx) {
+                                                          return SafeArea(
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              child: Column(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                children: [
+                                                                  Center(
+                                                                    child: Container(
+                                                                      width: 36,
+                                                                      height: 4,
+                                                                      decoration: BoxDecoration(
+                                                                        color: Theme.of(context).colorScheme.outlineVariant,
+                                                                        borderRadius: BorderRadius.circular(2),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 20),
+                                                                  Text(
+                                                                    'Ontvangst bevestigen',
+                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                                      fontWeight: FontWeight.w700,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 16),
+                                                                  Text(
+                                                                    'Betaling gemeld door $otherName',
+                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                                      color: onSurface(context, a84),
+                                                                      height: 1.4,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    _formatEur(inCents),
+                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                                                      fontWeight: FontWeight.w600,
+                                                                      color: onSurface(context, a84),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 20),
+                                                                  FilledButton(
+                                                                    onPressed: () {
+                                                                      Navigator.of(sheetCtx).pop();
+                                                                      showDialog<bool>(
+                                                                        context: context,
+                                                                        builder: (dialogCtx) => AlertDialog(
+                                                                          title: const Text('Ontvangst bevestigen'),
+                                                                          content: Text(
+                                                                            'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
+                                                                          ),
+                                                                          actions: [
+                                                                            TextButton(
+                                                                              onPressed: () => Navigator.of(dialogCtx).pop(false),
+                                                                              child: const Text('Annuleren'),
+                                                                            ),
+                                                                            FilledButton(
+                                                                              onPressed: () => Navigator.of(dialogCtx).pop(true),
+                                                                              child: const Text('Bevestigen'),
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                      ).then((confirmed) async {
+                                                                        if (confirmed == true) {
+                                                                          try {
+                                                                            await FirebaseFirestore.instance
+                                                                                .doc('households/$householdIdStr/payments/$inId')
+                                                                                .update({
+                                                                                  'status': 'confirmed',
+                                                                                  'confirmedAt': FieldValue.serverTimestamp(),
+                                                                                  'confirmedBy': user.uid,
+                                                                                });
+                                                                            _showSnackBar('Ontvangst bevestigd.');
+                                                                          } catch (e) {
+                                                                            if (kDebugMode) {
+                                                                              debugPrint('Payment confirm error: $e');
+                                                                            }
+                                                                            _showSnackBar(
+                                                                              mapUserFacingError(
+                                                                                e,
+                                                                                fallback: 'Bevestiging kon niet worden opgeslagen.',
+                                                                              ),
+                                                                            );
+                                                                          }
+                                                                        }
+                                                                      });
+                                                                    },
+                                                                    child: const Text('Ontvangst bevestigen'),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    if (_pendingOutgoing != null) {
+                                                      final outPayment = _pendingOutgoing!;
+                                                      final outCents = (outPayment['amountCents'] as num?)?.toInt() ?? 0;
+                                                      showModalBottomSheet<void>(
+                                                        context: context,
+                                                        shape: const RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                        ),
+                                                        builder: (sheetCtx) {
+                                                          return SafeArea(
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              child: Column(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                children: [
+                                                                  Center(
+                                                                    child: Container(
+                                                                      width: 36,
+                                                                      height: 4,
+                                                                      decoration: BoxDecoration(
+                                                                        color: Theme.of(context).colorScheme.outlineVariant,
+                                                                        borderRadius: BorderRadius.circular(2),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 20),
+                                                                  Text(
+                                                                    'Betaling melden',
+                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                                      fontWeight: FontWeight.w700,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 16),
+                                                                  Text(
+                                                                    'Betaling gemeld',
+                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                                      color: onSurface(context, a84),
+                                                                      height: 1.4,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    '${_formatEur(outCents)} aan $otherName',
+                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                                                      fontWeight: FontWeight.w600,
+                                                                      color: onSurface(context, a84),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 8),
+                                                                  Text(
+                                                                    'Wacht op bevestiging door $otherName',
+                                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                      color: onSurface(context, a62),
+                                                                      height: 1.4,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    final amountCtrl =
+                                                        TextEditingController(
+                                                          text:
+                                                              '${absSettlement ~/ 100},${(absSettlement % 100).toString().padLeft(2, '0')}',
+                                                        );
+                                                    int? enteredCents =
+                                                        absSettlement;
                                                     showModalBottomSheet<void>(
                                                       context: context,
+                                                      isScrollControlled: true,
                                                       shape: const RoundedRectangleBorder(
                                                         borderRadius:
                                                             BorderRadius.vertical(
@@ -3424,212 +3716,291 @@ class _DashboardPageState extends State<DashboardPage> {
                                                             ),
                                                       ),
                                                       builder: (sheetCtx) {
-                                                        return SafeArea(
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.fromLTRB(
-                                                                  24,
-                                                                  20,
-                                                                  24,
-                                                                  28,
-                                                                ),
-                                                            child: Column(
-                                                              mainAxisSize:
-                                                                  MainAxisSize
-                                                                      .min,
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .stretch,
-                                                              children: [
-                                                                Center(
-                                                                  child: Container(
-                                                                    width: 36,
-                                                                    height: 4,
-                                                                    decoration: BoxDecoration(
-                                                                      color: Theme.of(
-                                                                        context,
-                                                                      ).colorScheme.outlineVariant,
-                                                                      borderRadius:
-                                                                          BorderRadius.circular(
-                                                                            2,
-                                                                          ),
+                                                        return StatefulBuilder(
+                                                          builder: (_, setSheetState) {
+                                                            final isValid =
+                                                                enteredCents !=
+                                                                    null &&
+                                                                enteredCents! >
+                                                                    0;
+                                                            final bottomInset = MediaQuery.of(sheetCtx).viewInsets.bottom;
+                                                            return SafeArea(
+                                                              child: Padding(
+                                                                padding:
+                                                                    EdgeInsets.fromLTRB(
+                                                                      24,
+                                                                      20,
+                                                                      24,
+                                                                      28 + bottomInset,
                                                                     ),
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: 20,
-                                                                ),
-                                                                Text(
-                                                                  'Betaling registreren',
-                                                                  style: Theme.of(context)
-                                                                      .textTheme
-                                                                      .titleMedium
-                                                                      ?.copyWith(
-                                                                        fontWeight:
-                                                                            FontWeight.w700,
+                                                                child: Column(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  crossAxisAlignment:
+                                                                      CrossAxisAlignment
+                                                                          .stretch,
+                                                                  children: [
+                                                                    Center(
+                                                                      child: Container(
+                                                                        width:
+                                                                            36,
+                                                                        height:
+                                                                            4,
+                                                                        decoration: BoxDecoration(
+                                                                          color: Theme.of(
+                                                                            context,
+                                                                          ).colorScheme.outlineVariant,
+                                                                          borderRadius:
+                                                                              BorderRadius.circular(
+                                                                                2,
+                                                                              ),
+                                                                        ),
                                                                       ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: 16,
-                                                                ),
-                                                                if (settlementCents ==
-                                                                    0)
-                                                                  Text(
-                                                                    'Jullie zijn in balans',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodyMedium
-                                                                        ?.copyWith(
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a62,
-                                                                          ),
-                                                                          height:
-                                                                              1.4,
-                                                                        ),
-                                                                  )
-                                                                else ...[
-                                                                  Text(
-                                                                    'Open bedrag: ${_formatEur(absSettlement)}',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .titleSmall
-                                                                        ?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w600,
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a84,
-                                                                          ),
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 4,
-                                                                  ),
-                                                                  Text(
-                                                                    settlementCents >
-                                                                            0
-                                                                        ? '$otherName betaalt jou'
-                                                                        : 'Jij betaalt $otherName',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodySmall
-                                                                        ?.copyWith(
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a62,
-                                                                          ),
-                                                                        ),
-                                                                  ),
-                                                                ],
-                                                                if (settlementCents !=
-                                                                    0) ...[
-                                                                  const SizedBox(
-                                                                    height: 20,
-                                                                  ),
-                                                                  FilledButton(
-                                                                    onPressed: () {
-                                                                      final settledByUid =
-                                                                          user.uid;
-                                                                      final absSettlementCents =
-                                                                          absSettlement;
-                                                                      final debtorUid =
-                                                                          settlementCents >
-                                                                              0
-                                                                          ? otherUid!
-                                                                          : user.uid;
-                                                                      final creditorUid =
-                                                                          settlementCents >
-                                                                              0
-                                                                          ? user.uid
-                                                                          : otherUid!;
-                                                                      Navigator.of(
-                                                                        sheetCtx,
-                                                                      ).pop();
-                                                                      showDialog<bool>(
-                                                                        context:
-                                                                            context,
-                                                                        builder:
-                                                                            (
-                                                                              dialogCtx,
-                                                                            ) => AlertDialog(
-                                                                              title: const Text(
-                                                                                'Betaling registreren',
-                                                                              ),
-                                                                              content: const Text(
-                                                                                'Weet je zeker dat je deze betaling wilt registreren?',
-                                                                              ),
-                                                                              actions: [
-                                                                                TextButton(
-                                                                                  onPressed: () =>
-                                                                                      Navigator.of(
-                                                                                        dialogCtx,
-                                                                                      ).pop(
-                                                                                        false,
-                                                                                      ),
-                                                                                  child: const Text(
-                                                                                    'Annuleren',
-                                                                                  ),
-                                                                                ),
-                                                                                FilledButton(
-                                                                                  onPressed: () =>
-                                                                                      Navigator.of(
-                                                                                        dialogCtx,
-                                                                                      ).pop(
-                                                                                        true,
-                                                                                      ),
-                                                                                  child: const Text(
-                                                                                    'Bevestigen',
-                                                                                  ),
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                      ).then((
-                                                                        confirmed,
-                                                                      ) async {
-                                                                        if (confirmed ==
-                                                                            true) {
-                                                                          try {
-                                                                            await FirebaseFirestore.instance
-                                                                                .collection(
-                                                                                  'households/$householdIdStr/settlements',
-                                                                                )
-                                                                                .add({
-                                                                                  'settledAt': FieldValue.serverTimestamp(),
-                                                                                  'settledBy': settledByUid,
-                                                                                  'amountCents': absSettlementCents,
-                                                                                  'debtorUid': debtorUid,
-                                                                                  'creditorUid': creditorUid,
-                                                                                });
-                                                                            _showSnackBar(
-                                                                              'Betaling geregistreerd.',
-                                                                            );
-                                                                          } catch (
-                                                                            e
-                                                                          ) {
-                                                                            if (kDebugMode) {
-                                                                              debugPrint(
-                                                                                'Settlement write error: $e',
-                                                                              );
-                                                                            }
-                                                                            _showSnackBar(
-                                                                              mapUserFacingError(
-                                                                                e,
-                                                                                fallback: 'Vereffening kon niet worden opgeslagen.',
-                                                                              ),
-                                                                            );
-                                                                          }
-                                                                        }
-                                                                      });
-                                                                    },
-                                                                    child: const Text(
-                                                                      'Betaling registreren',
                                                                     ),
-                                                                  ),
-                                                                ],
-                                                              ],
-                                                            ),
-                                                          ),
+                                                                    const SizedBox(
+                                                                      height:
+                                                                          20,
+                                                                    ),
+                                                                    Text(
+                                                                      settlementCents < 0
+                                                                          ? 'Betaling melden'
+                                                                          : 'Balans',
+                                                                      style: Theme.of(context)
+                                                                          .textTheme
+                                                                          .titleMedium
+                                                                          ?.copyWith(
+                                                                            fontWeight:
+                                                                                FontWeight.w700,
+                                                                          ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      height:
+                                                                          16,
+                                                                    ),
+                                                                    if (settlementCents ==
+                                                                        0)
+                                                                      Text(
+                                                                        'Jullie zijn in balans',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodyMedium?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a62,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      )
+                                                                    else if (settlementCents >
+                                                                        0) ...[
+                                                                      Text(
+                                                                        '$otherName is jou nog ${_formatEur(absSettlement)} schuldig',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodyMedium?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a84,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            8,
+                                                                      ),
+                                                                      Text(
+                                                                        '$otherName kan een betaling melden vanuit de app.',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodySmall?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a62,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      ),
+                                                                    ] else ...[
+                                                                      Text(
+                                                                        'Open bedrag: ${_formatEur(absSettlement)}',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.titleSmall?.copyWith(
+                                                                              fontWeight: FontWeight.w600,
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a84,
+                                                                              ),
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            4,
+                                                                      ),
+                                                                      Text(
+                                                                        'Jij betaalt $otherName',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodySmall?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a62,
+                                                                              ),
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            16,
+                                                                      ),
+                                                                      TextField(
+                                                                        controller:
+                                                                            amountCtrl,
+                                                                        keyboardType: const TextInputType.numberWithOptions(
+                                                                          decimal:
+                                                                              true,
+                                                                        ),
+                                                                        decoration: InputDecoration(
+                                                                          labelText:
+                                                                              'Bedrag',
+                                                                          prefixText:
+                                                                              '€ ',
+                                                                          isDense:
+                                                                              true,
+                                                                          border:
+                                                                              const OutlineInputBorder(),
+                                                                          errorText:
+                                                                              amountCtrl.text.trim().isNotEmpty &&
+                                                                                  (enteredCents ==
+                                                                                          null ||
+                                                                                      enteredCents! <=
+                                                                                          0)
+                                                                              ? 'Voer een geldig bedrag in'
+                                                                              : null,
+                                                                        ),
+                                                                        onChanged: (val) {
+                                                                          setSheetState(() {
+                                                                            enteredCents = _tryParseEurToCents(
+                                                                              val,
+                                                                            );
+                                                                          });
+                                                                        },
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            20,
+                                                                      ),
+                                                                      FilledButton(
+                                                                        onPressed:
+                                                                            isValid
+                                                                            ? () {
+                                                                                final paymentAmountCents = enteredCents!;
+                                                                                Navigator.of(
+                                                                                  sheetCtx,
+                                                                                ).pop();
+                                                                                showDialog<
+                                                                                      bool
+                                                                                    >(
+                                                                                      context: context,
+                                                                                      builder:
+                                                                                          (
+                                                                                            dialogCtx,
+                                                                                          ) => AlertDialog(
+                                                                                            title: const Text(
+                                                                                              'Betaling melden',
+                                                                                            ),
+                                                                                            content: Text(
+                                                                                              'Je meldt een betaling van ${_formatEur(enteredCents!)} aan $otherName. $otherName moet dit nog bevestigen.',
+                                                                                            ),
+                                                                                            actions: [
+                                                                                              TextButton(
+                                                                                                onPressed: () =>
+                                                                                                    Navigator.of(
+                                                                                                      dialogCtx,
+                                                                                                    ).pop(
+                                                                                                      false,
+                                                                                                    ),
+                                                                                                child: const Text(
+                                                                                                  'Annuleren',
+                                                                                                ),
+                                                                                              ),
+                                                                                              FilledButton(
+                                                                                                onPressed: () =>
+                                                                                                    Navigator.of(
+                                                                                                      dialogCtx,
+                                                                                                    ).pop(
+                                                                                                      true,
+                                                                                                    ),
+                                                                                                child: const Text(
+                                                                                                  'Melden',
+                                                                                                ),
+                                                                                              ),
+                                                                                            ],
+                                                                                          ),
+                                                                                    )
+                                                                                    .then(
+                                                                                      (
+                                                                                        confirmed,
+                                                                                      ) async {
+                                                                                        if (confirmed ==
+                                                                                            true) {
+                                                                                          try {
+                                                                                            await FirebaseFirestore.instance
+                                                                                                .collection(
+                                                                                                  'households/$householdIdStr/payments',
+                                                                                                )
+                                                                                                .add(
+                                                                                                  {
+                                                                                                    'amountCents': paymentAmountCents,
+                                                                                                    'currency': 'EUR',
+                                                                                                    'fromUserId': user.uid,
+                                                                                                    'toUserId': otherUid!,
+                                                                                                    'status': 'pending',
+                                                                                                    'createdAt': FieldValue.serverTimestamp(),
+                                                                                                    'createdBy': user.uid,
+                                                                                                    'confirmedAt': null,
+                                                                                                    'confirmedBy': null,
+                                                                                                  },
+                                                                                                );
+                                                                                            _showSnackBar(
+                                                                                              'Betaling gemeld — wacht op bevestiging.',
+                                                                                            );
+                                                                                          } catch (
+                                                                                            e
+                                                                                          ) {
+                                                                                            if (kDebugMode) {
+                                                                                              debugPrint(
+                                                                                                'Payment write error: $e',
+                                                                                              );
+                                                                                            }
+                                                                                            _showSnackBar(
+                                                                                              mapUserFacingError(
+                                                                                                e,
+                                                                                                fallback: 'Betaling kon niet worden gemeld.',
+                                                                                              ),
+                                                                                            );
+                                                                                          }
+                                                                                        }
+                                                                                      },
+                                                                                    );
+                                                                              }
+                                                                            : null,
+                                                                        child: const Text(
+                                                                          'Betaling melden',
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
                                                         );
                                                       },
                                                     );
