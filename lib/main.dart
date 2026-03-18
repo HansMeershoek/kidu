@@ -1039,6 +1039,12 @@ class _DashboardPageState extends State<DashboardPage> {
   List<_ChildItem> _dashChildren = [];
   String? _dashChildrenHouseholdId;
 
+  String? _settlementsHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _settlementsSubscription;
+  int _totalPaidByMe = 0;
+  int _totalPaidToMe = 0;
+
   Future<String?> _loadMyPrivateNote({
     required String householdId,
     required String expenseId,
@@ -1212,6 +1218,32 @@ class _DashboardPageState extends State<DashboardPage> {
       );
     }
     return _namesFuture!;
+  }
+
+  void _startSettlementsSubscription(String householdId, String myUid) {
+    if (_settlementsHouseholdId == householdId) return;
+    _settlementsSubscription?.cancel();
+    _settlementsHouseholdId = householdId;
+    _settlementsSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/settlements')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          var paidByMe = 0;
+          var paidToMe = 0;
+          for (final doc in snap.docs) {
+            final d = doc.data();
+            final cents = (d['amountCents'] as num?)?.toInt() ?? 0;
+            final debtor = (d['debtorUid'] as String?)?.trim();
+            final creditor = (d['creditorUid'] as String?)?.trim();
+            if (debtor == myUid) paidByMe += cents;
+            if (creditor == myUid) paidToMe += cents;
+          }
+          setState(() {
+            _totalPaidByMe = paidByMe;
+            _totalPaidToMe = paidToMe;
+          });
+        });
   }
 
   Future<void> _loadDashChildrenOnce(String householdId) async {
@@ -2092,6 +2124,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _settlementsSubscription?.cancel();
     _addExpenseCheckBusyVN.dispose();
     _freezeExpensesVN.dispose();
     _addExpenseDialogOpenVN.dispose();
@@ -2606,6 +2639,11 @@ class _DashboardPageState extends State<DashboardPage> {
         if (householdIdStr.isNotEmpty &&
             _dashChildrenHouseholdId != householdIdStr) {
           Future.microtask(() => _loadDashChildrenOnce(householdIdStr));
+        }
+        if (householdIdStr.isNotEmpty) {
+          Future.microtask(
+            () => _startSettlementsSubscription(householdIdStr, user.uid),
+          );
         }
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>?>(
@@ -3297,8 +3335,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         otherPaidCents)
                                                 ? 1
                                                 : 0);
-                                        final settlementCents =
+                                        final rawSettlementCents =
                                             myPaidCents - expectedMy;
+                                        final settlementCents =
+                                            rawSettlementCents +
+                                            _totalPaidByMe -
+                                            _totalPaidToMe;
 
                                         final absSettlement = settlementCents
                                             .abs();
@@ -3346,8 +3388,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             KiduCard(
                                               padding: EdgeInsets.zero,
                                               child: Material(
-                                                type: MaterialType
-                                                    .transparency,
+                                                type: MaterialType.transparency,
                                                 borderRadius:
                                                     BorderRadius.circular(
                                                       _DashboardPageState
@@ -3359,30 +3400,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         _DashboardPageState
                                                             ._cardRadius,
                                                       ),
-                                                  highlightColor: Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary
-                                                      .withValues(
-                                                        alpha: 0.10,
-                                                      ),
-                                                  splashColor: Theme.of(
-                                                    context,
-                                                  ).colorScheme.primary
-                                                      .withValues(
-                                                        alpha: 0.08,
-                                                      ),
+                                                  highlightColor:
+                                                      Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                          .withValues(
+                                                            alpha: 0.10,
+                                                          ),
+                                                  splashColor: Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withValues(alpha: 0.08),
                                                   onTap: () {
                                                     showModalBottomSheet<void>(
                                                       context: context,
-                                                      shape:
-                                                          const RoundedRectangleBorder(
-                                                            borderRadius:
-                                                                BorderRadius.vertical(
-                                                                  top: Radius.circular(
+                                                      shape: const RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.vertical(
+                                                              top:
+                                                                  Radius.circular(
                                                                     20,
                                                                   ),
-                                                                ),
-                                                          ),
+                                                            ),
+                                                      ),
                                                       builder: (sheetCtx) {
                                                         return SafeArea(
                                                           child: Padding(
@@ -3402,33 +3442,28 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       .stretch,
                                                               children: [
                                                                 Center(
-                                                                  child:
-                                                                      Container(
-                                                                        width:
-                                                                            36,
-                                                                        height:
-                                                                            4,
-                                                                        decoration:
-                                                                            BoxDecoration(
-                                                                              color:
-                                                                                  Theme.of(
-                                                                                    context,
-                                                                                  ).colorScheme.outlineVariant,
-                                                                              borderRadius:
-                                                                                  BorderRadius.circular(
-                                                                                    2,
-                                                                                  ),
-                                                                            ),
-                                                                      ),
+                                                                  child: Container(
+                                                                    width: 36,
+                                                                    height: 4,
+                                                                    decoration: BoxDecoration(
+                                                                      color: Theme.of(
+                                                                        context,
+                                                                      ).colorScheme.outlineVariant,
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            2,
+                                                                          ),
+                                                                    ),
+                                                                  ),
                                                                 ),
                                                                 const SizedBox(
                                                                   height: 20,
                                                                 ),
                                                                 Text(
-                                                                  'Balans vereffenen',
-                                                                  style: Theme.of(
-                                                                    context,
-                                                                  ).textTheme.titleMedium
+                                                                  'Betaling registreren',
+                                                                  style: Theme.of(context)
+                                                                      .textTheme
+                                                                      .titleMedium
                                                                       ?.copyWith(
                                                                         fontWeight:
                                                                             FontWeight.w700,
@@ -3439,15 +3474,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 ),
                                                                 Text(
                                                                   settlementText,
-                                                                  style: Theme.of(
-                                                                    context,
-                                                                  ).textTheme.bodyMedium
+                                                                  style: Theme.of(context)
+                                                                      .textTheme
+                                                                      .bodyMedium
                                                                       ?.copyWith(
-                                                                        color:
-                                                                            onSurface(
-                                                                              context,
-                                                                              a84,
-                                                                            ),
+                                                                        color: onSurface(
+                                                                          context,
+                                                                          a84,
+                                                                        ),
                                                                         height:
                                                                             1.4,
                                                                       ),
@@ -3458,70 +3492,103 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     height: 20,
                                                                   ),
                                                                   FilledButton(
-                                                                    onPressed:
-                                                                        () {
-                                                                          Navigator.of(
-                                                                            sheetCtx,
-                                                                          ).pop();
-                                                                          showDialog<
-                                                                            bool
-                                                                          >(
-                                                                            context:
-                                                                                context,
-                                                                            builder:
-                                                                                (
-                                                                                  dialogCtx,
-                                                                                ) => AlertDialog(
-                                                                                  title:
-                                                                                      const Text(
-                                                                                        'Balans vereffenen',
+                                                                    onPressed: () {
+                                                                      final settledByUid =
+                                                                          user.uid;
+                                                                      final absSettlementCents =
+                                                                          absSettlement;
+                                                                      final debtorUid =
+                                                                          settlementCents >
+                                                                              0
+                                                                          ? otherUid!
+                                                                          : user.uid;
+                                                                      final creditorUid =
+                                                                          settlementCents >
+                                                                              0
+                                                                          ? user.uid
+                                                                          : otherUid!;
+                                                                      Navigator.of(
+                                                                        sheetCtx,
+                                                                      ).pop();
+                                                                      showDialog<bool>(
+                                                                        context:
+                                                                            context,
+                                                                        builder:
+                                                                            (
+                                                                              dialogCtx,
+                                                                            ) => AlertDialog(
+                                                                              title: const Text(
+                                                                                'Betaling registreren',
+                                                                              ),
+                                                                              content: const Text(
+                                                                                'Weet je zeker dat je deze betaling wilt registreren?',
+                                                                              ),
+                                                                              actions: [
+                                                                                TextButton(
+                                                                                  onPressed: () =>
+                                                                                      Navigator.of(
+                                                                                        dialogCtx,
+                                                                                      ).pop(
+                                                                                        false,
                                                                                       ),
-                                                                                  content:
-                                                                                      const Text(
-                                                                                        'Weet je zeker dat deze balans is vereffend?',
-                                                                                      ),
-                                                                                  actions: [
-                                                                                    TextButton(
-                                                                                      onPressed:
-                                                                                          () => Navigator.of(
-                                                                                            dialogCtx,
-                                                                                          ).pop(
-                                                                                            false,
-                                                                                          ),
-                                                                                      child:
-                                                                                          const Text(
-                                                                                            'Annuleren',
-                                                                                          ),
-                                                                                    ),
-                                                                                    FilledButton(
-                                                                                      onPressed:
-                                                                                          () => Navigator.of(
-                                                                                            dialogCtx,
-                                                                                          ).pop(
-                                                                                            true,
-                                                                                          ),
-                                                                                      child:
-                                                                                          const Text(
-                                                                                            'Bevestigen',
-                                                                                          ),
-                                                                                    ),
-                                                                                  ],
+                                                                                  child: const Text(
+                                                                                    'Annuleren',
+                                                                                  ),
                                                                                 ),
-                                                                          ).then((
-                                                                            confirmed,
+                                                                                FilledButton(
+                                                                                  onPressed: () =>
+                                                                                      Navigator.of(
+                                                                                        dialogCtx,
+                                                                                      ).pop(
+                                                                                        true,
+                                                                                      ),
+                                                                                  child: const Text(
+                                                                                    'Bevestigen',
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                      ).then((
+                                                                        confirmed,
+                                                                      ) async {
+                                                                        if (confirmed ==
+                                                                            true) {
+                                                                          try {
+                                                                            await FirebaseFirestore.instance
+                                                                                .collection(
+                                                                                  'households/$householdIdStr/settlements',
+                                                                                )
+                                                                                .add({
+                                                                                  'settledAt': FieldValue.serverTimestamp(),
+                                                                                  'settledBy': settledByUid,
+                                                                                  'amountCents': absSettlementCents,
+                                                                                  'debtorUid': debtorUid,
+                                                                                  'creditorUid': creditorUid,
+                                                                                });
+                                                                            _showSnackBar(
+                                                                              'Betaling geregistreerd.',
+                                                                            );
+                                                                          } catch (
+                                                                            e
                                                                           ) {
-                                                                            if (confirmed ==
-                                                                                true) {
-                                                                              _showSnackBar(
-                                                                                'Vereffening nog niet opgeslagen – dit volgt in een volgende stap.',
+                                                                            if (kDebugMode) {
+                                                                              debugPrint(
+                                                                                'Settlement write error: $e',
                                                                               );
                                                                             }
-                                                                          });
-                                                                        },
-                                                                    child:
-                                                                        const Text(
-                                                                          'Balans vereffenen',
-                                                                        ),
+                                                                            _showSnackBar(
+                                                                              mapUserFacingError(
+                                                                                e,
+                                                                                fallback: 'Vereffening kon niet worden opgeslagen.',
+                                                                              ),
+                                                                            );
+                                                                          }
+                                                                        }
+                                                                      });
+                                                                    },
+                                                                    child: const Text(
+                                                                      'Betaling registreren',
+                                                                    ),
                                                                   ),
                                                                 ],
                                                               ],
@@ -3543,9 +3610,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       children: [
                                                         Text(
                                                           'Balans',
-                                                          style: Theme.of(
-                                                            context,
-                                                          ).textTheme.titleMedium
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .titleMedium
                                                               ?.copyWith(
                                                                 fontWeight:
                                                                     FontWeight
@@ -3569,12 +3636,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         Text(
                                                           '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
                                                           maxLines: 1,
-                                                          overflow:
-                                                              TextOverflow
-                                                                  .ellipsis,
-                                                          style: Theme.of(
-                                                            context,
-                                                          ).textTheme.bodySmall
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .bodySmall
                                                               ?.copyWith(
                                                                 color:
                                                                     onSurface(
@@ -3601,9 +3667,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         // Keep settlement as primary info.
                                                         Text(
                                                           settlementText,
-                                                          style: Theme.of(
-                                                            context,
-                                                          ).textTheme.bodySmall
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .bodySmall
                                                               ?.copyWith(
                                                                 fontWeight:
                                                                     FontWeight
