@@ -1051,7 +1051,6 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, dynamic>? _pendingIncoming;
   String? _pendingIncomingId;
   Map<String, dynamic>? _pendingOutgoing;
-  String? _pendingOutgoingId;
 
   String? _confirmedPaymentsHouseholdId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
@@ -1273,7 +1272,6 @@ class _DashboardPageState extends State<DashboardPage> {
           Map<String, dynamic>? incoming;
           String? incomingId;
           Map<String, dynamic>? outgoing;
-          String? outgoingId;
           for (final doc in snap.docs) {
             final d = doc.data();
             final to = (d['toUserId'] as String?)?.trim();
@@ -1284,14 +1282,12 @@ class _DashboardPageState extends State<DashboardPage> {
             }
             if (from == myUid && outgoing == null) {
               outgoing = d;
-              outgoingId = doc.id;
             }
           }
           setState(() {
             _pendingIncoming = incoming;
             _pendingIncomingId = incomingId;
             _pendingOutgoing = outgoing;
-            _pendingOutgoingId = outgoingId;
           });
         });
   }
