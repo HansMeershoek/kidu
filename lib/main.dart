@@ -4979,11 +4979,168 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }
 }
 
+class _PaymentDetailPage extends StatelessWidget {
+  const _PaymentDetailPage({
+    required this.title,
+    required this.amountCents,
+    required this.status,
+    required this.createdAt,
+    this.confirmedAt,
+    this.statusExplanation,
+  });
+
+  final String title;
+  final int amountCents;
+  final String status;
+  final DateTime? createdAt;
+  final DateTime? confirmedAt;
+  final String? statusExplanation;
+
+  @override
+  Widget build(BuildContext context) {
+    final isConfirmed = status == 'confirmed';
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          leading: BackButton(
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(
+            'Betaling',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Beschrijving',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    subtitle: Text(title),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bedrag',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _ExpenseDetailPage._formatEur(amountCents),
+                        style:
+                            Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Datum/tijd',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    subtitle: Text(
+                      _ExpenseDetailPage._formatDateTime(createdAt),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Status',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    subtitle: isConfirmed
+                        ? Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('Bevestigd'),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 16,
+                                color: onSurface(context, a60),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('In afwachting'),
+                            ],
+                          ),
+                  ),
+                  if (isConfirmed && confirmedAt != null)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bevestigd op',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _ExpenseDetailPage._formatDateTime(confirmedAt),
+                      ),
+                    ),
+                  if (statusExplanation != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      statusExplanation!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a55),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Logboek – read-only expense history with child filter
 // ────────────────────────────────────────────────────────────────────────────
 
 enum _PeriodFilter { all, custom }
+
+enum _LogboekMode { uitgaven, betalingen }
+
+enum _PaymentDirection { alle, verzonden, ontvangen }
 
 class _LogboekPage extends StatefulWidget {
   const _LogboekPage({
@@ -5002,7 +5159,8 @@ class _LogboekPage extends StatefulWidget {
   State<_LogboekPage> createState() => _LogboekPageState();
 }
 
-class _LogboekPageState extends State<_LogboekPage> {
+class _LogboekPageState extends State<_LogboekPage>
+    with SingleTickerProviderStateMixin {
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -5015,6 +5173,10 @@ class _LogboekPageState extends State<_LogboekPage> {
   DateTime? _filterEnd;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _countsStream;
+  _LogboekMode _logboekMode = _LogboekMode.uitgaven;
+  _PaymentDirection _paymentDirection = _PaymentDirection.alle;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
+  late final TabController _modeTabController;
   bool _initialDataReady = false;
   bool _isOffline = false;
 
@@ -5050,10 +5212,30 @@ class _LogboekPageState extends State<_LogboekPage> {
     _countsStream = _basePeriodQuery().snapshots();
   }
 
+  void _rebuildPaymentsStream() {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/payments',
+    );
+    if (_periodFilter != _PeriodFilter.all &&
+        _filterStart != null &&
+        _filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStart!),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(_filterEnd!));
+    }
+    q = q.orderBy('createdAt', descending: true);
+    _paymentsStream = q.snapshots();
+  }
+
   @override
   void initState() {
     super.initState();
+    _modeTabController = TabController(length: 2, vsync: this);
     _rebuildExpensesStream();
+    _rebuildPaymentsStream();
     Future.wait([
       _loadChildren(),
       _loadParents(),
@@ -5062,6 +5244,12 @@ class _LogboekPageState extends State<_LogboekPage> {
       if (mounted) setState(() => _initialDataReady = true);
     });
     _checkOffline();
+  }
+
+  @override
+  void dispose() {
+    _modeTabController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkOffline() async {
@@ -5152,6 +5340,7 @@ class _LogboekPageState extends State<_LogboekPage> {
         _filterStart = start;
         _filterEnd = end;
         _rebuildExpensesStream();
+        _rebuildPaymentsStream();
       });
       Navigator.of(context).pop();
     }
@@ -5228,6 +5417,7 @@ class _LogboekPageState extends State<_LogboekPage> {
                           range.end.day + 1,
                         );
                         _rebuildExpensesStream();
+                        _rebuildPaymentsStream();
                       });
                       return;
                     }
@@ -5293,6 +5483,18 @@ class _LogboekPageState extends State<_LogboekPage> {
           tooltip: 'Filter',
         ),
       ],
+      bottom: TabBar(
+        controller: _modeTabController,
+        onTap: (i) => setState(() {
+          _logboekMode = _LogboekMode.values[i];
+        }),
+        tabs: const [Tab(text: 'Uitgaven'), Tab(text: 'Betalingen')],
+        isScrollable: true,
+        tabAlignment: TabAlignment.center,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerHeight: 0.5,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+      ),
     );
 
     return PopScope(
@@ -5323,7 +5525,13 @@ class _LogboekPageState extends State<_LogboekPage> {
                         ),
                       ),
                     ),
-                  Expanded(child: _buildExpenseList(context)),
+                  if (_logboekMode == _LogboekMode.uitgaven)
+                    _buildPerspectiveToggle(context),
+                  Expanded(
+                    child: _logboekMode == _LogboekMode.uitgaven
+                        ? _buildExpenseList(context)
+                        : _buildPaymentList(context),
+                  ),
                 ],
               ),
       ),
@@ -5332,7 +5540,7 @@ class _LogboekPageState extends State<_LogboekPage> {
 
   Widget _buildPerspectiveToggle(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
       child: Row(
         children: [
           FilterChip(
@@ -5607,7 +5815,6 @@ class _LogboekPageState extends State<_LogboekPage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildPerspectiveToggle(context),
                 if ((_perOuder && _parentsLoaded) ||
                     (!_perOuder && _childrenLoaded))
                   _buildFilterRow(
@@ -5620,6 +5827,243 @@ class _LogboekPageState extends State<_LogboekPage> {
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildPaymentFilterRow(
+    BuildContext context,
+    int allCount,
+    int sentCount,
+    int receivedCount,
+  ) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 21, right: 16, top: 8, bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilterChip(
+              label: Text('Alle ($allCount)'),
+              selected: _paymentDirection == _PaymentDirection.alle,
+              showCheckmark: false,
+              onSelected: (_) => setState(() {
+                _paymentDirection = _PaymentDirection.alle;
+              }),
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text('Verzonden ($sentCount)'),
+              selected: _paymentDirection == _PaymentDirection.verzonden,
+              showCheckmark: false,
+              onSelected: (v) => setState(() {
+                _paymentDirection =
+                    v ? _PaymentDirection.verzonden : _PaymentDirection.alle;
+              }),
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text('Ontvangen ($receivedCount)'),
+              selected: _paymentDirection == _PaymentDirection.ontvangen,
+              showCheckmark: false,
+              onSelected: (v) => setState(() {
+                _paymentDirection =
+                    v ? _PaymentDirection.ontvangen : _PaymentDirection.alle;
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentList(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _paymentsStream,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(mapUserFacingError(snap.error!)),
+            ),
+          );
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final allDocs = snap.data!.docs;
+        if (allDocs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Geen betalingen gevonden.'),
+            ),
+          );
+        }
+
+        final sentCount = allDocs
+            .where(
+              (d) =>
+                  (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+            )
+            .length;
+        final receivedCount = allDocs
+            .where(
+              (d) =>
+                  (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+            )
+            .length;
+
+        final docs = switch (_paymentDirection) {
+          _PaymentDirection.alle => allDocs,
+          _PaymentDirection.verzonden => allDocs
+              .where(
+                (d) =>
+                    (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+              )
+              .toList(),
+          _PaymentDirection.ontvangen => allDocs
+              .where(
+                (d) =>
+                    (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+              )
+              .toList(),
+        };
+
+        final Widget listWidget;
+        if (docs.isEmpty) {
+          listWidget = const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Geen betalingen gevonden.'),
+            ),
+          );
+        } else {
+          listWidget = ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: docs.length,
+            separatorBuilder: (context, _) => Divider(
+              height: 1,
+              thickness: 0.4,
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+            ),
+            itemBuilder: (context, i) {
+              final d = docs[i];
+              final p = d.data();
+              final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
+              final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
+              final status = (p['status'] as String?)?.trim() ?? '';
+              final createdAtRaw = p['createdAt'];
+              DateTime? createdAt;
+              if (createdAtRaw is Timestamp) {
+                createdAt = createdAtRaw.toDate().toLocal();
+              } else if (createdAtRaw is DateTime) {
+                createdAt = createdAtRaw.toLocal();
+              }
+
+              final bool isSender = fromUserId == widget.uid;
+              final String otherName = widget.otherName ?? 'Co-parent';
+              final String title = isSender
+                  ? 'Betaling aan $otherName'
+                  : 'Betaling van $otherName';
+              final String statusStr =
+                  status == 'confirmed' ? 'Bevestigd' : 'In afwachting';
+              final String dateStr = _fmtDate(createdAt);
+              final String subtitleStr = '$dateStr · $statusStr';
+              final bool isPending = status != 'confirmed';
+
+              final confirmedAtRaw = p['confirmedAt'];
+              DateTime? confirmedAt;
+              if (confirmedAtRaw is Timestamp) {
+                confirmedAt = confirmedAtRaw.toDate().toLocal();
+              } else if (confirmedAtRaw is DateTime) {
+                confirmedAt = confirmedAtRaw.toLocal();
+              }
+
+              final String? statusExplanation = isPending
+                  ? (isSender
+                      ? 'Wacht op bevestiging door $otherName'
+                      : 'Wacht op jouw bevestiging')
+                  : null;
+
+              return Material(
+                type: MaterialType.transparency,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  highlightColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.10),
+                  splashColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.08),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _PaymentDetailPage(
+                        title: title,
+                        amountCents: amountCents,
+                        status: status,
+                        createdAt: createdAt,
+                        confirmedAt: confirmedAt,
+                        statusExplanation: statusExplanation,
+                      ),
+                    ),
+                  ),
+                  child: ListTile(
+                    key: ValueKey(d.id),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    title: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: isPending ? onSurface(context, a55) : null,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitleStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, isPending ? a40 : a55),
+                        ),
+                      ),
+                    ),
+                    trailing: Text(
+                      _fmtEur(amountCents),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: isPending ? onSurface(context, a55) : null,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildPaymentFilterRow(
+              context,
+              allDocs.length,
+              sentCount,
+              receivedCount,
+            ),
+            Expanded(child: listWidget),
+          ],
         );
       },
     );

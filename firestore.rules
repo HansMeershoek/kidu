@@ -250,26 +250,7 @@ service cloud.firestore {
 
     match /households/{householdId}/settlements/{settlementId} {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
-
-      allow create: if isSignedIn()
-        && isHouseholdMember(householdId)
-        && request.resource.data.keys().hasOnly([
-          'settledAt',
-          'settledBy',
-          'amountCents',
-          'debtorUid',
-          'creditorUid'
-        ])
-        && request.resource.data.settledBy == request.auth.uid
-        && request.resource.data.settledAt == request.time
-        && request.resource.data.amountCents is int
-        && request.resource.data.amountCents > 0
-        && request.resource.data.debtorUid is string
-        && request.resource.data.debtorUid.size() > 0
-        && request.resource.data.creditorUid is string
-        && request.resource.data.creditorUid.size() > 0;
-
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     match /households/{householdId}/payments/{paymentId} {
