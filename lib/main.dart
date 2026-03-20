@@ -7662,10 +7662,25 @@ class _SetupPageState extends State<SetupPage> {
     super.dispose();
   }
 
+  /// Unfocus first (esp. IME) so back-gesture and AppBar back match smoother pops.
+  void _popSetupPage([Object? result]) {
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop(result);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _popSetupPage(result);
+      },
+      child: Scaffold(
       appBar: AppBar(
         centerTitle: true,
         title: Text(
@@ -7685,7 +7700,7 @@ class _SetupPageState extends State<SetupPage> {
                   const Text('Niet ingelogd.', textAlign: TextAlign.center),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _popSetupPage,
                     child: const Text('Terug'),
                   ),
                 ],
@@ -7710,7 +7725,7 @@ class _SetupPageState extends State<SetupPage> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: _popSetupPage,
                           child: const Text('Terug'),
                         ),
                       ],
@@ -7724,7 +7739,7 @@ class _SetupPageState extends State<SetupPage> {
                         const CircularProgressIndicator(),
                         const SizedBox(height: 24),
                         ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: _popSetupPage,
                           child: const Text('Terug'),
                         ),
                       ],
@@ -7772,7 +7787,7 @@ class _SetupPageState extends State<SetupPage> {
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: _popSetupPage,
                         child: const Text('Terug'),
                       ),
                     ],
@@ -7780,6 +7795,7 @@ class _SetupPageState extends State<SetupPage> {
                 },
               ),
       ),
+    ),
     );
   }
 }
