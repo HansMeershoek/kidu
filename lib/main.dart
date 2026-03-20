@@ -2399,6 +2399,7 @@ class _DashboardPageState extends State<DashboardPage> {
       showDragHandle: true,
       isDismissible: true,
       enableDrag: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setModalState) {
@@ -2476,64 +2477,60 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Uitnodigingscode',
-                        style: Theme.of(sheetContext).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: _cardGap),
-                      if (loading) ...[
-                        const Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
+                  child: KiduCard(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                         Text(
-                          'Code wordt gemaakt...',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(sheetContext).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(sheetContext, a68)),
-                        ),
-                      ] else if (code != null) ...[
-                        KiduCodePill(
-                          code: code!,
-                          onCopy: () async {
-                            await Clipboard.setData(ClipboardData(text: code!));
-                            _showSnackBar('Invite code gekopieerd.');
-                          },
+                          'Uitnodigingscode',
+                          style: Theme.of(sheetContext).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
-                        FilledButton.icon(
-                          onPressed: () => _shareInviteCode(code!),
-                          icon: const Icon(Icons.share),
-                          label: const Text('Delen'),
-                        ),
-                        const SizedBox(height: _cardGap),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton(
-                            onPressed: () =>
-                                Navigator.of(sheetContext).pop(true),
-                            child: const Text('Klaar'),
+                        if (loading || code != null) ...[
+                          KiduCodePill(
+                            code: code ?? '',
+                            loading: loading,
+                            onCopy: () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: code!),
+                              );
+                              _showSnackBar('Invite code gekopieerd.');
+                            },
                           ),
-                        ),
-                      ] else ...[
-                        Text(
-                          error ?? 'Kon geen code maken. Probeer opnieuw.',
-                          style: Theme.of(sheetContext).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(sheetContext, a68)),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton(
+                          const SizedBox(height: 16),
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              if (loading) return;
+                              _shareInviteCode(code!);
+                            },
+                            icon: const Icon(Icons.share_outlined, size: 18),
+                            label: Text(
+                              'Delen',
+                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              if (loading) return;
+                              Navigator.of(sheetContext).pop(true);
+                            },
+                            icon: const Icon(Icons.check, size: 18),
+                            label: Text(
+                              'Klaar',
+                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            error ?? 'Kon geen code maken. Probeer opnieuw.',
+                            style: Theme.of(sheetContext).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(sheetContext, a68)),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.tonalIcon(
                             onPressed: () {
                               setModalState(() {
                                 started = false;
@@ -2542,11 +2539,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                 error = null;
                               });
                             },
-                            child: const Text('Opnieuw'),
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: Text(
+                              'Opnieuw',
+                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -2994,26 +2995,28 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     SizedBox(
                                                       height: 48,
                                                       child: ElevatedButton(
-                                                        onPressed: () async {
-                                                          if (_inviteSheetOpening) {
-                                                            return;
-                                                          }
-                                                          if (_inviteBusy ||
-                                                              _setupBusy) {
-                                                            return;
-                                                          }
-                                                          _inviteSheetOpening =
-                                                              true;
-                                                          HapticFeedback.selectionClick();
-                                                          try {
-                                                            await _openInviteSheetFlow(
-                                                              householdIdStr,
-                                                            );
-                                                          } finally {
-                                                            _inviteSheetOpening =
-                                                                false;
-                                                          }
-                                                        },
+                                                        onPressed:
+                                                            (_inviteBusy ||
+                                                                    _setupBusy)
+                                                                ? null
+                                                                : () async {
+                                                                    if (_inviteSheetOpening) {
+                                                                      return;
+                                                                    }
+                                                                    HapticFeedback.selectionClick();
+                                                                    _inviteSheetOpening =
+                                                                        true;
+                                                                    try {
+                                                                      await _openInviteSheetFlow(
+                                                                        householdIdStr,
+                                                                      );
+                                                                    } finally {
+                                                                      if (mounted) {
+                                                                        _inviteSheetOpening =
+                                                                            false;
+                                                                      }
+                                                                    }
+                                                                  },
                                                         child: const Text(
                                                           'Co-parent uitnodigen',
                                                         ),
@@ -7391,11 +7394,31 @@ class KiduCard extends StatelessWidget {
   }
 }
 
+/// Width of eight characters in the same style as [KiduCodePill] code text.
+double _kiduCodeEightCharWidth(TextTheme textTheme) {
+  final style = textTheme.titleMedium?.copyWith(
+    fontWeight: FontWeight.w800,
+    letterSpacing: 1.2,
+  );
+  final tp = TextPainter(
+    text: TextSpan(text: 'XXXXXXXX', style: style),
+    textDirection: TextDirection.ltr,
+  );
+  tp.layout();
+  return tp.width;
+}
+
 class KiduCodePill extends StatelessWidget {
-  const KiduCodePill({super.key, required this.code, required this.onCopy});
+  const KiduCodePill({
+    super.key,
+    required this.code,
+    required this.onCopy,
+    this.loading = false,
+  });
 
   final String code;
   final VoidCallback onCopy;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -7412,19 +7435,40 @@ class KiduCodePill extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: SelectableText(
-              code,
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
+            child: loading
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: _kiduCodeEightCharWidth(textTheme),
+                      height: 36,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : SelectableText(
+                    code,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
           ),
           const SizedBox(width: 12),
           SizedBox(
             height: 36,
             child: OutlinedButton.icon(
-              onPressed: onCopy,
+              onPressed: () {
+                if (loading) return;
+                onCopy();
+              },
               icon: const Icon(Icons.copy, size: 18),
               label: const Text('Kopieer'),
             ),
