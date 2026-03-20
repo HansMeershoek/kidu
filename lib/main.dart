@@ -1344,7 +1344,7 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1364,39 +1364,40 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isPaired ? 'Instellingen' : 'Koppel met co-parent',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 10),
-                      if (isPaired)
+                  child: KiduCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          'Verbonden met $effectiveOtherName',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: onSurface(context, a68),
-                                height: 1.35,
-                              ),
-                        )
-                      else
-                        Text(
-                          'Koppel met je co-parent om samen kosten te delen.',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: onSurface(context, a68),
-                                height: 1.35,
-                              ),
+                          isPaired ? 'Instellingen' : 'Koppel met co-parent',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                      const SizedBox(height: 22),
-                      if (!isPaired && hasHousehold && canInvite) ...[
-                        SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
+                        const SizedBox(height: 8),
+                        if (isPaired)
+                          Text(
+                            trimmedOther == 'Co-parent'
+                                ? 'Verbinden met Co-parent'
+                                : 'Verbonden met $effectiveOtherName',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a68),
+                                  height: 1.35,
+                                ),
+                          )
+                        else
+                          Text(
+                            'Koppel met je co-parent om samen kosten te delen.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a68),
+                                  height: 1.35,
+                                ),
+                          ),
+                        const SizedBox(height: 16),
+                        if (!isPaired && hasHousehold && canInvite) ...[
+                          FilledButton.tonalIcon(
                             onPressed: _inviteBusy
                                 ? null
                                 : () async {
@@ -1406,36 +1407,42 @@ class _DashboardPageState extends State<DashboardPage> {
                                       setModalState(() {});
                                     }
                                   },
-                            child: Text(
+                            icon: Icon(
+                              Icons.key_outlined,
+                              size: 18,
+                              color: onSurface(context, a58),
+                            ),
+                            label: Text(
                               _inviteBusy ? 'Bezig...' : 'Genereer invite code',
+                              style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ),
-                        ),
-                        if (_inviteCode != null &&
-                            _inviteCode!.trim().isNotEmpty) ...[
+                          if (_inviteCode != null &&
+                              _inviteCode!.trim().isNotEmpty) ...[
+                            const SizedBox(height: _cardGap),
+                            KiduCodePill(
+                              code: _inviteCode!.trim(),
+                              onCopy: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: _inviteCode!.trim()),
+                                );
+                                _showSnackBar('Invite code gekopieerd.');
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            FilledButton.tonalIcon(
+                              onPressed: () => _shareInviteCode(_inviteCode!),
+                              icon: const Icon(Icons.share_outlined, size: 18),
+                              label: Text(
+                                'Delen',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: _cardGap),
-                          KiduCodePill(
-                            code: _inviteCode!.trim(),
-                            onCopy: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: _inviteCode!.trim()),
-                              );
-                              _showSnackBar('Invite code gekopieerd.');
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          FilledButton.icon(
-                            onPressed: () => _shareInviteCode(_inviteCode!),
-                            icon: const Icon(Icons.share),
-                            label: const Text('Delen'),
-                          ),
                         ],
-                        const SizedBox(height: _cardGap),
-                      ],
-                      if (!isPaired) ...[
-                        SizedBox(
-                          height: 48,
-                          child: OutlinedButton.icon(
+                        if (!isPaired) ...[
+                          OutlinedButton.icon(
                             onPressed: () {
                               Navigator.of(context).pop();
                               Navigator.of(rootContext).push(
@@ -1444,243 +1451,285 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.link, size: 20),
-                            label: const Text('Ik heb een invite-code'),
-                          ),
-                        ),
-                      ],
-                      Divider(height: 24, color: outlineV(context, a32)),
-                      Text(
-                        'Account',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: onSurface(context, a58),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.edit,
-                          color: onSurface(context, a58),
-                        ),
-                        title: const Text('Naam'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          Navigator.of(rootContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => ProfileNamePage(
-                                fromSettings: true,
-                                initialName: myName,
-                              ),
+                            icon: Icon(
+                              Icons.link,
+                              size: 18,
+                              color: onSurface(context, a70),
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Huishouden',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: onSurface(context, a58),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.4,
+                            label: Text(
+                              'Ik heb een invite-code',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                          ),
+                        ],
+                        Divider(height: 24, color: outlineV(context, a40)),
+                        Text(
+                          'Account',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (hasHousehold)
+                        const SizedBox(height: 8),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           leading: Icon(
-                            Icons.child_care,
+                            Icons.edit_outlined,
+                            size: 20,
                             color: onSurface(context, a58),
                           ),
-                          title: const Text('Kinderen'),
+                          title: Text(
+                            'Naam',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
                           onTap: () {
                             Navigator.of(context).pop();
                             Navigator.of(rootContext).push(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    _KinderenPage(householdId: householdId),
-                              ),
-                            );
-                          },
-                        ),
-                      if (hasHousehold)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
-                          leading: Icon(
-                            Icons.menu_book_outlined,
-                            color: onSurface(context, a58),
-                          ),
-                          title: const Text('Logboek'),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            Navigator.of(rootContext).push(
-                              MaterialPageRoute(
-                                builder: (_) => _LogboekPage(
-                                  householdId: householdId,
-                                  uid: myUid,
-                                  myName: myName,
-                                  otherName: otherName,
+                                builder: (_) => ProfileNamePage(
+                                  fromSettings: true,
+                                  initialName: myName,
                                 ),
                               ),
                             );
                           },
                         ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Info',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: onSurface(context, a58),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.privacy_tip_outlined,
-                          color: onSurface(context, a58),
-                        ),
-                        title: const Text('Privacy'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          showDialog<void>(
-                            context: rootContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Privacy in KiDu'),
-                              content: SingleChildScrollView(
-                                child: Text(
-                                  'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
-                                  'Wat we wél gebruiken (alleen wat nodig is):\n'
-                                  '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
-                                  '• Je Google-account (voor veilig inloggen)\n'
-                                  '• Jullie gedeelde uitgaven in KiDu\n\n'
-                                  'Wat KiDu níét vraagt of gebruikt:\n'
-                                  '• Geen telefoonnummer\n'
-                                  '• Geen toegang tot je contacten\n'
-                                  '• Geen locatie\n'
-                                  '• Geen agenda, microfoon of camera\n'
-                                  '• Geen push-notificaties of "ping-gedrag"\n\n'
-                                  'Delen met anderen?\n'
-                                  '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
-                                  '• We delen geen gegevens voor marketingdoeleinden.\n'
-                                  '• We verkopen je gegevens niet.\n\n'
-                                  'Je houdt de controle:\n'
-                                  '• Je kunt je naam altijd aanpassen.\n'
-                                  '• Je kunt uitloggen wanneer je wilt.',
-                                  style: Theme.of(ctx).textTheme.bodyMedium
-                                      ?.copyWith(color: onSurface(ctx, a68)),
-                                ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Huishouden',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx).pop();
-                                    Navigator.of(rootContext).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const PrivacyPolicyPage(),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    'Volledige privacyverklaring',
+                        ),
+                        const SizedBox(height: 8),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            leading: Icon(
+                              Icons.child_care_outlined,
+                              size: 20,
+                              color: onSurface(context, a58),
+                            ),
+                            title: Text(
+                              'Kinderen',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      _KinderenPage(householdId: householdId),
+                                ),
+                              );
+                            },
+                          ),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            leading: Icon(
+                              Icons.menu_book_outlined,
+                              size: 20,
+                              color: onSurface(context, a58),
+                            ),
+                            title: Text(
+                              'Logboek',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) => _LogboekPage(
+                                    householdId: householdId,
+                                    uid: myUid,
+                                    myName: myName,
+                                    otherName: otherName,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.info_outline,
-                          color: onSurface(context, a58),
-                        ),
-                        title: const Text('Over KiDu'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          showDialog<void>(
-                            context: rootContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('KiDu'),
-                              content: const Text(
-                                'Rust in gedeelde kosten tussen co-parents.\n'
-                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Info',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      Divider(height: 32, color: outlineV(context, a32)),
-                      if (kDebugMode)
+                        ),
+                        const SizedBox(height: 8),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           leading: Icon(
-                            Icons.switch_account,
+                            Icons.privacy_tip_outlined,
+                            size: 20,
                             color: onSurface(context, a58),
                           ),
-                          title: const Text('Wissel account'),
-                          onTap: _switchBusy
-                              ? null
-                              : () {
-                                  Navigator.of(context).pop();
-                                  WidgetsBinding.instance.addPostFrameCallback((
-                                    _,
-                                  ) {
-                                    if (!mounted) {
-                                      return;
-                                    }
-                                    _switchAccount(rootContext);
-                                  });
-                                },
+                          title: Text(
+                            'Privacy',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            showDialog<void>(
+                              context: rootContext,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Privacy in KiDu'),
+                                content: SingleChildScrollView(
+                                  child: Text(
+                                    'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+                                    'Wat we wél gebruiken (alleen wat nodig is):\n'
+                                    '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
+                                    '• Je Google-account (voor veilig inloggen)\n'
+                                    '• Jullie gedeelde uitgaven in KiDu\n\n'
+                                    'Wat KiDu níét vraagt of gebruikt:\n'
+                                    '• Geen telefoonnummer\n'
+                                    '• Geen toegang tot je contacten\n'
+                                    '• Geen locatie\n'
+                                    '• Geen agenda, microfoon of camera\n'
+                                    '• Geen push-notificaties of "ping-gedrag"\n\n'
+                                    'Delen met anderen?\n'
+                                    '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
+                                    '• We delen geen gegevens voor marketingdoeleinden.\n'
+                                    '• We verkopen je gegevens niet.\n\n'
+                                    'Je houdt de controle:\n'
+                                    '• Je kunt je naam altijd aanpassen.\n'
+                                    '• Je kunt uitloggen wanneer je wilt.',
+                                    style: Theme.of(ctx).textTheme.bodyMedium
+                                        ?.copyWith(color: onSurface(ctx, a68)),
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                      Navigator.of(rootContext).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const PrivacyPolicyPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Volledige privacyverklaring',
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('Sluiten'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.logout,
-                          color: onSurface(context, a58),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: Icon(
+                            Icons.info_outline,
+                            size: 20,
+                            color: onSurface(context, a58),
+                          ),
+                          title: Text(
+                            'Over KiDu',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            showDialog<void>(
+                              context: rootContext,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('KiDu'),
+                                content: const Text(
+                                  'Rust in gedeelde kosten tussen co-parents.\n'
+                                  'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('Sluiten'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                        title: const Text('Uitloggen'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) {
-                              return;
-                            }
-                            _signOut(rootContext);
-                          });
-                        },
-                      ),
-                    ],
+                        Divider(height: 32, color: outlineV(context, a40)),
+                        if (kDebugMode)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            leading: Icon(
+                              Icons.switch_account,
+                              size: 20,
+                              color: onSurface(context, a58),
+                            ),
+                            title: Text(
+                              'Wissel account',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: _switchBusy
+                                ? null
+                                : () {
+                                    Navigator.of(context).pop();
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                          if (!mounted) {
+                                            return;
+                                          }
+                                          _switchAccount(rootContext);
+                                        });
+                                  },
+                          ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: Icon(
+                            Icons.logout,
+                            size: 20,
+                            color: onSurface(context, a58),
+                          ),
+                          title: Text(
+                            'Uitloggen',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) {
+                                return;
+                              }
+                              _signOut(rootContext);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2508,7 +2557,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.share_outlined, size: 18),
                             label: Text(
                               'Delen',
-                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                              style: Theme.of(
+                                sheetContext,
+                              ).textTheme.bodyMedium,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -2520,7 +2571,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.check, size: 18),
                             label: Text(
                               'Klaar',
-                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                              style: Theme.of(
+                                sheetContext,
+                              ).textTheme.bodyMedium,
                             ),
                           ),
                         ] else ...[
@@ -2542,7 +2595,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.refresh, size: 18),
                             label: Text(
                               'Opnieuw',
-                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                              style: Theme.of(
+                                sheetContext,
+                              ).textTheme.bodyMedium,
                             ),
                           ),
                         ],
@@ -2997,26 +3052,26 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       child: ElevatedButton(
                                                         onPressed:
                                                             (_inviteBusy ||
-                                                                    _setupBusy)
-                                                                ? null
-                                                                : () async {
-                                                                    if (_inviteSheetOpening) {
-                                                                      return;
-                                                                    }
-                                                                    HapticFeedback.selectionClick();
+                                                                _setupBusy)
+                                                            ? null
+                                                            : () async {
+                                                                if (_inviteSheetOpening) {
+                                                                  return;
+                                                                }
+                                                                HapticFeedback.selectionClick();
+                                                                _inviteSheetOpening =
+                                                                    true;
+                                                                try {
+                                                                  await _openInviteSheetFlow(
+                                                                    householdIdStr,
+                                                                  );
+                                                                } finally {
+                                                                  if (mounted) {
                                                                     _inviteSheetOpening =
-                                                                        true;
-                                                                    try {
-                                                                      await _openInviteSheetFlow(
-                                                                        householdIdStr,
-                                                                      );
-                                                                    } finally {
-                                                                      if (mounted) {
-                                                                        _inviteSheetOpening =
-                                                                            false;
-                                                                      }
-                                                                    }
-                                                                  },
+                                                                        false;
+                                                                  }
+                                                                }
+                                                              },
                                                         child: const Text(
                                                           'Co-parent uitnodigen',
                                                         ),
@@ -3428,8 +3483,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             _confirmedPaidByMe -
                                             _confirmedPaidToMe;
 
-                                        final absBalance = balanceCents
-                                            .abs();
+                                        final absBalance = balanceCents.abs();
                                         final pendingInCents =
                                             (_pendingIncoming?['amountCents']
                                                     as num?)
@@ -3455,8 +3509,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                           statusText =
                                               'Jij betaalt $otherName ${_formatEur(absBalance)}';
                                         } else {
-                                          statusText =
-                                              'Jullie zijn in balans';
+                                          statusText = 'Jullie zijn in balans';
                                         }
 
                                         String? lastActivityText;
@@ -3520,93 +3573,187 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       .primary
                                                       .withValues(alpha: 0.08),
                                                   onTap: () {
-                                                    if (_pendingIncoming != null && _pendingIncomingId != null) {
-                                                      final inPayment = _pendingIncoming!;
-                                                      final inId = _pendingIncomingId!;
-                                                      final inCents = (inPayment['amountCents'] as num?)?.toInt() ?? 0;
-                                                      showModalBottomSheet<void>(
+                                                    if (_pendingIncoming !=
+                                                            null &&
+                                                        _pendingIncomingId !=
+                                                            null) {
+                                                      final inPayment =
+                                                          _pendingIncoming!;
+                                                      final inId =
+                                                          _pendingIncomingId!;
+                                                      final inCents =
+                                                          (inPayment['amountCents']
+                                                                  as num?)
+                                                              ?.toInt() ??
+                                                          0;
+                                                      showModalBottomSheet<
+                                                        void
+                                                      >(
                                                         context: context,
-                                                        isScrollControlled: true,
+                                                        isScrollControlled:
+                                                            true,
                                                         shape: const RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                          borderRadius:
+                                                              BorderRadius.vertical(
+                                                                top:
+                                                                    Radius.circular(
+                                                                      20,
+                                                                    ),
+                                                              ),
                                                         ),
                                                         builder: (sheetCtx) {
                                                           return SafeArea(
                                                             child: Padding(
-                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              padding:
+                                                                  const EdgeInsets.fromLTRB(
+                                                                    24,
+                                                                    20,
+                                                                    24,
+                                                                    28,
+                                                                  ),
                                                               child: Column(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .stretch,
                                                                 children: [
                                                                   Center(
                                                                     child: Container(
                                                                       width: 36,
                                                                       height: 4,
                                                                       decoration: BoxDecoration(
-                                                                        color: Theme.of(context).colorScheme.outlineVariant,
-                                                                        borderRadius: BorderRadius.circular(2),
+                                                                        color: Theme.of(
+                                                                          context,
+                                                                        ).colorScheme.outlineVariant,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(
+                                                                              2,
+                                                                            ),
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                  const SizedBox(height: 20),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
                                                                   Text(
                                                                     'Ontvangst bevestigen',
-                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                                      fontWeight: FontWeight.w700,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w700,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 16),
+                                                                  const SizedBox(
+                                                                    height: 16,
+                                                                  ),
                                                                   Text(
                                                                     'Betaling gemeld door $otherName',
-                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                                      color: onSurface(context, a84),
-                                                                      height: 1.4,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 4),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
                                                                   Text(
-                                                                    _formatEur(inCents),
-                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                                                      fontWeight: FontWeight.w600,
-                                                                      color: onSurface(context, a84),
+                                                                    _formatEur(
+                                                                      inCents,
                                                                     ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleSmall
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 20),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
                                                                   FilledButton(
                                                                     onPressed: () {
-                                                                      Navigator.of(sheetCtx).pop();
+                                                                      Navigator.of(
+                                                                        sheetCtx,
+                                                                      ).pop();
                                                                       showDialog<bool>(
-                                                                        context: context,
-                                                                        builder: (dialogCtx) => AlertDialog(
-                                                                          title: const Text('Ontvangst bevestigen'),
-                                                                          content: Text(
-                                                                            'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
-                                                                          ),
-                                                                          actions: [
-                                                                            TextButton(
-                                                                              onPressed: () => Navigator.of(dialogCtx).pop(false),
-                                                                              child: const Text('Annuleren'),
+                                                                        context:
+                                                                            context,
+                                                                        builder:
+                                                                            (
+                                                                              dialogCtx,
+                                                                            ) => AlertDialog(
+                                                                              title: const Text(
+                                                                                'Ontvangst bevestigen',
+                                                                              ),
+                                                                              content: Text(
+                                                                                'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
+                                                                              ),
+                                                                              actions: [
+                                                                                TextButton(
+                                                                                  onPressed: () =>
+                                                                                      Navigator.of(
+                                                                                        dialogCtx,
+                                                                                      ).pop(
+                                                                                        false,
+                                                                                      ),
+                                                                                  child: const Text(
+                                                                                    'Annuleren',
+                                                                                  ),
+                                                                                ),
+                                                                                FilledButton(
+                                                                                  onPressed: () =>
+                                                                                      Navigator.of(
+                                                                                        dialogCtx,
+                                                                                      ).pop(
+                                                                                        true,
+                                                                                      ),
+                                                                                  child: const Text(
+                                                                                    'Bevestigen',
+                                                                                  ),
+                                                                                ),
+                                                                              ],
                                                                             ),
-                                                                            FilledButton(
-                                                                              onPressed: () => Navigator.of(dialogCtx).pop(true),
-                                                                              child: const Text('Bevestigen'),
-                                                                            ),
-                                                                          ],
-                                                                        ),
-                                                                      ).then((confirmed) async {
-                                                                        if (confirmed == true) {
+                                                                      ).then((
+                                                                        confirmed,
+                                                                      ) async {
+                                                                        if (confirmed ==
+                                                                            true) {
                                                                           try {
                                                                             await FirebaseFirestore.instance
-                                                                                .doc('households/$householdIdStr/payments/$inId')
+                                                                                .doc(
+                                                                                  'households/$householdIdStr/payments/$inId',
+                                                                                )
                                                                                 .update({
                                                                                   'status': 'confirmed',
                                                                                   'confirmedAt': FieldValue.serverTimestamp(),
                                                                                   'confirmedBy': user.uid,
                                                                                 });
-                                                                            _showSnackBar('Ontvangst bevestigd.');
-                                                                          } catch (e) {
+                                                                            _showSnackBar(
+                                                                              'Ontvangst bevestigd.',
+                                                                            );
+                                                                          } catch (
+                                                                            e
+                                                                          ) {
                                                                             if (kDebugMode) {
-                                                                              debugPrint('Payment confirm error: $e');
+                                                                              debugPrint(
+                                                                                'Payment confirm error: $e',
+                                                                              );
                                                                             }
                                                                             _showSnackBar(
                                                                               mapUserFacingError(
@@ -3618,7 +3765,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         }
                                                                       });
                                                                     },
-                                                                    child: const Text('Ontvangst bevestigen'),
+                                                                    child: const Text(
+                                                                      'Ontvangst bevestigen',
+                                                                    ),
                                                                   ),
                                                                 ],
                                                               ),
@@ -3629,62 +3778,124 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       return;
                                                     }
 
-                                                    if (_pendingOutgoing != null) {
-                                                      final outPayment = _pendingOutgoing!;
-                                                      final outCents = (outPayment['amountCents'] as num?)?.toInt() ?? 0;
-                                                      showModalBottomSheet<void>(
+                                                    if (_pendingOutgoing !=
+                                                        null) {
+                                                      final outPayment =
+                                                          _pendingOutgoing!;
+                                                      final outCents =
+                                                          (outPayment['amountCents']
+                                                                  as num?)
+                                                              ?.toInt() ??
+                                                          0;
+                                                      showModalBottomSheet<
+                                                        void
+                                                      >(
                                                         context: context,
                                                         shape: const RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                          borderRadius:
+                                                              BorderRadius.vertical(
+                                                                top:
+                                                                    Radius.circular(
+                                                                      20,
+                                                                    ),
+                                                              ),
                                                         ),
                                                         builder: (sheetCtx) {
                                                           return SafeArea(
                                                             child: Padding(
-                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              padding:
+                                                                  const EdgeInsets.fromLTRB(
+                                                                    24,
+                                                                    20,
+                                                                    24,
+                                                                    28,
+                                                                  ),
                                                               child: Column(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .stretch,
                                                                 children: [
                                                                   Center(
                                                                     child: Container(
                                                                       width: 36,
                                                                       height: 4,
                                                                       decoration: BoxDecoration(
-                                                                        color: Theme.of(context).colorScheme.outlineVariant,
-                                                                        borderRadius: BorderRadius.circular(2),
+                                                                        color: Theme.of(
+                                                                          context,
+                                                                        ).colorScheme.outlineVariant,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(
+                                                                              2,
+                                                                            ),
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                  const SizedBox(height: 20),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
                                                                   Text(
                                                                     'Betaling melden',
-                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                                      fontWeight: FontWeight.w700,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w700,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 16),
+                                                                  const SizedBox(
+                                                                    height: 16,
+                                                                  ),
                                                                   Text(
                                                                     'Betaling gemeld',
-                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                                      color: onSurface(context, a84),
-                                                                      height: 1.4,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 4),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
                                                                   Text(
                                                                     '${_formatEur(outCents)} aan $otherName',
-                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                                                      fontWeight: FontWeight.w600,
-                                                                      color: onSurface(context, a84),
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleSmall
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 8),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
                                                                   Text(
                                                                     'Wacht op bevestiging door $otherName',
-                                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                                      color: onSurface(context, a62),
-                                                                      height: 1.4,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodySmall
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a62,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
+                                                                        ),
                                                                   ),
                                                                 ],
                                                               ),
@@ -3722,7 +3933,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     null &&
                                                                 enteredCents! >
                                                                     0;
-                                                            final bottomInset = MediaQuery.of(sheetCtx).viewInsets.bottom;
+                                                            final bottomInset =
+                                                                MediaQuery.of(
+                                                                      sheetCtx,
+                                                                    )
+                                                                    .viewInsets
+                                                                    .bottom;
                                                             return SafeArea(
                                                               child: Padding(
                                                                 padding:
@@ -3730,7 +3946,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       24,
                                                                       20,
                                                                       24,
-                                                                      28 + bottomInset,
+                                                                      28 +
+                                                                          bottomInset,
                                                                     ),
                                                                 child: Column(
                                                                   mainAxisSize:
@@ -3762,7 +3979,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           20,
                                                                     ),
                                                                     Text(
-                                                                      balanceCents < 0
+                                                                      balanceCents <
+                                                                              0
                                                                           ? 'Betaling melden'
                                                                           : 'Balans',
                                                                       style: Theme.of(context)
@@ -4298,7 +4516,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               householdId: householdIdStr,
                                                                               expenseId: d.id,
                                                                               uid: user.uid,
-                                                                              createdByUid: createdBy ?? '',
+                                                                              createdByUid:
+                                                                                  createdBy ??
+                                                                                  '',
                                                                               title: title,
                                                                               amountCents: amountCents,
                                                                               paidByName: who,
@@ -4484,7 +4704,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 householdId: householdIdStr,
                                                                                 expenseId: d.id,
                                                                                 uid: user.uid,
-                                                                                createdByUid: createdBy ?? '',
+                                                                                createdByUid:
+                                                                                    createdBy ??
+                                                                                    '',
                                                                                 title: title,
                                                                                 amountCents: amountCents,
                                                                                 paidByName: who,
@@ -4804,9 +5026,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     }
     if (reasonTrimmed.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vul een reden in.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vul een reden in.')));
       return;
     }
     setState(() => _saving = true);
@@ -4836,9 +5058,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       if (parsed == fromCents) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Het bedrag is niet gewijzigd.'),
-          ),
+          const SnackBar(content: Text('Het bedrag is niet gewijzigd.')),
         );
         setState(() => _saving = false);
         return;
@@ -4889,9 +5109,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Nieuw bedrag (€)',
-              ),
+              decoration: const InputDecoration(labelText: 'Nieuw bedrag (€)'),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -4956,9 +5174,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   Future<void> _openEditAmountDialog(int currentAmountCents) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
-        _showExpenseSnackBar(
-          'Je bent offline, probeer het later opnieuw',
-        );
+        _showExpenseSnackBar('Je bent offline, probeer het later opnieuw');
       }
       return;
     }
@@ -5128,16 +5344,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               contentPadding: EdgeInsets.zero,
                               title: Text(
                                 'Bedrag',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: onSurface(context, a70)),
                               ),
                               subtitle: Text(
                                 _ExpenseDetailPage._formatEur(currentCents),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                             ),
@@ -5157,7 +5369,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
-                                        ?.copyWith(color: onSurface(context, a70)),
+                                        ?.copyWith(
+                                          color: onSurface(context, a70),
+                                        ),
                                   ),
                                 ),
                               ),
@@ -5212,8 +5426,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   (h['toAmountCents'] as num?)?.toInt() ?? 0;
                               final reason =
                                   (h['reason'] as String?)?.trim() ?? '';
-                              final editedBy =
-                                  (h['editedBy'] as String?)?.trim();
+                              final editedBy = (h['editedBy'] as String?)
+                                  ?.trim();
                               final editedAtRaw = h['editedAt'];
                               DateTime? editedAtDt;
                               if (editedAtRaw is Timestamp) {
@@ -5397,9 +5611,7 @@ class _PaymentDetailPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
-          leading: BackButton(
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+          leading: BackButton(onPressed: () => Navigator.of(context).pop()),
           title: Text(
             'Betaling',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -5438,10 +5650,9 @@ class _PaymentDetailPage extends StatelessWidget {
                       ),
                       subtitle: Text(
                         _ExpenseDetailPage._formatEur(amountCents),
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -5593,6 +5804,7 @@ class _LogboekPageState extends State<_LogboekPage>
   late Stream<QuerySnapshot<Map<String, dynamic>>> _countsStream;
   _LogboekMode _logboekMode = _LogboekMode.uitgaven;
   _PaymentDirection _paymentDirection = _PaymentDirection.alle;
+
   /// null = Alle; otherwise filter amount edits by [editedBy] uid.
   String? _wijzigFilterEditedByUid;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
@@ -6587,8 +6799,9 @@ class _LogboekPageState extends State<_LogboekPage>
               selected: _paymentDirection == _PaymentDirection.verzonden,
               showCheckmark: false,
               onSelected: (v) => setState(() {
-                _paymentDirection =
-                    v ? _PaymentDirection.verzonden : _PaymentDirection.alle;
+                _paymentDirection = v
+                    ? _PaymentDirection.verzonden
+                    : _PaymentDirection.alle;
               }),
             ),
             const SizedBox(width: 8),
@@ -6597,8 +6810,9 @@ class _LogboekPageState extends State<_LogboekPage>
               selected: _paymentDirection == _PaymentDirection.ontvangen,
               showCheckmark: false,
               onSelected: (v) => setState(() {
-                _paymentDirection =
-                    v ? _PaymentDirection.ontvangen : _PaymentDirection.alle;
+                _paymentDirection = v
+                    ? _PaymentDirection.ontvangen
+                    : _PaymentDirection.alle;
               }),
             ),
           ],
@@ -6634,31 +6848,31 @@ class _LogboekPageState extends State<_LogboekPage>
 
         final sentCount = allDocs
             .where(
-              (d) =>
-                  (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+              (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
             )
             .length;
         final receivedCount = allDocs
             .where(
-              (d) =>
-                  (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+              (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
             )
             .length;
 
         final docs = switch (_paymentDirection) {
           _PaymentDirection.alle => allDocs,
-          _PaymentDirection.verzonden => allDocs
-              .where(
-                (d) =>
-                    (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
-              )
-              .toList(),
-          _PaymentDirection.ontvangen => allDocs
-              .where(
-                (d) =>
-                    (d.data()['toUserId'] as String?)?.trim() == widget.uid,
-              )
-              .toList(),
+          _PaymentDirection.verzonden =>
+            allDocs
+                .where(
+                  (d) =>
+                      (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+                )
+                .toList(),
+          _PaymentDirection.ontvangen =>
+            allDocs
+                .where(
+                  (d) =>
+                      (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+                )
+                .toList(),
         };
 
         final Widget listWidget;
@@ -6699,8 +6913,9 @@ class _LogboekPageState extends State<_LogboekPage>
               final String title = isSender
                   ? 'Betaling aan $otherName'
                   : 'Betaling van $otherName';
-              final String statusStr =
-                  status == 'confirmed' ? 'Bevestigd' : 'In afwachting';
+              final String statusStr = status == 'confirmed'
+                  ? 'Bevestigd'
+                  : 'In afwachting';
               final String dateStr = _fmtDate(createdAt);
               final String subtitleStr = '$dateStr · $statusStr';
               final bool isPending = status != 'confirmed';
@@ -6715,8 +6930,8 @@ class _LogboekPageState extends State<_LogboekPage>
 
               final String? statusExplanation = isPending
                   ? (isSender
-                      ? 'Wacht op bevestiging door $otherName'
-                      : 'Wacht op jouw bevestiging')
+                        ? 'Wacht op bevestiging door $otherName'
+                        : 'Wacht op jouw bevestiging')
                   : null;
 
               return Material(
@@ -7725,8 +7940,8 @@ class _SetupPageState extends State<SetupPage> {
                       .snapshots(),
                   builder: (context, snapshot) {
                     final data = snapshot.data?.data();
-                    final householdId =
-                        (data?['householdId'] as String?)?.trim();
+                    final householdId = (data?['householdId'] as String?)
+                        ?.trim();
                     final hasHousehold =
                         householdId != null && householdId.isNotEmpty;
 
@@ -7766,7 +7981,9 @@ class _SetupPageState extends State<SetupPage> {
                             const Center(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(vertical: 24),
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             ),
                             TextButton(
