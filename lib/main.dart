@@ -563,6 +563,7 @@ class ProfileNamePage extends StatefulWidget {
 
 class _ProfileNamePageState extends State<ProfileNamePage> {
   final _controller = TextEditingController();
+  final FocusNode _nameFocus = FocusNode();
   bool _busy = false;
   String? _nameInlineHint;
 
@@ -573,6 +574,11 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     if (initial != null && initial.trim().isNotEmpty) {
       _controller.text = initial.trim();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _nameFocus.requestFocus();
+      }
+    });
   }
 
   void _showSnackBar(String message) {
@@ -619,8 +625,15 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       if (widget.fromSettings) {
         Navigator.of(context).pop();
       } else {
+        final userSnap =
+            await FirebaseFirestore.instance.doc('users/$uid').get();
+        if (!mounted) {
+          return;
+        }
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
+          MaterialPageRoute(
+            builder: (_) => DashboardPage(initialUserSnapshot: userSnap),
+          ),
         );
       }
     } catch (e) {
@@ -637,6 +650,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
 
   @override
   void dispose() {
+    _nameFocus.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -701,61 +715,116 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
           ),
         ),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 24),
-                Text(
-                  'Welke naam wil je gebruiken?',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: onSurface(context, a62),
-                    height: 1.35,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 20,
+              bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: KiduCard(
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Welke naam wil je gebruiken?',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a68),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Color.alphaBlend(
+                            Theme.of(context).colorScheme.primary.withValues(
+                              alpha: a06,
+                            ),
+                            Theme.of(context).colorScheme.surface,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: outlineV(context, a45)),
+                        ),
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _nameFocus,
+                          maxLength: 20,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _busy ? null : _save(),
+                          onChanged: (_) {
+                            if (_nameInlineHint != null) {
+                              setState(() => _nameInlineHint = null);
+                            }
+                          },
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.12,
+                              ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
+                            counterText: '',
+                          ),
+                        ),
+                      ),
+                      if (_nameInlineHint != null) ...[
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Text(
+                            _nameInlineHint!,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: onSurface(context, a62),
+                                  height: 1.35,
+                                ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      FilledButton.tonalIcon(
+                        onPressed: _busy ? null : _save,
+                        icon: _busy
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              )
+                            : const Icon(Icons.check, size: 18),
+                        label: Text(
+                          'Opslaan',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  maxLength: 20,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _busy ? null : _save(),
-                  onChanged: (_) {
-                    if (_nameInlineHint != null) {
-                      setState(() => _nameInlineHint = null);
-                    }
-                  },
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (_nameInlineHint != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _nameInlineHint!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a62),
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _busy ? null : _save,
-                    child: Text(_busy ? 'Bezig...' : 'Opslaan'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
