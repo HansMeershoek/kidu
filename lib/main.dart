@@ -7681,121 +7681,172 @@ class _SetupPageState extends State<SetupPage> {
         _popSetupPage(result);
       },
       child: Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'Koppelen',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+        appBar: AppBar(
+          centerTitle: true,
+          leading: BackButton(onPressed: _popSetupPage),
+          title: Text(
+            'Koppelen',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: uid == null
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Niet ingelogd.', textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _popSetupPage,
-                    child: const Text('Terug'),
-                  ),
-                ],
-              )
-            : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .doc('users/$uid')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final data = snapshot.data?.data();
-                  final householdId = (data?['householdId'] as String?)?.trim();
-                  final hasHousehold =
-                      householdId != null && householdId.isNotEmpty;
-
-                  if (snapshot.hasError) {
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Kon status niet laden.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _popSetupPage,
-                          child: const Text('Terug'),
-                        ),
-                      ],
-                    );
-                  }
-
-                  if (!snapshot.hasData) {
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _popSetupPage,
-                          child: const Text('Terug'),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: uid == null
+              ? KiduCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'Voer een invite-code in om te koppelen aan het household van je co-parent.',
+                      Text(
+                        'Niet ingelogd.',
                         textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _inviteController,
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) =>
-                            setState(() => _joinInlineHint = null),
-                        decoration: const InputDecoration(
-                          labelText: 'Koppelcode',
-                          border: OutlineInputBorder(),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a68),
+                          height: 1.35,
                         ),
                       ),
-                      if (_joinInlineHint != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _joinInlineHint!,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a62),
-                                height: 1.35,
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _joinBusy ? null : _joinHousehold,
-                        child: Text(
-                          _joinBusy
-                              ? 'Bezig...'
-                              : (hasHousehold ? 'Verbinden' : 'Koppelen'),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
+                      const SizedBox(height: 16),
+                      TextButton(
                         onPressed: _popSetupPage,
-                        child: const Text('Terug'),
+                        child: Text(
+                          'Terug',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: onSurface(context, a70)),
+                        ),
                       ),
                     ],
-                  );
-                },
-              ),
+                  ),
+                )
+              : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .doc('users/$uid')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data?.data();
+                    final householdId =
+                        (data?['householdId'] as String?)?.trim();
+                    final hasHousehold =
+                        householdId != null && householdId.isNotEmpty;
+
+                    if (snapshot.hasError) {
+                      return KiduCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Kon status niet laden.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: onSurface(context, a68),
+                                    height: 1.35,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: _popSetupPage,
+                              child: Text(
+                                'Terug',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    if (!snapshot.hasData) {
+                      return KiduCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _popSetupPage,
+                              child: Text(
+                                'Terug',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return KiduCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Voer een invite-code in om te koppelen aan het household van je co-parent.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a62),
+                                  height: 1.35,
+                                ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _inviteController,
+                            textCapitalization: TextCapitalization.characters,
+                            onChanged: (_) =>
+                                setState(() => _joinInlineHint = null),
+                            decoration: const InputDecoration(
+                              labelText: 'Koppelcode',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          if (_joinInlineHint != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _joinInlineHint!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: onSurface(context, a62),
+                                    height: 1.35,
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          FilledButton.tonalIcon(
+                            onPressed: _joinBusy ? null : _joinHousehold,
+                            icon: Icon(
+                              hasHousehold ? Icons.link : Icons.group_add,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _joinBusy
+                                  ? 'Bezig...'
+                                  : (hasHousehold ? 'Verbinden' : 'Koppelen'),
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextButton(
+                            onPressed: _popSetupPage,
+                            child: Text(
+                              'Terug',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
       ),
-    ),
     );
   }
 }
