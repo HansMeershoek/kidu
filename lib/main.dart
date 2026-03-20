@@ -1027,7 +1027,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _setupBusy = false;
   bool _inviteBusy = false;
   bool _inviteSheetOpening = false;
-  bool _switchBusy = false;
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
@@ -1681,34 +1680,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           },
                         ),
                         Divider(height: 32, color: outlineV(context, a40)),
-                        if (kDebugMode)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
-                            leading: Icon(
-                              Icons.switch_account,
-                              size: 20,
-                              color: onSurface(context, a58),
-                            ),
-                            title: Text(
-                              'Wissel account',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            onTap: _switchBusy
-                                ? null
-                                : () {
-                                    Navigator.of(context).pop();
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                          if (!mounted) {
-                                            return;
-                                          }
-                                          _switchAccount(rootContext);
-                                        });
-                                  },
-                          ),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
@@ -2623,49 +2594,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _switchAccount(BuildContext context) async {
-    if (_switchBusy) {
-      return;
-    }
-
-    setState(() => _switchBusy = true);
-
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final navigator = Navigator.of(context);
-
-    try {
-      debugPrint(
-        'Before sign-out currentUser: uid=${FirebaseAuth.instance.currentUser?.uid} '
-        'email=${FirebaseAuth.instance.currentUser?.email}',
-      );
-      await _googleSignIn.signOut(); // clear current Google session
-      await FirebaseAuth.instance.signOut();
-      debugPrint(
-        'After sign-out currentUser: uid=${FirebaseAuth.instance.currentUser?.uid} '
-        'email=${FirebaseAuth.instance.currentUser?.email}',
-      );
-    } catch (e) {
-      debugPrint('Switch account error: $e');
-    }
-
-    if (!mounted) {
-      return;
-    }
-    setState(() => _switchBusy = false);
-
-    navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthGate()),
-      (_) => false,
-    );
-
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      const SnackBar(
-        content: Text('Uitgelogd. Kies een ander Google-account.'),
-      ),
-    );
-  }
-
   Future<void> _signOut(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signOut();
@@ -3103,32 +3031,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ),
                                                       ),
                                                     ),
-                                                    if (kDebugMode) ...[
-                                                      const SizedBox(
-                                                        height: 10,
-                                                      ),
-                                                      Center(
-                                                        child: TextButton(
-                                                          onPressed: _switchBusy
-                                                              ? null
-                                                              : () =>
-                                                                    _switchAccount(
-                                                                      context,
-                                                                    ),
-                                                          style:
-                                                              TextButton.styleFrom(
-                                                                foregroundColor:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a62,
-                                                                    ),
-                                                              ),
-                                                          child: const Text(
-                                                            'Wissel account',
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
                                                   ],
                                                 ),
                                               ),
@@ -3304,8 +3206,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         dialogOpen ||
                                         fabBusy ||
                                         _setupBusy ||
-                                        _inviteBusy ||
-                                        _switchBusy;
+                                        _inviteBusy;
 
                                     return FloatingActionButton(
                                       heroTag: 'add_expense_fab',
