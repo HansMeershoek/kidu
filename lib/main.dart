@@ -442,7 +442,9 @@ class AuthGate extends StatelessWidget {
               return const ProfileNamePage();
             }
 
-            return const DashboardPage();
+            return DashboardPage(
+              initialUserSnapshot: userDocSnapshot.data!,
+            );
           },
         );
       },
@@ -1012,7 +1014,10 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+  const DashboardPage({super.key, this.initialUserSnapshot});
+
+  /// Seeds the user-doc stream from [AuthGate] to skip an extra loading frame.
+  final DocumentSnapshot<Map<String, dynamic>>? initialUserSnapshot;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -2690,6 +2695,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.doc('users/${user.uid}').snapshots(),
+      initialData: widget.initialUserSnapshot,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Scaffold(
@@ -2730,8 +2736,9 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           );
         }
-        if (!snapshot.hasData ||
-            snapshot.connectionState == ConnectionState.waiting) {
+        // Do not treat ConnectionState.waiting as loading when [initialData] is
+        // present — Firestore keeps waiting until the first snapshot event.
+        if (!snapshot.hasData) {
           return Scaffold(
             resizeToAvoidBottomInset: false,
             appBar: AppBar(
