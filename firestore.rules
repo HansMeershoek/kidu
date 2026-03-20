@@ -214,6 +214,43 @@ service cloud.firestore {
             || (request.resource.data.childIds is list
                 && request.resource.data.childIds.size() <= 7));
 
+      allow update: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.auth.uid == resource.data.createdBy
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountCents'])
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents >= 0;
+
+      allow delete: if false;
+    }
+
+    match /households/{householdId}/expenses/{expenseId}/amountEdits/{editId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+
+      allow create: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
+        && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'fromAmountCents',
+          'toAmountCents',
+          'reason',
+          'editedBy',
+          'editedAt'
+        ])
+        && request.resource.data.editedBy == request.auth.uid
+        && request.resource.data.fromAmountCents is int
+        && request.resource.data.fromAmountCents >= 0
+        && request.resource.data.toAmountCents is int
+        && request.resource.data.toAmountCents >= 0
+        && request.resource.data.toAmountCents != request.resource.data.fromAmountCents
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 1
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.editedAt == request.time
+        && request.resource.data.fromAmountCents
+         == get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.amountCents;
+
       allow update, delete: if false;
     }
 
