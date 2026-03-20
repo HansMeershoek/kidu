@@ -2726,8 +2726,9 @@ class _DashboardPageState extends State<DashboardPage> {
                     .snapshots()
               : Stream.value(null),
           builder: (context, membersSnapshot) {
-            // Prevent "not linked" UI flash while member list is still loading
-            // after re-login (hasHousehold=true but snapshot not ready yet).
+            // Avoid full-screen loading here: while members are resolving, keep
+            // the normal dashboard subtree (invite flow) instead of replacing the
+            // scaffold with a spinner (jank when household first appears).
             if (hasHousehold && membersSnapshot.hasError) {
               return Scaffold(
                 resizeToAvoidBottomInset: false,
@@ -2754,24 +2755,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               );
             }
-            if (hasHousehold && !membersSnapshot.hasData) {
-              return Scaffold(
-                resizeToAvoidBottomInset: false,
-                appBar: AppBar(
-                  centerTitle: true,
-                  title: Text(
-                    'KiDu',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                body: const SafeArea(
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              );
-            }
+
+            final membersAwaitingFirstSnapshot = hasHousehold &&
+                !membersSnapshot.hasData &&
+                !membersSnapshot.hasError;
 
             final memberDocs = hasHousehold && membersSnapshot.hasData
                 ? membersSnapshot.data!.docs
@@ -2786,7 +2773,8 @@ class _DashboardPageState extends State<DashboardPage> {
               }
             }
 
-            final canInvite = memberCount == 1;
+            final canInvite =
+                membersAwaitingFirstSnapshot || memberCount == 1;
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
             final myDashboardName =
