@@ -19,13 +19,16 @@ import 'firebase_options.dart';
 // ------------------------------------------------------------
 // Common semantic opacities used across the UI.
 const double a06 = 0.06;
+const double a32 = 0.32;
 const double a40 = 0.40;
 const double a45 = 0.45;
 const double a50 = 0.50;
 const double a55 = 0.55;
+const double a58 = 0.58;
 const double a60 = 0.60;
 const double a62 = 0.62;
 const double a68 = 0.68;
+const double a70 = 0.70;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
@@ -237,6 +240,134 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
     );
   }
 }
+
+// ── Shared private-note helpers (used by Dashboard and Logboek) ──────────────
+
+/// Returns true when there is a live server connection for writing.
+Future<bool> _checkCanWriteNow() async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return false;
+  try {
+    await FirebaseFirestore.instance
+        .doc('users/$uid')
+        .get(const GetOptions(source: Source.server))
+        .timeout(const Duration(seconds: 2));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Shows the private-note edit dialog and returns a typed result.
+/// Pure UI only – no Firestore.
+Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
+  BuildContext context, {
+  required String initialNote,
+  required bool hasInitialNote,
+}) async {
+  final result = await showDialog<PrivateNoteDialogResult>(
+    context: context,
+    useRootNavigator: false,
+    useSafeArea: true,
+    barrierDismissible: true,
+    builder: (dialogContext) => _PrivateNoteDialogContent(
+      initialNote: initialNote,
+      hasInitialNote: hasInitialNote,
+    ),
+  );
+  return result ?? PrivateNoteDialogCancelled();
+}
+
+/// Shared note-management flow used by both Dashboard and Logboek.
+///
+/// Loads the latest note from Firestore, opens the edit dialog, verifies
+/// connectivity before writing, persists to Firestore, and shows a snackbar.
+/// Returns the committed [PrivateNoteDialogResult] so callers can bust local
+/// caches; returns null on cancel, offline block, or error.
+Future<PrivateNoteDialogResult?> _doManagePrivateNote(
+  BuildContext context, {
+  required String householdId,
+  required String expenseId,
+  required String uid,
+}) async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .doc('households/$householdId/expenses/$expenseId/privateNotes/$uid')
+        .get();
+    final initialNote = ((snap.data()?['note'] as String?) ?? '').trim();
+
+    if (!context.mounted) return null;
+    final result = await _showPrivateNoteDialog(
+      context,
+      initialNote: initialNote,
+      hasInitialNote: initialNote.isNotEmpty,
+    );
+
+    if (result is PrivateNoteDialogCancelled) return null;
+    if (!context.mounted) return null;
+
+    if (!await _checkCanWriteNow()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+              ),
+            ),
+          );
+      }
+      return null;
+    }
+
+    final ref = FirebaseFirestore.instance.doc(
+      'households/$householdId/expenses/$expenseId/privateNotes/$uid',
+    );
+    if (result is PrivateNoteDialogDelete) {
+      await ref.delete();
+    } else if (result is PrivateNoteDialogSave) {
+      await ref.set({
+        'note': result.note,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              result is PrivateNoteDialogDelete
+                  ? 'Notitie verwijderd.'
+                  : 'Notitie opgeslagen.',
+            ),
+          ),
+        );
+    }
+    return result;
+  } catch (e) {
+    debugPrint('Note save error: $e');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              mapUserFacingError(
+                e,
+                fallback: 'Opslaan mislukt. Probeer opnieuw.',
+              ),
+            ),
+          ),
+        );
+    }
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
@@ -908,6 +1039,25 @@ class _DashboardPageState extends State<DashboardPage> {
   List<_ChildItem> _dashChildren = [];
   String? _dashChildrenHouseholdId;
 
+  String? _settlementsHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _settlementsSubscription;
+  int _totalPaidByMe = 0;
+  int _totalPaidToMe = 0;
+
+  String? _paymentsHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _paymentsSubscription;
+  Map<String, dynamic>? _pendingIncoming;
+  String? _pendingIncomingId;
+  Map<String, dynamic>? _pendingOutgoing;
+
+  String? _confirmedPaymentsHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _confirmedPaymentsSubscription;
+  int _confirmedPaidByMe = 0;
+  int _confirmedPaidToMe = 0;
+
   Future<String?> _loadMyPrivateNote({
     required String householdId,
     required String expenseId,
@@ -947,87 +1097,31 @@ class _DashboardPageState extends State<DashboardPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Thin dashboard wrapper around [_doManagePrivateNote].
+  /// Guards against concurrent taps and busts the local note-cache on success.
   Future<void> _openEditPrivateNoteDialog({
     required String householdId,
     required String expenseId,
     required String uid,
-    required String initialNote,
   }) async {
     if (_noteWriteInFlight) return;
     _noteWriteInFlight = true;
-
     try {
-      final result = await _showPrivateNoteDialog(
-        initialNote: initialNote,
-        hasInitialNote: initialNote.trim().isNotEmpty,
+      final result = await _doManagePrivateNote(
+        context,
+        householdId: householdId,
+        expenseId: expenseId,
+        uid: uid,
       );
-
-      if (result is PrivateNoteDialogCancelled) {
-        return;
-      }
-
-      if (!mounted) return;
-
-      if (!await _canWriteExpenseNow()) {
-        if (mounted) {
-          _showSnackBar(
-            'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
-          );
-        }
-        return;
-      }
-
-      final ref = FirebaseFirestore.instance.doc(
-        'households/$householdId/expenses/$expenseId/privateNotes/$uid',
-      );
-
-      if (result is PrivateNoteDialogDelete) {
-        await ref.delete();
-      } else if (result is PrivateNoteDialogSave) {
-        await ref.set({
-          'note': result.note,
-          'updatedAt': FieldValue.serverTimestamp(),
+      if (result != null && mounted) {
+        setState(() {
+          _notesRefreshTick++;
+          _noteFutureCache.clear();
         });
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _notesRefreshTick++;
-        _noteFutureCache.clear();
-      });
-      if (result is PrivateNoteDialogDelete) {
-        _showSnackBar('Notitie verwijderd.');
-      } else if (result is PrivateNoteDialogSave) {
-        _showSnackBar('Notitie opgeslagen.');
-      }
-    } catch (e) {
-      debugPrint('Note save error: $e');
-      if (mounted) {
-        _showSnackBar(
-          mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'),
-        );
       }
     } finally {
       _noteWriteInFlight = false;
     }
-  }
-
-  /// Dialog only collects input and returns typed result. No Firestore.
-  Future<PrivateNoteDialogResult> _showPrivateNoteDialog({
-    required String initialNote,
-    required bool hasInitialNote,
-  }) async {
-    final result = await showDialog<PrivateNoteDialogResult>(
-      context: context,
-      useRootNavigator: false,
-      useSafeArea: true,
-      barrierDismissible: true,
-      builder: (dialogContext) => _PrivateNoteDialogContent(
-        initialNote: initialNote,
-        hasInitialNote: hasInitialNote,
-      ),
-    );
-    return result ?? PrivateNoteDialogCancelled();
   }
 
   int? _tryParseEurToCents(String input) {
@@ -1139,6 +1233,92 @@ class _DashboardPageState extends State<DashboardPage> {
     return _namesFuture!;
   }
 
+  void _startSettlementsSubscription(String householdId, String myUid) {
+    if (_settlementsHouseholdId == householdId) return;
+    _settlementsSubscription?.cancel();
+    _settlementsHouseholdId = householdId;
+    _settlementsSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/settlements')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          var paidByMe = 0;
+          var paidToMe = 0;
+          for (final doc in snap.docs) {
+            final d = doc.data();
+            final cents = (d['amountCents'] as num?)?.toInt() ?? 0;
+            final debtor = (d['debtorUid'] as String?)?.trim();
+            final creditor = (d['creditorUid'] as String?)?.trim();
+            if (debtor == myUid) paidByMe += cents;
+            if (creditor == myUid) paidToMe += cents;
+          }
+          setState(() {
+            _totalPaidByMe = paidByMe;
+            _totalPaidToMe = paidToMe;
+          });
+        });
+  }
+
+  void _startPaymentsSubscription(String householdId, String myUid) {
+    if (_paymentsHouseholdId == householdId) return;
+    _paymentsSubscription?.cancel();
+    _paymentsHouseholdId = householdId;
+    _paymentsSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/payments')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          Map<String, dynamic>? incoming;
+          String? incomingId;
+          Map<String, dynamic>? outgoing;
+          for (final doc in snap.docs) {
+            final d = doc.data();
+            final to = (d['toUserId'] as String?)?.trim();
+            final from = (d['fromUserId'] as String?)?.trim();
+            if (to == myUid && incoming == null) {
+              incoming = d;
+              incomingId = doc.id;
+            }
+            if (from == myUid && outgoing == null) {
+              outgoing = d;
+            }
+          }
+          setState(() {
+            _pendingIncoming = incoming;
+            _pendingIncomingId = incomingId;
+            _pendingOutgoing = outgoing;
+          });
+        });
+  }
+
+  void _startConfirmedPaymentsSubscription(String householdId, String myUid) {
+    if (_confirmedPaymentsHouseholdId == householdId) return;
+    _confirmedPaymentsSubscription?.cancel();
+    _confirmedPaymentsHouseholdId = householdId;
+    _confirmedPaymentsSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/payments')
+        .where('status', isEqualTo: 'confirmed')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          var paidByMe = 0;
+          var paidToMe = 0;
+          for (final doc in snap.docs) {
+            final d = doc.data();
+            final cents = (d['amountCents'] as num?)?.toInt() ?? 0;
+            final from = (d['fromUserId'] as String?)?.trim();
+            final to = (d['toUserId'] as String?)?.trim();
+            if (from == myUid) paidByMe += cents;
+            if (to == myUid) paidToMe += cents;
+          }
+          setState(() {
+            _confirmedPaidByMe = paidByMe;
+            _confirmedPaidToMe = paidToMe;
+          });
+        });
+  }
+
   Future<void> _loadDashChildrenOnce(String householdId) async {
     if (householdId.isEmpty) return;
     if (_dashChildrenHouseholdId == householdId && _dashChildren.isNotEmpty) {
@@ -1164,6 +1344,7 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1211,7 +1392,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 height: 1.35,
                               ),
                         ),
-                      const SizedBox(height: _cardGap),
+                      const SizedBox(height: 22),
                       if (!isPaired && hasHousehold && canInvite) ...[
                         SizedBox(
                           height: 48,
@@ -1268,17 +1449,24 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                         ),
                       ],
-                      const Divider(height: 24),
+                      Divider(height: 24, color: outlineV(context, a32)),
                       Text(
                         'Account',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: onSurface(context, a58),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
+                      const SizedBox(height: 8),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.edit),
+                        leading: Icon(
+                          Icons.edit,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Naam'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1292,19 +1480,25 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       Text(
                         'Huishouden',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: onSurface(context, a58),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 8),
                       if (hasHousehold)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
-                          leading: const Icon(Icons.child_care),
+                          leading: Icon(
+                            Icons.child_care,
+                            color: onSurface(context, a58),
+                          ),
                           title: const Text('Kinderen'),
                           onTap: () {
                             Navigator.of(context).pop();
@@ -1321,7 +1515,10 @@ class _DashboardPageState extends State<DashboardPage> {
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
-                          leading: const Icon(Icons.menu_book_outlined),
+                          leading: Icon(
+                            Icons.menu_book_outlined,
+                            color: onSurface(context, a58),
+                          ),
                           title: const Text('Logboek'),
                           onTap: () {
                             Navigator.of(context).pop();
@@ -1337,18 +1534,24 @@ class _DashboardPageState extends State<DashboardPage> {
                             );
                           },
                         ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       Text(
                         'Info',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: onSurface(context, a58),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 8),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.privacy_tip_outlined),
+                        leading: Icon(
+                          Icons.privacy_tip_outlined,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Privacy'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1408,7 +1611,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.info_outline),
+                        leading: Icon(
+                          Icons.info_outline,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Over KiDu'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1430,13 +1636,16 @@ class _DashboardPageState extends State<DashboardPage> {
                           );
                         },
                       ),
-                      const Divider(height: 32),
+                      Divider(height: 32, color: outlineV(context, a32)),
                       if (kDebugMode)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
-                          leading: const Icon(Icons.switch_account),
+                          leading: Icon(
+                            Icons.switch_account,
+                            color: onSurface(context, a58),
+                          ),
                           title: const Text('Wissel account'),
                           onTap: _switchBusy
                               ? null
@@ -1456,7 +1665,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         visualDensity: VisualDensity.compact,
-                        leading: const Icon(Icons.logout),
+                        leading: Icon(
+                          Icons.logout,
+                          color: onSurface(context, a58),
+                        ),
                         title: const Text('Uitloggen'),
                         onTap: () {
                           Navigator.of(context).pop();
@@ -1477,20 +1689,6 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       },
     );
-  }
-
-  Future<bool> _canWriteExpenseNow() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return false;
-    try {
-      await FirebaseFirestore.instance
-          .doc('users/$uid')
-          .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 2));
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   /// Returns active (non-archived) children for the household, sorted by
@@ -1876,7 +2074,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 }
 
                                 setLocalState(() => saving = true);
-                                if (!await _canWriteExpenseNow()) {
+                                if (!await _checkCanWriteNow()) {
                                   _showSnackBar(
                                     'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
                                   );
@@ -1999,6 +2197,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _settlementsSubscription?.cancel();
+    _paymentsSubscription?.cancel();
+    _confirmedPaymentsSubscription?.cancel();
     _addExpenseCheckBusyVN.dispose();
     _freezeExpensesVN.dispose();
     _addExpenseDialogOpenVN.dispose();
@@ -2513,6 +2714,17 @@ class _DashboardPageState extends State<DashboardPage> {
         if (householdIdStr.isNotEmpty &&
             _dashChildrenHouseholdId != householdIdStr) {
           Future.microtask(() => _loadDashChildrenOnce(householdIdStr));
+        }
+        if (householdIdStr.isNotEmpty) {
+          Future.microtask(
+            () => _startSettlementsSubscription(householdIdStr, user.uid),
+          );
+          Future.microtask(
+            () => _startPaymentsSubscription(householdIdStr, user.uid),
+          );
+          Future.microtask(
+            () => _startConfirmedPaymentsSubscription(householdIdStr, user.uid),
+          );
         }
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>?>(
@@ -3051,7 +3263,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   true;
                                               var didOpenDialog = false;
                                               try {
-                                                if (!await _canWriteExpenseNow()) {
+                                                if (!await _checkCanWriteNow()) {
                                                   _showSnackBar(
                                                     'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
                                                   );
@@ -3155,7 +3367,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'createdAt',
                                             descending: true,
                                           )
-                                          .limit(6)
                                           .snapshots(
                                             includeMetadataChanges: true,
                                           ),
@@ -3205,17 +3416,45 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         otherPaidCents)
                                                 ? 1
                                                 : 0);
-                                        final settlementCents =
+                                        final rawBalanceCents =
                                             myPaidCents - expectedMy;
+                                        final balanceCents =
+                                            rawBalanceCents +
+                                            _totalPaidByMe -
+                                            _totalPaidToMe +
+                                            _confirmedPaidByMe -
+                                            _confirmedPaidToMe;
 
-                                        final absSettlement = settlementCents
+                                        final absBalance = balanceCents
                                             .abs();
-                                        final settlementText =
-                                            settlementCents > 0
-                                            ? '$otherName betaalt jou ${_formatEur(absSettlement)}'
-                                            : settlementCents < 0
-                                            ? 'Jij betaalt $otherName ${_formatEur(absSettlement)}'
-                                            : 'Jullie zijn in balans';
+                                        final pendingInCents =
+                                            (_pendingIncoming?['amountCents']
+                                                    as num?)
+                                                ?.toInt();
+                                        final pendingOutCents =
+                                            (_pendingOutgoing?['amountCents']
+                                                    as num?)
+                                                ?.toInt();
+
+                                        final String statusText;
+                                        if (pendingInCents != null &&
+                                            pendingInCents > 0) {
+                                          statusText =
+                                              '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
+                                        } else if (pendingOutCents != null &&
+                                            pendingOutCents > 0) {
+                                          statusText =
+                                              '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
+                                        } else if (balanceCents > 0) {
+                                          statusText =
+                                              '$otherName betaalt jou ${_formatEur(absBalance)}';
+                                        } else if (balanceCents < 0) {
+                                          statusText =
+                                              'Jij betaalt $otherName ${_formatEur(absBalance)}';
+                                        } else {
+                                          statusText =
+                                              'Jullie zijn in balans';
+                                        }
 
                                         String? lastActivityText;
                                         if (docs.isNotEmpty) {
@@ -3252,73 +3491,603 @@ class _DashboardPageState extends State<DashboardPage> {
                                               const SizedBox(height: 10),
                                             ],
                                             KiduCard(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  Text(
-                                                    'Balans',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
+                                              padding: EdgeInsets.zero,
+                                              child: Material(
+                                                type: MaterialType.transparency,
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      _DashboardPageState
+                                                          ._cardRadius,
+                                                    ),
+                                                child: InkWell(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        _DashboardPageState
+                                                            ._cardRadius,
+                                                      ),
+                                                  highlightColor:
+                                                      Theme.of(context)
+                                                          .colorScheme
+                                                          .primary
+                                                          .withValues(
+                                                            alpha: 0.10,
+                                                          ),
+                                                  splashColor: Theme.of(context)
+                                                      .colorScheme
+                                                      .primary
+                                                      .withValues(alpha: 0.08),
+                                                  onTap: () {
+                                                    if (_pendingIncoming != null && _pendingIncomingId != null) {
+                                                      final inPayment = _pendingIncoming!;
+                                                      final inId = _pendingIncomingId!;
+                                                      final inCents = (inPayment['amountCents'] as num?)?.toInt() ?? 0;
+                                                      showModalBottomSheet<void>(
+                                                        context: context,
+                                                        isScrollControlled: true,
+                                                        shape: const RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                                                         ),
-                                                  ),
-                                                  // Compact summary: replace three separate rows.
-                                                  const SizedBox(height: 8),
-                                                  _balanceRow(
-                                                    label:
-                                                        'Totaal samen uitgegeven',
-                                                    value: _formatEur(
-                                                      totalCents,
+                                                        builder: (sheetCtx) {
+                                                          return SafeArea(
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              child: Column(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                children: [
+                                                                  Center(
+                                                                    child: Container(
+                                                                      width: 36,
+                                                                      height: 4,
+                                                                      decoration: BoxDecoration(
+                                                                        color: Theme.of(context).colorScheme.outlineVariant,
+                                                                        borderRadius: BorderRadius.circular(2),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 20),
+                                                                  Text(
+                                                                    'Ontvangst bevestigen',
+                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                                      fontWeight: FontWeight.w700,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 16),
+                                                                  Text(
+                                                                    'Betaling gemeld door $otherName',
+                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                                      color: onSurface(context, a84),
+                                                                      height: 1.4,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    _formatEur(inCents),
+                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                                                      fontWeight: FontWeight.w600,
+                                                                      color: onSurface(context, a84),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 20),
+                                                                  FilledButton(
+                                                                    onPressed: () {
+                                                                      Navigator.of(sheetCtx).pop();
+                                                                      showDialog<bool>(
+                                                                        context: context,
+                                                                        builder: (dialogCtx) => AlertDialog(
+                                                                          title: const Text('Ontvangst bevestigen'),
+                                                                          content: Text(
+                                                                            'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
+                                                                          ),
+                                                                          actions: [
+                                                                            TextButton(
+                                                                              onPressed: () => Navigator.of(dialogCtx).pop(false),
+                                                                              child: const Text('Annuleren'),
+                                                                            ),
+                                                                            FilledButton(
+                                                                              onPressed: () => Navigator.of(dialogCtx).pop(true),
+                                                                              child: const Text('Bevestigen'),
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                      ).then((confirmed) async {
+                                                                        if (confirmed == true) {
+                                                                          try {
+                                                                            await FirebaseFirestore.instance
+                                                                                .doc('households/$householdIdStr/payments/$inId')
+                                                                                .update({
+                                                                                  'status': 'confirmed',
+                                                                                  'confirmedAt': FieldValue.serverTimestamp(),
+                                                                                  'confirmedBy': user.uid,
+                                                                                });
+                                                                            _showSnackBar('Ontvangst bevestigd.');
+                                                                          } catch (e) {
+                                                                            if (kDebugMode) {
+                                                                              debugPrint('Payment confirm error: $e');
+                                                                            }
+                                                                            _showSnackBar(
+                                                                              mapUserFacingError(
+                                                                                e,
+                                                                                fallback: 'Bevestiging kon niet worden opgeslagen.',
+                                                                              ),
+                                                                            );
+                                                                          }
+                                                                        }
+                                                                      });
+                                                                    },
+                                                                    child: const Text('Ontvangst bevestigen'),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    if (_pendingOutgoing != null) {
+                                                      final outPayment = _pendingOutgoing!;
+                                                      final outCents = (outPayment['amountCents'] as num?)?.toInt() ?? 0;
+                                                      showModalBottomSheet<void>(
+                                                        context: context,
+                                                        shape: const RoundedRectangleBorder(
+                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                        ),
+                                                        builder: (sheetCtx) {
+                                                          return SafeArea(
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              child: Column(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                children: [
+                                                                  Center(
+                                                                    child: Container(
+                                                                      width: 36,
+                                                                      height: 4,
+                                                                      decoration: BoxDecoration(
+                                                                        color: Theme.of(context).colorScheme.outlineVariant,
+                                                                        borderRadius: BorderRadius.circular(2),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 20),
+                                                                  Text(
+                                                                    'Betaling melden',
+                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                                      fontWeight: FontWeight.w700,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 16),
+                                                                  Text(
+                                                                    'Betaling gemeld',
+                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                                      color: onSurface(context, a84),
+                                                                      height: 1.4,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 4),
+                                                                  Text(
+                                                                    '${_formatEur(outCents)} aan $otherName',
+                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                                                      fontWeight: FontWeight.w600,
+                                                                      color: onSurface(context, a84),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(height: 8),
+                                                                  Text(
+                                                                    'Wacht op bevestiging door $otherName',
+                                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                      color: onSurface(context, a62),
+                                                                      height: 1.4,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      );
+                                                      return;
+                                                    }
+
+                                                    final amountCtrl =
+                                                        TextEditingController(
+                                                          text:
+                                                              '${absBalance ~/ 100},${(absBalance % 100).toString().padLeft(2, '0')}',
+                                                        );
+                                                    int? enteredCents =
+                                                        absBalance;
+                                                    showModalBottomSheet<void>(
+                                                      context: context,
+                                                      isScrollControlled: true,
+                                                      shape: const RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.vertical(
+                                                              top:
+                                                                  Radius.circular(
+                                                                    20,
+                                                                  ),
+                                                            ),
+                                                      ),
+                                                      builder: (sheetCtx) {
+                                                        return StatefulBuilder(
+                                                          builder: (_, setSheetState) {
+                                                            final isValid =
+                                                                enteredCents !=
+                                                                    null &&
+                                                                enteredCents! >
+                                                                    0;
+                                                            final bottomInset = MediaQuery.of(sheetCtx).viewInsets.bottom;
+                                                            return SafeArea(
+                                                              child: Padding(
+                                                                padding:
+                                                                    EdgeInsets.fromLTRB(
+                                                                      24,
+                                                                      20,
+                                                                      24,
+                                                                      28 + bottomInset,
+                                                                    ),
+                                                                child: Column(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  crossAxisAlignment:
+                                                                      CrossAxisAlignment
+                                                                          .stretch,
+                                                                  children: [
+                                                                    Center(
+                                                                      child: Container(
+                                                                        width:
+                                                                            36,
+                                                                        height:
+                                                                            4,
+                                                                        decoration: BoxDecoration(
+                                                                          color: Theme.of(
+                                                                            context,
+                                                                          ).colorScheme.outlineVariant,
+                                                                          borderRadius:
+                                                                              BorderRadius.circular(
+                                                                                2,
+                                                                              ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      height:
+                                                                          20,
+                                                                    ),
+                                                                    Text(
+                                                                      balanceCents < 0
+                                                                          ? 'Betaling melden'
+                                                                          : 'Balans',
+                                                                      style: Theme.of(context)
+                                                                          .textTheme
+                                                                          .titleMedium
+                                                                          ?.copyWith(
+                                                                            fontWeight:
+                                                                                FontWeight.w700,
+                                                                          ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      height:
+                                                                          16,
+                                                                    ),
+                                                                    if (balanceCents ==
+                                                                        0)
+                                                                      Text(
+                                                                        'Jullie zijn in balans',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodyMedium?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a62,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      )
+                                                                    else if (balanceCents >
+                                                                        0) ...[
+                                                                      Text(
+                                                                        '$otherName is jou nog ${_formatEur(absBalance)} schuldig',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodyMedium?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a84,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            8,
+                                                                      ),
+                                                                      Text(
+                                                                        '$otherName kan een betaling melden vanuit de app.',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodySmall?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a62,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      ),
+                                                                    ] else ...[
+                                                                      Text(
+                                                                        'Open bedrag: ${_formatEur(absBalance)}',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.titleSmall?.copyWith(
+                                                                              fontWeight: FontWeight.w600,
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a84,
+                                                                              ),
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            4,
+                                                                      ),
+                                                                      Text(
+                                                                        'Jij betaalt $otherName',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodySmall?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a62,
+                                                                              ),
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            16,
+                                                                      ),
+                                                                      TextField(
+                                                                        controller:
+                                                                            amountCtrl,
+                                                                        keyboardType: const TextInputType.numberWithOptions(
+                                                                          decimal:
+                                                                              true,
+                                                                        ),
+                                                                        decoration: InputDecoration(
+                                                                          labelText:
+                                                                              'Bedrag',
+                                                                          prefixText:
+                                                                              '€ ',
+                                                                          isDense:
+                                                                              true,
+                                                                          border:
+                                                                              const OutlineInputBorder(),
+                                                                          errorText:
+                                                                              amountCtrl.text.trim().isNotEmpty &&
+                                                                                  (enteredCents ==
+                                                                                          null ||
+                                                                                      enteredCents! <=
+                                                                                          0)
+                                                                              ? 'Voer een geldig bedrag in'
+                                                                              : null,
+                                                                        ),
+                                                                        onChanged: (val) {
+                                                                          setSheetState(() {
+                                                                            enteredCents = _tryParseEurToCents(
+                                                                              val,
+                                                                            );
+                                                                          });
+                                                                        },
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            20,
+                                                                      ),
+                                                                      FilledButton(
+                                                                        onPressed:
+                                                                            isValid
+                                                                            ? () {
+                                                                                final paymentAmountCents = enteredCents!;
+                                                                                Navigator.of(
+                                                                                  sheetCtx,
+                                                                                ).pop();
+                                                                                showDialog<
+                                                                                      bool
+                                                                                    >(
+                                                                                      context: context,
+                                                                                      builder:
+                                                                                          (
+                                                                                            dialogCtx,
+                                                                                          ) => AlertDialog(
+                                                                                            title: const Text(
+                                                                                              'Betaling melden',
+                                                                                            ),
+                                                                                            content: Text(
+                                                                                              'Je meldt een betaling van ${_formatEur(enteredCents!)} aan $otherName. $otherName moet dit nog bevestigen.',
+                                                                                            ),
+                                                                                            actions: [
+                                                                                              TextButton(
+                                                                                                onPressed: () =>
+                                                                                                    Navigator.of(
+                                                                                                      dialogCtx,
+                                                                                                    ).pop(
+                                                                                                      false,
+                                                                                                    ),
+                                                                                                child: const Text(
+                                                                                                  'Annuleren',
+                                                                                                ),
+                                                                                              ),
+                                                                                              FilledButton(
+                                                                                                onPressed: () =>
+                                                                                                    Navigator.of(
+                                                                                                      dialogCtx,
+                                                                                                    ).pop(
+                                                                                                      true,
+                                                                                                    ),
+                                                                                                child: const Text(
+                                                                                                  'Melden',
+                                                                                                ),
+                                                                                              ),
+                                                                                            ],
+                                                                                          ),
+                                                                                    )
+                                                                                    .then(
+                                                                                      (
+                                                                                        confirmed,
+                                                                                      ) async {
+                                                                                        if (confirmed ==
+                                                                                            true) {
+                                                                                          try {
+                                                                                            await FirebaseFirestore.instance
+                                                                                                .collection(
+                                                                                                  'households/$householdIdStr/payments',
+                                                                                                )
+                                                                                                .add(
+                                                                                                  {
+                                                                                                    'amountCents': paymentAmountCents,
+                                                                                                    'currency': 'EUR',
+                                                                                                    'fromUserId': user.uid,
+                                                                                                    'toUserId': otherUid!,
+                                                                                                    'status': 'pending',
+                                                                                                    'createdAt': FieldValue.serverTimestamp(),
+                                                                                                    'createdBy': user.uid,
+                                                                                                    'confirmedAt': null,
+                                                                                                    'confirmedBy': null,
+                                                                                                  },
+                                                                                                );
+                                                                                            _showSnackBar(
+                                                                                              'Betaling gemeld — wacht op bevestiging.',
+                                                                                            );
+                                                                                          } catch (
+                                                                                            e
+                                                                                          ) {
+                                                                                            if (kDebugMode) {
+                                                                                              debugPrint(
+                                                                                                'Payment write error: $e',
+                                                                                              );
+                                                                                            }
+                                                                                            _showSnackBar(
+                                                                                              mapUserFacingError(
+                                                                                                e,
+                                                                                                fallback: 'Betaling kon niet worden gemeld.',
+                                                                                              ),
+                                                                                            );
+                                                                                          }
+                                                                                        }
+                                                                                      },
+                                                                                    );
+                                                                              }
+                                                                            : null,
+                                                                        child: const Text(
+                                                                          'Betaling melden',
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                        );
+                                                      },
+                                                    );
+                                                  },
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          16,
+                                                        ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .stretch,
+                                                      children: [
+                                                        Text(
+                                                          'Balans',
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .titleMedium
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                              ),
+                                                        ),
+                                                        // Compact summary: replace three separate rows.
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        _balanceRow(
+                                                          label:
+                                                              'Totaal samen uitgegeven',
+                                                          value: _formatEur(
+                                                            totalCents,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        Text(
+                                                          '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a62,
+                                                                    ),
+                                                                height: 1.3,
+                                                              ),
+                                                        ),
+                                                        // Tighter section spacing for lower card height.
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        Divider(
+                                                          height: 1,
+                                                          color: outlineV(
+                                                            context,
+                                                            a40,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        Text(
+                                                          statusText,
+                                                          style: Theme.of(context)
+                                                              .textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color:
+                                                                    onSurface(
+                                                                      context,
+                                                                      a84,
+                                                                    ),
+                                                                height: 1.3,
+                                                              ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 8),
-                                                  Text(
-                                                    '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          color: onSurface(
-                                                            context,
-                                                            a62,
-                                                          ),
-                                                          height: 1.3,
-                                                        ),
-                                                  ),
-                                                  // Tighter section spacing for lower card height.
-                                                  const SizedBox(height: 8),
-                                                  Divider(
-                                                    height: 1,
-                                                    color: outlineV(
-                                                      context,
-                                                      a40,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  // Keep settlement as primary info.
-                                                  Text(
-                                                    settlementText,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: onSurface(
-                                                            context,
-                                                            a84,
-                                                          ),
-                                                          height: 1.3,
-                                                        ),
-                                                  ),
-                                                ],
+                                                ),
                                               ),
                                             ),
                                             const SizedBox(height: _cardGap),
@@ -3379,7 +4148,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           physics:
                                                               const NeverScrollableScrollPhysics(),
                                                           itemCount:
-                                                              docs.length,
+                                                              docs.length > 6
+                                                              ? 6
+                                                              : docs.length,
                                                           separatorBuilder:
                                                               (
                                                                 context,
@@ -3648,30 +4419,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                                                 Future<void>
                                                                 openNoteFlow() async {
-                                                                  if (!await _canWriteExpenseNow()) {
+                                                                  if (!await _checkCanWriteNow()) {
                                                                     if (mounted) {
-                                                                      final msg =
-                                                                          hasNote
-                                                                          ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                          : 'Je bent offline. Notitie toevoegen kan alleen met internet.';
                                                                       _showSnackBar(
-                                                                        msg,
+                                                                        hasNote
+                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
                                                                       );
                                                                     }
                                                                     return;
                                                                   }
-                                                                  final snap =
-                                                                      await FirebaseFirestore
-                                                                          .instance
-                                                                          .doc(
-                                                                            'households/$householdIdStr/expenses/${d.id}/privateNotes/${user.uid}',
-                                                                          )
-                                                                          .get();
-                                                                  final latestNote =
-                                                                      ((snap.data()?['note']
-                                                                                  as String?) ??
-                                                                              '')
-                                                                          .trim();
                                                                   await _openEditPrivateNoteDialog(
                                                                     householdId:
                                                                         householdIdStr,
@@ -3679,8 +4436,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         d.id,
                                                                     uid: user
                                                                         .uid,
-                                                                    initialNote:
-                                                                        latestNote,
                                                                   );
                                                                 }
 
@@ -3918,8 +4673,17 @@ class _ExpenseDetailPage extends StatefulWidget {
   }
 
   static String _formatEur(int cents) {
-    final value = (cents / 100.0).toStringAsFixed(2);
-    return '€$value';
+    final negative = cents < 0;
+    final abs = cents.abs();
+    final euros = abs ~/ 100;
+    final rem = abs % 100;
+    final euroStr = euros.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < euroStr.length; i++) {
+      if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+      buf.write(euroStr[i]);
+    }
+    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
   }
 
   static String _formatDateTime(DateTime? dt) {
@@ -3938,7 +4702,7 @@ class _ExpenseDetailPage extends StatefulWidget {
       'nov',
       'dec',
     ];
-    return '${dt.day} ${nlMonths[dt.month - 1]} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return '${dt.day} ${nlMonths[dt.month - 1]} \u2022 ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -3981,19 +4745,34 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Titel'),
+                    title: Text(
+                      'Titel',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: Text(widget.title),
                   ),
+                  const SizedBox(height: 4),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Betaald door'),
+                    title: Text(
+                      'Betaald door',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: Text(widget.paidByName),
                   ),
                   if (widget.childIds.isNotEmpty)
                     widget.childNames != null
                         ? ListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Voor'),
+                            title: Text(
+                              'Voor',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Wrap(
@@ -4003,6 +4782,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     .map(
                                       (n) => Chip(
                                         label: Text(n),
+                                        labelStyle: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest,
                                         materialTapTargetSize:
                                             MaterialTapTargetSize.shrinkWrap,
                                         visualDensity: VisualDensity.compact,
@@ -4021,7 +4806,13 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               if (!snap.hasData) return const SizedBox.shrink();
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
-                                title: const Text('Voor'),
+                                title: Text(
+                                  'Voor',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: onSurface(context, a70),
+                                      ),
+                                ),
                                 subtitle: Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: Wrap(
@@ -4031,6 +4822,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                         .map(
                                           (n) => Chip(
                                             label: Text(n),
+                                            labelStyle: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall,
+                                            backgroundColor: Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest,
                                             materialTapTargetSize:
                                                 MaterialTapTargetSize
                                                     .shrinkWrap,
@@ -4044,23 +4841,44 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               );
                             },
                           ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Bedrag'),
-                    subtitle: Text(
-                      _ExpenseDetailPage._formatEur(widget.amountCents),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bedrag',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _ExpenseDetailPage._formatEur(widget.amountCents),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Datum/tijd'),
+                    title: Text(
+                      'Datum/tijd',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: Text(
                       _ExpenseDetailPage._formatDateTime(widget.createdAt),
                     ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Status'),
+                    title: Text(
+                      'Status',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
                     subtitle: widget.isPending
                         ? Row(
                             children: [
@@ -4073,8 +4891,19 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               const Text('Nog niet gesynchroniseerd'),
                             ],
                           )
-                        : const Text('Gesynchroniseerd'),
+                        : Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('Gesynchroniseerd'),
+                            ],
+                          ),
                   ),
+                  const SizedBox(height: 12),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
@@ -4092,13 +4921,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           if (hasNoteLive)
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: const Text('Notitie'),
+                              title: Text(
+                                'Notitie',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
                               subtitle: Text(note),
                             ),
                           if (widget.onManageNote != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 16),
-                              child: FilledButton.icon(
+                              child: FilledButton.tonalIcon(
                                 onPressed: _noteActionBusy
                                     ? null
                                     : () async {
@@ -4114,32 +4947,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                           }
                                         }
                                       },
-                                icon: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: _noteActionBusy
-                                      ? Center(
-                                          child: SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onPrimary,
-                                            ),
-                                          ),
-                                        )
-                                      : Icon(
-                                          hasNoteLive
-                                              ? Icons.edit_note
-                                              : Icons.note_add_outlined,
-                                        ),
+                                icon: Icon(
+                                  hasNoteLive
+                                      ? Icons.edit_note
+                                      : Icons.note_add_outlined,
+                                  size: 18,
                                 ),
                                 label: Text(
                                   hasNoteLive
                                       ? 'Notitie wijzigen'
                                       : 'Notitie toevoegen',
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ),
                             ),
@@ -4157,9 +4975,168 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }
 }
 
+class _PaymentDetailPage extends StatelessWidget {
+  const _PaymentDetailPage({
+    required this.title,
+    required this.amountCents,
+    required this.status,
+    required this.createdAt,
+    this.confirmedAt,
+    this.statusExplanation,
+  });
+
+  final String title;
+  final int amountCents;
+  final String status;
+  final DateTime? createdAt;
+  final DateTime? confirmedAt;
+  final String? statusExplanation;
+
+  @override
+  Widget build(BuildContext context) {
+    final isConfirmed = status == 'confirmed';
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          leading: BackButton(
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Text(
+            'Betaling',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Beschrijving',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    subtitle: Text(title),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bedrag',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _ExpenseDetailPage._formatEur(amountCents),
+                        style:
+                            Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Datum/tijd',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    subtitle: Text(
+                      _ExpenseDetailPage._formatDateTime(createdAt),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Status',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    subtitle: isConfirmed
+                        ? Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('Bevestigd'),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 16,
+                                color: onSurface(context, a60),
+                              ),
+                              const SizedBox(width: 6),
+                              const Text('In afwachting'),
+                            ],
+                          ),
+                  ),
+                  if (isConfirmed && confirmedAt != null)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bevestigd op',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _ExpenseDetailPage._formatDateTime(confirmedAt),
+                      ),
+                    ),
+                  if (statusExplanation != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      statusExplanation!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a55),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Logboek – read-only expense history with child filter
 // ────────────────────────────────────────────────────────────────────────────
+
+enum _PeriodFilter { all, custom }
+
+enum _LogboekMode { uitgaven, betalingen }
+
+enum _PaymentDirection { alle, verzonden, ontvangen }
 
 class _LogboekPage extends StatefulWidget {
   const _LogboekPage({
@@ -4178,29 +5155,97 @@ class _LogboekPage extends StatefulWidget {
   State<_LogboekPage> createState() => _LogboekPageState();
 }
 
-class _LogboekPageState extends State<_LogboekPage> {
+class _LogboekPageState extends State<_LogboekPage>
+    with SingleTickerProviderStateMixin {
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
+  List<({String uid, String name})> _parentItems = [];
+  bool _parentsLoaded = false;
+  bool _perOuder = false; // false = per kind, true = per ouder
   String? _filterChildId; // null = alle, childId = selected child
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
+  String? _filterParentUid; // null = alle, uid = selected parent
+  _PeriodFilter _periodFilter = _PeriodFilter.all;
+  DateTime? _filterStart;
+  DateTime? _filterEnd;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _countsStream;
+  _LogboekMode _logboekMode = _LogboekMode.uitgaven;
+  _PaymentDirection _paymentDirection = _PaymentDirection.alle;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
+  late final TabController _modeTabController;
   bool _initialDataReady = false;
   bool _isOffline = false;
+
+  Query<Map<String, dynamic>> _basePeriodQuery() {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/expenses',
+    );
+    if (_periodFilter != _PeriodFilter.all &&
+        _filterStart != null &&
+        _filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStart!),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(_filterEnd!));
+    }
+    return q;
+  }
+
+  void _rebuildExpensesStream() {
+    Query<Map<String, dynamic>> q = _basePeriodQuery();
+
+    if (_perOuder && _filterParentUid != null) {
+      q = q.where('createdBy', isEqualTo: _filterParentUid);
+    }
+    if (!_perOuder && _filterChildId != null) {
+      q = q.where('childIds', arrayContains: _filterChildId);
+    }
+
+    q = q.orderBy('createdAt', descending: true);
+    _expensesStream = q.snapshots();
+    _countsStream = _basePeriodQuery().snapshots();
+  }
+
+  void _rebuildPaymentsStream() {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/payments',
+    );
+    if (_periodFilter != _PeriodFilter.all &&
+        _filterStart != null &&
+        _filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStart!),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(_filterEnd!));
+    }
+    q = q.orderBy('createdAt', descending: true);
+    _paymentsStream = q.snapshots();
+  }
 
   @override
   void initState() {
     super.initState();
-    _expensesStream = FirebaseFirestore.instance
-        .collection('households/${widget.householdId}/expenses')
-        .orderBy('createdAt', descending: true)
-        .limit(200)
-        .snapshots();
+    _modeTabController = TabController(length: 2, vsync: this);
+    _rebuildExpensesStream();
+    _rebuildPaymentsStream();
     Future.wait([
       _loadChildren(),
+      _loadParents(),
       _expensesStream.first.then((_) {}).catchError((_) {}),
     ]).then((_) {
       if (mounted) setState(() => _initialDataReady = true);
     });
     _checkOffline();
+  }
+
+  @override
+  void dispose() {
+    _modeTabController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkOffline() async {
@@ -4249,15 +5294,152 @@ class _LogboekPageState extends State<_LogboekPage> {
     }
   }
 
-  bool _matchesFilter(Map<String, dynamic> data) {
-    if (_filterChildId == null) return true;
-    final ids =
-        (data['childIds'] as List?)?.whereType<String>().toList() ??
-        const <String>[];
-    return ids.contains(_filterChildId);
+  Future<void> _loadParents() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/members')
+          .limit(2)
+          .get();
+      final uids = snap.docs.map((d) => d.id).toList();
+      // Current user first, then others.
+      final sorted = [
+        if (uids.contains(widget.uid)) widget.uid,
+        ...uids.where((id) => id != widget.uid),
+      ];
+      final items = [
+        for (final uid in sorted)
+          (
+            uid: uid,
+            name: uid == widget.uid
+                ? (widget.myName ?? 'Jij')
+                : (widget.otherName ?? 'Co-parent'),
+          ),
+      ];
+      if (mounted) {
+        setState(() {
+          _parentItems = items;
+          _parentsLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _parentsLoaded = true);
+    }
   }
 
-  static String _fmtEur(int cents) => '€${(cents / 100.0).toStringAsFixed(2)}';
+  void _showPeriodFilterSheet() {
+    final pageContext = context;
+    final now = DateTime.now();
+
+    void selectPeriod(_PeriodFilter filter, DateTime? start, DateTime? end) {
+      setState(() {
+        _periodFilter = filter;
+        _filterStart = start;
+        _filterEnd = end;
+        _rebuildExpensesStream();
+        _rebuildPaymentsStream();
+      });
+      Navigator.of(context).pop();
+    }
+
+    final options = [
+      ('Alle tijd', _PeriodFilter.all, null, null),
+      ('Periode kiezen', _PeriodFilter.custom, null, null),
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Text(
+                  'Periode',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              for (final (label, filter, start, end) in options)
+                ListTile(
+                  title: Text(label),
+                  leading: _periodFilter == filter
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () async {
+                    if (filter == _PeriodFilter.custom) {
+                      Navigator.of(context).pop();
+                      final initialRange =
+                          (_periodFilter == _PeriodFilter.custom &&
+                              _filterStart != null &&
+                              _filterEnd != null)
+                          ? DateTimeRange(
+                              start: _filterStart!,
+                              end: _filterEnd!.subtract(
+                                const Duration(days: 1),
+                              ),
+                            )
+                          : DateTimeRange(
+                              start: now.subtract(const Duration(days: 29)),
+                              end: now,
+                            );
+                      final range = await showDateRangePicker(
+                        context: pageContext,
+                        initialDateRange: initialRange,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(now.year, now.month, now.day),
+                      );
+                      if (range == null || !mounted) return;
+                      setState(() {
+                        _periodFilter = _PeriodFilter.custom;
+                        _filterStart = DateTime(
+                          range.start.year,
+                          range.start.month,
+                          range.start.day,
+                        );
+                        _filterEnd = DateTime(
+                          range.end.year,
+                          range.end.month,
+                          range.end.day + 1,
+                        );
+                        _rebuildExpensesStream();
+                        _rebuildPaymentsStream();
+                      });
+                      return;
+                    }
+                    selectPeriod(filter, start, end);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _fmtEur(int cents) {
+    final negative = cents < 0;
+    final abs = cents.abs();
+    final euros = abs ~/ 100;
+    final rem = abs % 100;
+    final euroStr = euros.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < euroStr.length; i++) {
+      if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+      buf.write(euroStr[i]);
+    }
+    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
+  }
 
   static String _fmtDate(DateTime? dt) {
     if (dt == null) return '—';
@@ -4275,7 +5457,7 @@ class _LogboekPageState extends State<_LogboekPage> {
       'nov',
       'dec',
     ];
-    return '${dt.day} ${mo[dt.month - 1]} ${dt.year}';
+    return '${dt.day} ${mo[dt.month - 1]}';
   }
 
   @override
@@ -4289,6 +5471,25 @@ class _LogboekPageState extends State<_LogboekPage> {
           fontWeight: FontWeight.w700,
           letterSpacing: 0.4,
         ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.filter_list_outlined),
+          onPressed: _showPeriodFilterSheet,
+          tooltip: 'Filter',
+        ),
+      ],
+      bottom: TabBar(
+        controller: _modeTabController,
+        onTap: (i) => setState(() {
+          _logboekMode = _LogboekMode.values[i];
+        }),
+        tabs: const [Tab(text: 'Uitgaven'), Tab(text: 'Betalingen')],
+        isScrollable: true,
+        tabAlignment: TabAlignment.center,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerHeight: 0.5,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
       ),
     );
 
@@ -4320,42 +5521,364 @@ class _LogboekPageState extends State<_LogboekPage> {
                         ),
                       ),
                     ),
-                  Expanded(child: _buildExpenseList(context)),
+                  if (_logboekMode == _LogboekMode.uitgaven)
+                    _buildPerspectiveToggle(context),
+                  Expanded(
+                    child: _logboekMode == _LogboekMode.uitgaven
+                        ? _buildExpenseList(context)
+                        : _buildPaymentList(context),
+                  ),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildFilterRow(BuildContext context, Map<String?, int> counts) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  Widget _buildPerspectiveToggle(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
       child: Row(
         children: [
-          if (_children.length > 1)
-            FilterChip(
-              label: Text('Alle (${counts[null] ?? 0})'),
-              selected: _filterChildId == null,
-              onSelected: (_) => setState(() => _filterChildId = null),
-            ),
-          for (final child in _children) ...[
-            const SizedBox(width: 8),
-            FilterChip(
-              label: Text('${child.name} (${counts[child.id] ?? 0})'),
-              selected: _filterChildId == child.id,
-              onSelected: (v) =>
-                  setState(() => _filterChildId = v ? child.id : null),
-            ),
-          ],
+          FilterChip(
+            label: const Text('Per kind'),
+            selected: !_perOuder,
+            showCheckmark: false,
+            onSelected: (_) => setState(() {
+              _perOuder = false;
+              _filterParentUid = null;
+              _rebuildExpensesStream();
+            }),
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: const Text('Per ouder'),
+            selected: _perOuder,
+            showCheckmark: false,
+            onSelected: (_) => setState(() {
+              _perOuder = true;
+              _filterChildId = null;
+              _rebuildExpensesStream();
+            }),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterRow(
+    BuildContext context,
+    Map<String?, int> childCounts,
+    Map<String?, int> parentCounts,
+    List<({String uid, String name})> parentItems,
+  ) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 21, right: 16, top: 8, bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: _perOuder
+              ? [
+                  if (parentItems.length > 1)
+                    FilterChip(
+                      label: Text('Alle (${parentCounts[null] ?? 0})'),
+                      selected: _filterParentUid == null,
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() {
+                        _filterParentUid = null;
+                        _rebuildExpensesStream();
+                      }),
+                    ),
+                  for (final (i, p) in parentItems.indexed) ...[
+                    if (i > 0 || parentItems.length > 1)
+                      const SizedBox(width: 8),
+                    FilterChip(
+                      label: Text('${p.name} (${parentCounts[p.uid] ?? 0})'),
+                      selected: _filterParentUid == p.uid,
+                      showCheckmark: false,
+                      onSelected: (v) => setState(() {
+                        _filterParentUid = v ? p.uid : null;
+                        _rebuildExpensesStream();
+                      }),
+                    ),
+                  ],
+                ]
+              : [
+                  if (_children.length > 1)
+                    FilterChip(
+                      label: Text('Alle (${childCounts[null] ?? 0})'),
+                      selected: _filterChildId == null,
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() {
+                        _filterChildId = null;
+                        _rebuildExpensesStream();
+                      }),
+                    ),
+                  for (final (i, child) in _children.indexed) ...[
+                    if (i > 0 || _children.length > 1) const SizedBox(width: 8),
+                    FilterChip(
+                      label: Text(
+                        '${child.name} (${childCounts[child.id] ?? 0})',
+                      ),
+                      selected: _filterChildId == child.id,
+                      showCheckmark: false,
+                      onSelected: (v) => setState(() {
+                        _filterChildId = v ? child.id : null;
+                        _rebuildExpensesStream();
+                      }),
+                    ),
+                  ],
+                ],
+        ),
       ),
     );
   }
 
   Widget _buildExpenseList(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _expensesStream,
+      stream: _countsStream,
+      builder: (context, countsSnap) {
+        final countDocs = countsSnap.data?.docs ?? const [];
+        final childCounts = <String?, int>{
+          null: countDocs.length,
+          for (final child in _children)
+            child.id: countDocs
+                .where(
+                  (d) =>
+                      (d.data()['childIds'] as List?)?.contains(child.id) ==
+                      true,
+                )
+                .length,
+        };
+        // Use _parentItems from household members; counts include 0 for parents with no expenses.
+        final parentCounts = <String?, int>{
+          null: countDocs.length,
+          for (final p in _parentItems)
+            p.uid: countDocs
+                .where(
+                  (d) => (d.data()['createdBy'] as String?)?.trim() == p.uid,
+                )
+                .length,
+        };
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: _expensesStream,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(mapUserFacingError(snap.error!)),
+                ),
+              );
+            }
+            if (!snap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final docs = snap.data!.docs;
+            final Widget listWidget;
+            if (docs.isEmpty) {
+              listWidget = const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Geen uitgaven gevonden.'),
+                ),
+              );
+            } else {
+              listWidget = ListView.separated(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                itemCount: docs.length,
+                separatorBuilder: (context, _) => Divider(
+                  height: 1,
+                  thickness: 0.4,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+                ),
+                itemBuilder: (context, i) {
+                  final d = docs[i];
+                  final e = d.data();
+                  final title =
+                      (e['title'] as String?)?.trim() ?? '(zonder naam)';
+                  final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+                  final createdAtRaw = e['createdAt'];
+                  DateTime? createdAt;
+                  if (createdAtRaw is Timestamp) {
+                    createdAt = createdAtRaw.toDate().toLocal();
+                  } else if (createdAtRaw is DateTime) {
+                    createdAt = createdAtRaw.toLocal();
+                  }
+                  final childIds =
+                      (e['childIds'] as List?)?.whereType<String>().toList() ??
+                      const <String>[];
+                  final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+                  final paidByName = createdBy == widget.uid
+                      ? (widget.myName ?? 'Jij')
+                      : (widget.otherName ?? 'Co-parent');
+                  final nKids = childIds.length;
+                  final isFiltered = _filterChildId != null && nKids > 0;
+                  final displayCents = isFiltered
+                      ? (amountCents / nKids).round()
+                      : amountCents;
+                  final dateStr = _fmtDate(createdAt);
+                  final subtitleStr = isFiltered
+                      ? '$dateStr · aandeel 1/$nKids'
+                      : nKids > 0
+                      ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
+                      : dateStr;
+                  return Material(
+                    type: MaterialType.transparency,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      highlightColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.10),
+                      splashColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.08),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _ExpenseDetailPage(
+                            householdId: widget.householdId,
+                            expenseId: d.id,
+                            uid: widget.uid,
+                            title: title,
+                            amountCents: amountCents,
+                            paidByName: paidByName,
+                            createdAt: createdAt,
+                            isPending: false,
+                            onManageNote: createdBy == widget.uid
+                                ? () => _doManagePrivateNote(
+                                    context,
+                                    householdId: widget.householdId,
+                                    expenseId: d.id,
+                                    uid: widget.uid,
+                                  )
+                                : null,
+                            childIds: childIds,
+                            childNames: childIds
+                                .map(
+                                  (id) =>
+                                      _children
+                                          .where((c) => c.id == id)
+                                          .map((c) => c.name)
+                                          .firstOrNull ??
+                                      'Verwijderd kind',
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                      child: ListTile(
+                        key: ValueKey(d.id),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                        ),
+                        dense: true,
+                        visualDensity: VisualDensity.compact,
+                        title: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            subtitleStr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a55)),
+                          ),
+                        ),
+                        trailing: Text(
+                          _fmtEur(displayCents),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if ((_perOuder && _parentsLoaded) ||
+                    (!_perOuder && _childrenLoaded))
+                  _buildFilterRow(
+                    context,
+                    childCounts,
+                    parentCounts,
+                    _parentItems,
+                  ),
+                Expanded(child: listWidget),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPaymentFilterRow(
+    BuildContext context,
+    int allCount,
+    int sentCount,
+    int receivedCount,
+  ) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(left: 21, right: 16, top: 8, bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilterChip(
+              label: Text('Alle ($allCount)'),
+              selected: _paymentDirection == _PaymentDirection.alle,
+              showCheckmark: false,
+              onSelected: (_) => setState(() {
+                _paymentDirection = _PaymentDirection.alle;
+              }),
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text('Verzonden ($sentCount)'),
+              selected: _paymentDirection == _PaymentDirection.verzonden,
+              showCheckmark: false,
+              onSelected: (v) => setState(() {
+                _paymentDirection =
+                    v ? _PaymentDirection.verzonden : _PaymentDirection.alle;
+              }),
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text('Ontvangen ($receivedCount)'),
+              selected: _paymentDirection == _PaymentDirection.ontvangen,
+              showCheckmark: false,
+              onSelected: (v) => setState(() {
+                _paymentDirection =
+                    v ? _PaymentDirection.ontvangen : _PaymentDirection.alle;
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentList(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _paymentsStream,
       builder: (context, snap) {
         if (snap.hasError) {
           return Center(
@@ -4369,61 +5892,102 @@ class _LogboekPageState extends State<_LogboekPage> {
           return const Center(child: CircularProgressIndicator());
         }
         final allDocs = snap.data!.docs;
-        final counts = <String?, int>{
-          null: allDocs.length,
-          for (final child in _children)
-            child.id: allDocs
-                .where(
-                  (d) =>
-                      (d.data()['childIds'] as List?)?.contains(child.id) ==
-                      true,
-                )
-                .length,
+        if (allDocs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Geen betalingen gevonden.'),
+            ),
+          );
+        }
+
+        final sentCount = allDocs
+            .where(
+              (d) =>
+                  (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+            )
+            .length;
+        final receivedCount = allDocs
+            .where(
+              (d) =>
+                  (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+            )
+            .length;
+
+        final docs = switch (_paymentDirection) {
+          _PaymentDirection.alle => allDocs,
+          _PaymentDirection.verzonden => allDocs
+              .where(
+                (d) =>
+                    (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+              )
+              .toList(),
+          _PaymentDirection.ontvangen => allDocs
+              .where(
+                (d) =>
+                    (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+              )
+              .toList(),
         };
-        final docs = allDocs.where((d) => _matchesFilter(d.data())).toList();
+
         final Widget listWidget;
         if (docs.isEmpty) {
           listWidget = const Center(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Geen uitgaven gevonden.'),
+              child: Text('Geen betalingen gevonden.'),
             ),
           );
         } else {
           listWidget = ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: docs.length,
-            separatorBuilder: (context, _) => const Divider(height: 1),
+            separatorBuilder: (context, _) => Divider(
+              height: 1,
+              thickness: 0.4,
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+            ),
             itemBuilder: (context, i) {
               final d = docs[i];
-              final e = d.data();
-              final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
-              final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
-              final createdAtRaw = e['createdAt'];
+              final p = d.data();
+              final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
+              final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
+              final status = (p['status'] as String?)?.trim() ?? '';
+              final createdAtRaw = p['createdAt'];
               DateTime? createdAt;
               if (createdAtRaw is Timestamp) {
                 createdAt = createdAtRaw.toDate().toLocal();
               } else if (createdAtRaw is DateTime) {
                 createdAt = createdAtRaw.toLocal();
               }
-              final childIds =
-                  (e['childIds'] as List?)?.whereType<String>().toList() ??
-                  const <String>[];
-              final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-              final paidByName = createdBy == widget.uid
-                  ? (widget.myName ?? 'Jij')
-                  : (widget.otherName ?? 'Co-parent');
-              final nKids = childIds.length;
-              final isFiltered = _filterChildId != null && nKids > 0;
-              final displayCents = isFiltered
-                  ? (amountCents / nKids).round()
-                  : amountCents;
-              final dateStr = _fmtDate(createdAt);
-              final subtitleStr = isFiltered
-                  ? '$dateStr · Aandeel: 1/$nKids'
-                  : nKids > 0
-                  ? '$dateStr · ${nKids == 1 ? 'Voor: 1 kind' : 'Voor: $nKids kinderen'}'
-                  : dateStr;
+
+              final bool isSender = fromUserId == widget.uid;
+              final String otherName = widget.otherName ?? 'Co-parent';
+              final String title = isSender
+                  ? 'Betaling aan $otherName'
+                  : 'Betaling van $otherName';
+              final String statusStr =
+                  status == 'confirmed' ? 'Bevestigd' : 'In afwachting';
+              final String dateStr = _fmtDate(createdAt);
+              final String subtitleStr = '$dateStr · $statusStr';
+              final bool isPending = status != 'confirmed';
+
+              final confirmedAtRaw = p['confirmedAt'];
+              DateTime? confirmedAt;
+              if (confirmedAtRaw is Timestamp) {
+                confirmedAt = confirmedAtRaw.toDate().toLocal();
+              } else if (confirmedAtRaw is DateTime) {
+                confirmedAt = confirmedAtRaw.toLocal();
+              }
+
+              final String? statusExplanation = isPending
+                  ? (isSender
+                      ? 'Wacht op bevestiging door $otherName'
+                      : 'Wacht op jouw bevestiging')
+                  : null;
+
               return Material(
                 type: MaterialType.transparency,
                 borderRadius: BorderRadius.circular(8),
@@ -4437,26 +6001,13 @@ class _LogboekPageState extends State<_LogboekPage> {
                   ).colorScheme.primary.withValues(alpha: 0.08),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => _ExpenseDetailPage(
-                        householdId: widget.householdId,
-                        expenseId: d.id,
-                        uid: widget.uid,
+                      builder: (_) => _PaymentDetailPage(
                         title: title,
                         amountCents: amountCents,
-                        paidByName: paidByName,
+                        status: status,
                         createdAt: createdAt,
-                        isPending: false,
-                        childIds: childIds,
-                        childNames: childIds
-                            .map(
-                              (id) =>
-                                  _children
-                                      .where((c) => c.id == id)
-                                      .map((c) => c.name)
-                                      .firstOrNull ??
-                                  'Verwijderd kind',
-                            )
-                            .toList(),
+                        confirmedAt: confirmedAt,
+                        statusExplanation: statusExplanation,
                       ),
                     ),
                   ),
@@ -4467,21 +6018,29 @@ class _LogboekPageState extends State<_LogboekPage> {
                     visualDensity: VisualDensity.compact,
                     title: Text(
                       title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: isPending ? onSurface(context, a55) : null,
+                      ),
                     ),
-                    subtitle: Text(
-                      subtitleStr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a62),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitleStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, isPending ? a40 : a55),
+                        ),
                       ),
                     ),
                     trailing: Text(
-                      _fmtEur(displayCents),
+                      _fmtEur(amountCents),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
+                        color: isPending ? onSurface(context, a55) : null,
                       ),
                     ),
                   ),
@@ -4491,8 +6050,14 @@ class _LogboekPageState extends State<_LogboekPage> {
           );
         }
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_childrenLoaded) _buildFilterRow(context, counts),
+            _buildPaymentFilterRow(
+              context,
+              allDocs.length,
+              sentCount,
+              receivedCount,
+            ),
             Expanded(child: listWidget),
           ],
         );
