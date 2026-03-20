@@ -4295,12 +4295,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               householdId: householdIdStr,
                                                                               expenseId: d.id,
                                                                               uid: user.uid,
+                                                                              createdByUid: createdBy ?? '',
                                                                               title: title,
                                                                               amountCents: amountCents,
                                                                               paidByName: who,
                                                                               createdAt: createdAtDateTime,
                                                                               isPending: isPending,
                                                                               onManageNote: null,
+                                                                              otherParentName: otherName,
                                                                               childIds: expChildIds,
                                                                               childNames: _dashChildren.isNotEmpty
                                                                                   ? expChildIds
@@ -4479,12 +4481,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 householdId: householdIdStr,
                                                                                 expenseId: d.id,
                                                                                 uid: user.uid,
+                                                                                createdByUid: createdBy ?? '',
                                                                                 title: title,
                                                                                 amountCents: amountCents,
                                                                                 paidByName: who,
                                                                                 createdAt: createdAtDateTime,
                                                                                 isPending: isPending,
                                                                                 onManageNote: openNoteFlow,
+                                                                                otherParentName: otherName,
                                                                                 childIds: expChildIds,
                                                                                 childNames: _dashChildren.isNotEmpty
                                                                                     ? expChildIds
@@ -4625,6 +4629,7 @@ class _ExpenseDetailPage extends StatefulWidget {
     required this.householdId,
     required this.expenseId,
     required this.uid,
+    required this.createdByUid,
     required this.title,
     required this.amountCents,
     required this.paidByName,
@@ -4633,17 +4638,20 @@ class _ExpenseDetailPage extends StatefulWidget {
     this.onManageNote,
     this.childIds = const [],
     this.childNames,
+    this.otherParentName,
   });
 
   final String householdId;
   final String expenseId;
   final String uid;
+  final String createdByUid;
   final String title;
   final int amountCents;
   final String paidByName;
   final DateTime? createdAt;
   final bool isPending;
   final Future<void> Function()? onManageNote;
+  final String? otherParentName;
   final List<String> childIds;
   // Pre-resolved display names; when non-null the Voor section renders
   // synchronously without a FutureBuilder round-trip.
@@ -4686,6 +4694,39 @@ class _ExpenseDetailPage extends StatefulWidget {
     return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
   }
 
+  static String _prefillAmountForEdit(int cents) {
+    final euros = cents ~/ 100;
+    final rem = cents % 100;
+    return '$euros,${rem.toString().padLeft(2, '0')}';
+  }
+
+  /// Same rules as [DashboardPage._tryParseEurToCents] (single-file).
+  static int? _parseEurToCents(String input) {
+    final raw = input.trim().replaceAll(' ', '');
+    if (raw.isEmpty) {
+      return null;
+    }
+    final normalized = raw.replaceAll(',', '.');
+    if (!RegExp(r'^\d+(\.\d{0,2})?$').hasMatch(normalized)) {
+      return null;
+    }
+
+    final parts = normalized.split('.');
+    final euros = int.tryParse(parts[0]) ?? 0;
+    var cents = 0;
+    if (parts.length == 2 && parts[1].isNotEmpty) {
+      final frac = parts[1];
+      if (frac.length == 1) {
+        cents = int.parse(frac) * 10;
+      } else if (frac.length == 2) {
+        cents = int.parse(frac);
+      } else {
+        return null;
+      }
+    }
+    return euros * 100 + cents;
+  }
+
   static String _formatDateTime(DateTime? dt) {
     if (dt == null) return '—';
     const nlMonths = [
@@ -4709,11 +4750,232 @@ class _ExpenseDetailPage extends StatefulWidget {
   State<_ExpenseDetailPage> createState() => _ExpenseDetailPageState();
 }
 
+/// Owns [TextEditingController]s so they are disposed with the route, not
+/// immediately after [showDialog] returns (avoids teardown races).
+class _EditExpenseAmountDialog extends StatefulWidget {
+  const _EditExpenseAmountDialog({
+    required this.householdId,
+    required this.expenseId,
+    required this.currentAmountCents,
+  });
+
+  final String householdId;
+  final String expenseId;
+  final int currentAmountCents;
+
+  @override
+  State<_EditExpenseAmountDialog> createState() =>
+      _EditExpenseAmountDialogState();
+}
+
+class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
+  late final TextEditingController _amountController;
+  late final TextEditingController _reasonController;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(
+      text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
+    );
+    _reasonController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final reasonTrimmed = _reasonController.text.trim();
+    final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    if (parsed == null || parsed < 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vul een geldig bedrag in.')),
+      );
+      return;
+    }
+    if (reasonTrimmed.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vul een reden in.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Je bent offline, probeer het later opnieuw'),
+        ),
+      );
+      setState(() => _saving = false);
+      return;
+    }
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+      final expRef = FirebaseFirestore.instance.doc(
+        'households/${widget.householdId}/expenses/${widget.expenseId}',
+      );
+      final fresh = await expRef.get(const GetOptions(source: Source.server));
+      final fromCents =
+          (fresh.data()?['amountCents'] as num?)?.toInt() ??
+          widget.currentAmountCents;
+      if (parsed == fromCents) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Het bedrag is niet gewijzigd.'),
+          ),
+        );
+        setState(() => _saving = false);
+        return;
+      }
+      final batch = FirebaseFirestore.instance.batch();
+      final editRef = expRef.collection('amountEdits').doc();
+      batch.set(editRef, {
+        'fromAmountCents': fromCents,
+        'toAmountCents': parsed,
+        'reason': reasonTrimmed,
+        'editedBy': uid,
+        'editedAt': FieldValue.serverTimestamp(),
+      });
+      batch.update(expRef, {'amountCents': parsed});
+      await batch.commit();
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Edit expense amount error: $e');
+      }
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'Opslaan mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Bedrag aanpassen'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Nieuw bedrag (€)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _reasonController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Reden',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: _saving ? null : () => _submit(),
+          child: SizedBox(
+            width: 82,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Text('Opslaan'),
+                if (_saving)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   bool _noteActionBusy = false;
 
   void _handleBack() {
     Navigator.of(context).pop();
+  }
+
+  void _showExpenseSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openEditAmountDialog(int currentAmountCents) async {
+    if (!await _checkCanWriteNow()) {
+      if (mounted) {
+        _showExpenseSnackBar(
+          'Je bent offline, probeer het later opnieuw',
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    final saved = await showDialog<bool>(
+      context: context,
+      useSafeArea: true,
+      barrierDismissible: true,
+      builder: (context) => _EditExpenseAmountDialog(
+        householdId: widget.householdId,
+        expenseId: widget.expenseId,
+        currentAmountCents: currentAmountCents,
+      ),
+    );
+    if (saved == true && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showExpenseSnackBar('Bedrag bijgewerkt.');
+      });
+    }
   }
 
   @override
@@ -4841,23 +5103,152 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               );
                             },
                           ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Bedrag',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}',
+                        )
+                        .snapshots(),
+                    builder: (context, expSnap) {
+                      final ed = expSnap.data?.data();
+                      final currentCents =
+                          (ed?['amountCents'] as num?)?.toInt() ??
+                          widget.amountCents;
+                      final isCreator =
+                          widget.uid == widget.createdByUid.trim();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Bedrag',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                              subtitle: Text(
+                                _ExpenseDetailPage._formatEur(currentCents),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            if (isCreator)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () =>
+                                      _openEditAmountDialog(currentCents),
+                                  icon: Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                    color: onSurface(context, a70),
+                                  ),
+                                  label: Text(
+                                    'Bedrag aanpassen',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: onSurface(context, a70)),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      ),
-                      subtitle: Text(
-                        _ExpenseDetailPage._formatEur(widget.amountCents),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
+                      );
+                    },
+                  ),
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}/amountEdits',
+                        )
+                        .orderBy('editedAt', descending: true)
+                        .snapshots(),
+                    builder: (context, histSnap) {
+                      if (histSnap.hasError) {
+                        return const SizedBox.shrink();
+                      }
+                      if (!histSnap.hasData || histSnap.data!.docs.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      final docs = histSnap.data!.docs;
+                      String editorLabel(String? editedByUid) {
+                        final e = editedByUid?.trim() ?? '';
+                        if (e.isEmpty) return 'Co-parent';
+                        if (e == widget.uid) return 'Jij';
+                        final o = widget.otherParentName?.trim();
+                        if (o != null && o.isNotEmpty) return o;
+                        return 'Co-parent';
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Wijzigingsgeschiedenis',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: onSurface(context, a70),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: 10),
+                            ...docs.map((doc) {
+                              final h = doc.data();
+                              final fromC =
+                                  (h['fromAmountCents'] as num?)?.toInt() ?? 0;
+                              final toC =
+                                  (h['toAmountCents'] as num?)?.toInt() ?? 0;
+                              final reason =
+                                  (h['reason'] as String?)?.trim() ?? '';
+                              final editedBy =
+                                  (h['editedBy'] as String?)?.trim();
+                              final editedAtRaw = h['editedAt'];
+                              DateTime? editedAtDt;
+                              if (editedAtRaw is Timestamp) {
+                                editedAtDt = editedAtRaw.toDate().toLocal();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)} · ${editorLabel(editedBy)} · ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: onSurface(context, a68),
+                                            height: 1.35,
+                                          ),
+                                    ),
+                                    if (reason.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        reason,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(height: 1.35),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -5134,9 +5525,37 @@ class _PaymentDetailPage extends StatelessWidget {
 
 enum _PeriodFilter { all, custom }
 
-enum _LogboekMode { uitgaven, betalingen }
+enum _LogboekMode { uitgaven, betalingen, wijzigingen }
 
 enum _PaymentDirection { alle, verzonden, ontvangen }
+
+class _WijzigRow {
+  const _WijzigRow({
+    required this.expenseId,
+    required this.title,
+    required this.fromAmountCents,
+    required this.toAmountCents,
+    required this.reason,
+    required this.editedBy,
+    required this.editedAt,
+    required this.expenseAmountCents,
+    required this.childIds,
+    required this.createdBy,
+    required this.createdAt,
+  });
+
+  final String expenseId;
+  final String title;
+  final int fromAmountCents;
+  final int toAmountCents;
+  final String reason;
+  final String editedBy;
+  final DateTime editedAt;
+  final int expenseAmountCents;
+  final List<String> childIds;
+  final String createdBy;
+  final DateTime? createdAt;
+}
 
 class _LogboekPage extends StatefulWidget {
   const _LogboekPage({
@@ -5171,6 +5590,8 @@ class _LogboekPageState extends State<_LogboekPage>
   late Stream<QuerySnapshot<Map<String, dynamic>>> _countsStream;
   _LogboekMode _logboekMode = _LogboekMode.uitgaven;
   _PaymentDirection _paymentDirection = _PaymentDirection.alle;
+  /// null = Alle; otherwise filter amount edits by [editedBy] uid.
+  String? _wijzigFilterEditedByUid;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
   late final TabController _modeTabController;
   bool _initialDataReady = false;
@@ -5229,7 +5650,7 @@ class _LogboekPageState extends State<_LogboekPage>
   @override
   void initState() {
     super.initState();
-    _modeTabController = TabController(length: 2, vsync: this);
+    _modeTabController = TabController(length: 3, vsync: this);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
     Future.wait([
@@ -5460,6 +5881,85 @@ class _LogboekPageState extends State<_LogboekPage>
     return '${dt.day} ${mo[dt.month - 1]}';
   }
 
+  String? _otherParentUid() {
+    for (final p in _parentItems) {
+      if (p.uid != widget.uid) return p.uid;
+    }
+    return null;
+  }
+
+  Future<List<_WijzigRow>> _loadWijzigRows(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
+  ) async {
+    final rows = <_WijzigRow>[];
+    await Future.wait(
+      expenseDocs.map((d) async {
+        final e = d.data();
+        final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+        final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+        final childIds =
+            (e['childIds'] as List?)?.whereType<String>().toList() ??
+            const <String>[];
+        final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+        final createdAtRaw = e['createdAt'];
+        DateTime? createdAt;
+        if (createdAtRaw is Timestamp) {
+          createdAt = createdAtRaw.toDate().toLocal();
+        } else if (createdAtRaw is DateTime) {
+          createdAt = createdAtRaw.toLocal();
+        }
+        final sub = await FirebaseFirestore.instance
+            .collection(
+              'households/${widget.householdId}/expenses/${d.id}/amountEdits',
+            )
+            .get();
+        for (final ed in sub.docs) {
+          final h = ed.data();
+          final fromC = (h['fromAmountCents'] as num?)?.toInt() ?? 0;
+          final toC = (h['toAmountCents'] as num?)?.toInt() ?? 0;
+          final reason = (h['reason'] as String?)?.trim() ?? '';
+          final editedBy = (h['editedBy'] as String?)?.trim() ?? '';
+          final editedAtRaw = h['editedAt'];
+          DateTime? editedAtDt;
+          if (editedAtRaw is Timestamp) {
+            editedAtDt = editedAtRaw.toDate().toLocal();
+          } else if (editedAtRaw is DateTime) {
+            editedAtDt = editedAtRaw.toLocal();
+          }
+          if (editedAtDt == null) continue;
+          if (_periodFilter != _PeriodFilter.all &&
+              _filterStart != null &&
+              _filterEnd != null) {
+            final ed = editedAtDt;
+            if (ed.isBefore(_filterStart!) || !ed.isBefore(_filterEnd!)) {
+              continue;
+            }
+          }
+          rows.add(
+            _WijzigRow(
+              expenseId: d.id,
+              title: title,
+              fromAmountCents: fromC,
+              toAmountCents: toC,
+              reason: reason,
+              editedBy: editedBy,
+              editedAt: editedAtDt,
+              expenseAmountCents: amountCents,
+              childIds: childIds,
+              createdBy: createdBy,
+              createdAt: createdAt,
+            ),
+          );
+        }
+      }),
+    );
+    rows.sort((a, b) => b.editedAt.compareTo(a.editedAt));
+    if (_wijzigFilterEditedByUid != null) {
+      rows.removeWhere((r) => r.editedBy != _wijzigFilterEditedByUid);
+    }
+    return rows;
+  }
+
   @override
   Widget build(BuildContext context) {
     final appBar = AppBar(
@@ -5484,7 +5984,11 @@ class _LogboekPageState extends State<_LogboekPage>
         onTap: (i) => setState(() {
           _logboekMode = _LogboekMode.values[i];
         }),
-        tabs: const [Tab(text: 'Uitgaven'), Tab(text: 'Betalingen')],
+        tabs: const [
+          Tab(text: 'Uitgaven'),
+          Tab(text: 'Betalingen'),
+          Tab(text: 'Wijzigingen'),
+        ],
         isScrollable: true,
         tabAlignment: TabAlignment.center,
         indicatorSize: TabBarIndicatorSize.label,
@@ -5523,10 +6027,14 @@ class _LogboekPageState extends State<_LogboekPage>
                     ),
                   if (_logboekMode == _LogboekMode.uitgaven)
                     _buildPerspectiveToggle(context),
+                  if (_logboekMode == _LogboekMode.wijzigingen)
+                    _buildWijzigingenEditorFilterRow(context),
                   Expanded(
                     child: _logboekMode == _LogboekMode.uitgaven
                         ? _buildExpenseList(context)
-                        : _buildPaymentList(context),
+                        : _logboekMode == _LogboekMode.betalingen
+                        ? _buildPaymentList(context)
+                        : _buildWijzigingenList(context),
                   ),
                 ],
               ),
@@ -5632,6 +6140,224 @@ class _LogboekPageState extends State<_LogboekPage>
                 ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWijzigingenEditorFilterRow(BuildContext context) {
+    final myLabel = widget.myName ?? 'Jij';
+    final otherUid = _otherParentUid();
+    final otherLabel = widget.otherName ?? 'Co-parent';
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FilterChip(
+              label: const Text('Alle'),
+              selected: _wijzigFilterEditedByUid == null,
+              showCheckmark: false,
+              onSelected: (_) => setState(() {
+                _wijzigFilterEditedByUid = null;
+              }),
+            ),
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(myLabel),
+              selected: _wijzigFilterEditedByUid == widget.uid,
+              showCheckmark: false,
+              onSelected: (v) => setState(() {
+                _wijzigFilterEditedByUid = v ? widget.uid : null;
+              }),
+            ),
+            if (otherUid != null) ...[
+              const SizedBox(width: 8),
+              FilterChip(
+                label: Text(otherLabel),
+                selected: _wijzigFilterEditedByUid == otherUid,
+                showCheckmark: false,
+                onSelected: (v) => setState(() {
+                  _wijzigFilterEditedByUid = v ? otherUid : null;
+                }),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWijzigingenList(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/expenses')
+          .snapshots(),
+      builder: (context, expSnap) {
+        if (expSnap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(mapUserFacingError(expSnap.error!)),
+            ),
+          );
+        }
+        if (!expSnap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = expSnap.data!.docs;
+        final sig = docs
+            .map(
+              (d) =>
+                  '${d.id}:${(d.data()['amountCents'] as num?)?.toInt() ?? 0}',
+            )
+            .join('|');
+        return FutureBuilder<List<_WijzigRow>>(
+          key: ValueKey(
+            '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$sig',
+          ),
+          future: _loadWijzigRows(docs),
+          builder: (context, futSnap) {
+            if (futSnap.connectionState == ConnectionState.waiting &&
+                !futSnap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (futSnap.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(mapUserFacingError(futSnap.error!)),
+                ),
+              );
+            }
+            final rows = futSnap.data ?? const <_WijzigRow>[];
+            if (rows.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Geen bedragwijzigingen gevonden.'),
+                ),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: rows.length,
+              separatorBuilder: (context, _) => Divider(
+                height: 1,
+                thickness: 0.4,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+              ),
+              itemBuilder: (context, i) {
+                final row = rows[i];
+                final whoLabel = row.editedBy == widget.uid
+                    ? 'Jij'
+                    : (widget.otherName ?? 'Co-parent');
+                final paidByName = row.createdBy == widget.uid
+                    ? (widget.myName ?? 'Jij')
+                    : (widget.otherName ?? 'Co-parent');
+                return Material(
+                  type: MaterialType.transparency,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    highlightColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.10),
+                    splashColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.08),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => _ExpenseDetailPage(
+                          householdId: widget.householdId,
+                          expenseId: row.expenseId,
+                          uid: widget.uid,
+                          createdByUid: row.createdBy,
+                          title: row.title,
+                          amountCents: row.expenseAmountCents,
+                          paidByName: paidByName,
+                          createdAt: row.createdAt,
+                          isPending: false,
+                          onManageNote: row.createdBy == widget.uid
+                              ? () => _doManagePrivateNote(
+                                  context,
+                                  householdId: widget.householdId,
+                                  expenseId: row.expenseId,
+                                  uid: widget.uid,
+                                )
+                              : null,
+                          otherParentName: widget.otherName,
+                          childIds: row.childIds,
+                          childNames: row.childIds
+                              .map(
+                                (id) =>
+                                    _children
+                                        .where((c) => c.id == id)
+                                        .map((c) => c.name)
+                                        .firstOrNull ??
+                                    'Verwijderd kind',
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 4,
+                      ),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      title: Text(
+                        row.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_fmtEur(row.fromAmountCents)} → ${_fmtEur(row.toAmountCents)}',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$whoLabel · ${_ExpenseDetailPage._formatDateTime(row.editedAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: onSurface(context, a55)),
+                            ),
+                            if (row.reason.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                row.reason,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: onSurface(context, a68),
+                                      height: 1.35,
+                                    ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -5746,6 +6472,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             householdId: widget.householdId,
                             expenseId: d.id,
                             uid: widget.uid,
+                            createdByUid: createdBy,
                             title: title,
                             amountCents: amountCents,
                             paidByName: paidByName,
@@ -5759,6 +6486,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                     uid: widget.uid,
                                   )
                                 : null,
+                            otherParentName: widget.otherName,
                             childIds: childIds,
                             childNames: childIds
                                 .map(
