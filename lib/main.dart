@@ -2399,6 +2399,7 @@ class _DashboardPageState extends State<DashboardPage> {
       showDragHandle: true,
       isDismissible: true,
       enableDrag: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setModalState) {
@@ -2476,57 +2477,60 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Uitnodigingscode',
-                        style: Theme.of(sheetContext).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: _cardGap),
-                      if (loading || code != null) ...[
-                        KiduCodePill(
-                          code: code ?? '',
-                          loading: loading,
-                          onCopy: () async {
-                            await Clipboard.setData(
-                              ClipboardData(text: code!),
-                            );
-                            _showSnackBar('Invite code gekopieerd.');
-                          },
+                  child: KiduCard(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Uitnodigingscode',
+                          style: Theme.of(sheetContext).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
-                        FilledButton.icon(
-                          onPressed: () {
-                            if (loading) return;
-                            _shareInviteCode(code!);
-                          },
-                          icon: const Icon(Icons.share),
-                          label: const Text('Delen'),
-                        ),
-                        const SizedBox(height: _cardGap),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton(
+                        if (loading || code != null) ...[
+                          KiduCodePill(
+                            code: code ?? '',
+                            loading: loading,
+                            onCopy: () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: code!),
+                              );
+                              _showSnackBar('Invite code gekopieerd.');
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.tonalIcon(
+                            onPressed: () {
+                              if (loading) return;
+                              _shareInviteCode(code!);
+                            },
+                            icon: const Icon(Icons.share_outlined, size: 18),
+                            label: Text(
+                              'Delen',
+                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          FilledButton.tonalIcon(
                             onPressed: () {
                               if (loading) return;
                               Navigator.of(sheetContext).pop(true);
                             },
-                            child: const Text('Klaar'),
+                            icon: const Icon(Icons.check, size: 18),
+                            label: Text(
+                              'Klaar',
+                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                            ),
                           ),
-                        ),
-                      ] else ...[
-                        Text(
-                          error ?? 'Kon geen code maken. Probeer opnieuw.',
-                          style: Theme.of(sheetContext).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(sheetContext, a68)),
-                        ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton(
+                        ] else ...[
+                          Text(
+                            error ?? 'Kon geen code maken. Probeer opnieuw.',
+                            style: Theme.of(sheetContext).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(sheetContext, a68)),
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.tonalIcon(
                             onPressed: () {
                               setModalState(() {
                                 started = false;
@@ -2535,11 +2539,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                 error = null;
                               });
                             },
-                            child: const Text('Opnieuw'),
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: Text(
+                              'Opnieuw',
+                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
