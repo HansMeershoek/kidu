@@ -442,9 +442,7 @@ class AuthGate extends StatelessWidget {
               return const ProfileNamePage();
             }
 
-            return DashboardPage(
-              initialUserSnapshot: userDocSnapshot.data!,
-            );
+            return DashboardPage(initialUserSnapshot: userDocSnapshot.data!);
           },
         );
       },
@@ -625,8 +623,9 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       if (widget.fromSettings) {
         Navigator.of(context).pop();
       } else {
-        final userSnap =
-            await FirebaseFirestore.instance.doc('users/$uid').get();
+        final userSnap = await FirebaseFirestore.instance
+            .doc('users/$uid')
+            .get();
         if (!mounted) {
           return;
         }
@@ -734,11 +733,12 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                     children: [
                       Text(
                         'Welke naam wil je gebruiken?',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                          height: 1.25,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                              height: 1.25,
+                            ),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -752,9 +752,9 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                       Container(
                         decoration: BoxDecoration(
                           color: Color.alphaBlend(
-                            Theme.of(context).colorScheme.primary.withValues(
-                              alpha: a06,
-                            ),
+                            Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: a06),
                             Theme.of(context).colorScheme.surface,
                           ),
                           borderRadius: BorderRadius.circular(999),
@@ -2825,7 +2825,8 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             }
 
-            final membersAwaitingFirstSnapshot = hasHousehold &&
+            final membersAwaitingFirstSnapshot =
+                hasHousehold &&
                 !membersSnapshot.hasData &&
                 !membersSnapshot.hasError;
 
@@ -2842,8 +2843,7 @@ class _DashboardPageState extends State<DashboardPage> {
               }
             }
 
-            final canInvite =
-                membersAwaitingFirstSnapshot || memberCount == 1;
+            final canInvite = membersAwaitingFirstSnapshot || memberCount == 1;
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
             final myDashboardName =
@@ -2859,6 +2859,27 @@ class _DashboardPageState extends State<DashboardPage> {
                 if (!mounted) return;
                 setState(() => _showWaiting = false);
               });
+            }
+
+            // Solo/invite UI uses !canAddExpenses; that is also true while members
+            // have not emitted yet — show loading instead of a false "not linked" state.
+            if (hasHousehold && membersAwaitingFirstSnapshot) {
+              return Scaffold(
+                resizeToAvoidBottomInset: false,
+                appBar: AppBar(
+                  centerTitle: true,
+                  title: Text(
+                    'KiDu',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                body: const SafeArea(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              );
             }
 
             if (!canAddExpenses) {
@@ -3408,9 +3429,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                             'Kon uitgaven niet laden.',
                                           );
                                         }
+                                        if (effectiveSnap == null) {
+                                          return const Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        }
 
-                                        final docs =
-                                            effectiveSnap?.docs ?? const [];
+                                        final docs = effectiveSnap.docs;
 
                                         var totalCents = 0;
                                         var myPaidCents = 0;
