@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- KiDu splash / scaffold match (#F7F6F4) — same in light and dark for launch -->
+    <color name="kidu_splash_bg">#F7F6F4</color>
+</resources>
