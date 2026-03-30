@@ -1127,7 +1127,7 @@ class _LoginPageState extends State<LoginPage> {
         child: Center(
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.only(top: 10, bottom: 38),
+              padding: const EdgeInsets.only(top: 34, bottom: 38),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Container(
