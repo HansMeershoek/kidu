@@ -4323,15 +4323,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ),
                                                   ),
                                                   const SizedBox(height: 10),
-                                                  effectiveSnap == null
-                                                      ? const SizedBox(
-                                                          height: 48,
-                                                          child: Center(
-                                                            child:
-                                                                CircularProgressIndicator(),
-                                                          ),
-                                                        )
-                                                      : docs.isEmpty
+                                                  docs.isEmpty
                                                       ? Align(
                                                           alignment:
                                                               Alignment.topLeft,
