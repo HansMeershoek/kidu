@@ -427,6 +427,7 @@ class AuthGate extends StatelessWidget {
           _lastUid = currentUid;
         }
         if (user == null) {
+          _PostSignInHandoffController.clear();
           return const LoginPage();
         }
 
@@ -434,24 +435,158 @@ class AuthGate extends StatelessWidget {
           key: ValueKey('profileNameCheck-${user.uid}'),
           future: FirebaseFirestore.instance.doc('users/${user.uid}').get(),
           builder: (context, userDocSnapshot) {
+            final dashboard = DashboardPage(
+              key: ValueKey('dashboard-${user.uid}'),
+              initialUserSnapshot: userDocSnapshot.data,
+              onPreviewReadyChanged:
+                  _PostSignInHandoffController.setDashboardReady,
+            );
+
             if (userDocSnapshot.connectionState == ConnectionState.waiting) {
+              if (_PostSignInHandoffController.isActive) {
+                return _PostSignInHandoffGate(child: dashboard);
+              }
               return const _AuthGateBrandedLoading();
             }
 
             if (userDocSnapshot.hasError) {
+              _PostSignInHandoffController.clear();
               return const ProfileNamePage();
             }
 
             final data = userDocSnapshot.data?.data();
             final profileName = (data?['profileName'] as String?)?.trim();
             if (profileName == null || profileName.isEmpty) {
+              _PostSignInHandoffController.clear();
               return const ProfileNamePage();
             }
 
-            return DashboardPage(initialUserSnapshot: userDocSnapshot.data!);
+            if (_PostSignInHandoffController.isActive) {
+              return _PostSignInHandoffGate(child: dashboard);
+            }
+            return dashboard;
           },
         );
       },
+    );
+  }
+}
+
+class _PostSignInHandoffController {
+  static const Duration minDuration = Duration(milliseconds: 1100);
+  static final ValueNotifier<bool> dashboardReady = ValueNotifier(false);
+  static DateTime? _startedAt;
+
+  static bool get isActive => _startedAt != null;
+
+  static void start() {
+    _startedAt = DateTime.now();
+    dashboardReady.value = false;
+  }
+
+  static Duration get remaining {
+    final startedAt = _startedAt;
+    if (startedAt == null) {
+      return Duration.zero;
+    }
+    final elapsed = DateTime.now().difference(startedAt);
+    final remaining = minDuration - elapsed;
+    if (remaining.isNegative) {
+      return Duration.zero;
+    }
+    return remaining;
+  }
+
+  static void setDashboardReady(bool ready) {
+    if (!isActive || dashboardReady.value == ready) {
+      return;
+    }
+    dashboardReady.value = ready;
+  }
+
+  static void clear() {
+    _startedAt = null;
+    dashboardReady.value = false;
+  }
+}
+
+class _PostSignInHandoffGate extends StatefulWidget {
+  const _PostSignInHandoffGate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PostSignInHandoffGate> createState() => _PostSignInHandoffGateState();
+}
+
+class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
+  static const Duration _fadeDuration = Duration(milliseconds: 220);
+
+  Timer? _minTimer;
+  bool _minElapsed = false;
+  bool _revealed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _PostSignInHandoffController.dashboardReady.addListener(_maybeReveal);
+    final remaining = _PostSignInHandoffController.remaining;
+    if (remaining == Duration.zero) {
+      _minElapsed = true;
+    } else {
+      _minTimer = Timer(remaining, () {
+        if (!mounted) {
+          return;
+        }
+        _minElapsed = true;
+        _maybeReveal();
+      });
+    }
+    _maybeReveal();
+  }
+
+  @override
+  void dispose() {
+    _minTimer?.cancel();
+    _PostSignInHandoffController.dashboardReady.removeListener(_maybeReveal);
+    super.dispose();
+  }
+
+  void _maybeReveal() {
+    if (!mounted ||
+        _revealed ||
+        !_minElapsed ||
+        !_PostSignInHandoffController.dashboardReady.value) {
+      return;
+    }
+    _PostSignInHandoffController.clear();
+    setState(() => _revealed = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        IgnorePointer(
+          ignoring: !_revealed,
+          child: AnimatedOpacity(
+            opacity: _revealed ? 1 : 0,
+            duration: _fadeDuration,
+            curve: Curves.easeOut,
+            child: widget.child,
+          ),
+        ),
+        IgnorePointer(
+          ignoring: _revealed,
+          child: AnimatedOpacity(
+            opacity: _revealed ? 0 : 1,
+            duration: _fadeDuration,
+            curve: Curves.easeOut,
+            child: const _AuthGateBrandedLoading(),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -462,6 +597,7 @@ class _AuthGateBrandedLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
+      backgroundColor: Color(0xFFF7F6F4),
       body: Center(
         child: Image(
           image: AssetImage('assets/images/kidu_icon.png'),
@@ -946,6 +1082,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // e) Sign in to Firebase
       await FirebaseAuth.instance.signInWithCredential(credential);
+      _PostSignInHandoffController.start();
       debugPrint(
         'After sign-in currentUser: uid=${FirebaseAuth.instance.currentUser?.uid} '
         'email=${FirebaseAuth.instance.currentUser?.email}',
@@ -981,6 +1118,10 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_PostSignInHandoffController.isActive) {
+      return const _AuthGateBrandedLoading();
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -1105,10 +1246,15 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, this.initialUserSnapshot});
+  const DashboardPage({
+    super.key,
+    this.initialUserSnapshot,
+    this.onPreviewReadyChanged,
+  });
 
   /// Seeds the user-doc stream from [AuthGate] to skip an extra loading frame.
   final DocumentSnapshot<Map<String, dynamic>>? initialUserSnapshot;
+  final ValueChanged<bool>? onPreviewReadyChanged;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -1154,6 +1300,20 @@ class _DashboardPageState extends State<DashboardPage> {
   _confirmedPaymentsSubscription;
   int _confirmedPaidByMe = 0;
   int _confirmedPaidToMe = 0;
+  bool? _lastReportedPreviewReady;
+
+  void _reportPreviewReady(bool ready) {
+    if (_lastReportedPreviewReady == ready) {
+      return;
+    }
+    _lastReportedPreviewReady = ready;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      widget.onPreviewReadyChanged?.call(ready);
+    });
+  }
 
   Future<String?> _loadMyPrivateNote({
     required String householdId,
@@ -2395,6 +2555,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    widget.onPreviewReadyChanged?.call(false);
     _settlementsSubscription?.cancel();
     _paymentsSubscription?.cancel();
     _confirmedPaymentsSubscription?.cancel();
@@ -2790,6 +2951,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      _reportPreviewReady(false);
       // Avoid endless spinner if auth state flips during navigation/sign-out.
       return const AuthGate();
     }
@@ -2799,6 +2961,7 @@ class _DashboardPageState extends State<DashboardPage> {
       initialData: widget.initialUserSnapshot,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          _reportPreviewReady(true);
           return Scaffold(
             resizeToAvoidBottomInset: false,
             appBar: AppBar(
@@ -2840,6 +3003,7 @@ class _DashboardPageState extends State<DashboardPage> {
         // Do not treat ConnectionState.waiting as loading when [initialData] is
         // present — Firestore keeps waiting until the first snapshot event.
         if (!snapshot.hasData) {
+          _reportPreviewReady(false);
           return Scaffold(
             resizeToAvoidBottomInset: false,
             appBar: AppBar(
@@ -2903,6 +3067,7 @@ class _DashboardPageState extends State<DashboardPage> {
             // the normal dashboard subtree (invite flow) instead of replacing the
             // scaffold with a spinner (jank when household first appears).
             if (hasHousehold && membersSnapshot.hasError) {
+              _reportPreviewReady(true);
               return Scaffold(
                 resizeToAvoidBottomInset: false,
                 appBar: AppBar(
@@ -2968,6 +3133,7 @@ class _DashboardPageState extends State<DashboardPage> {
             // Solo/invite UI uses !canAddExpenses; that is also true while members
             // have not emitted yet — show loading instead of a false "not linked" state.
             if (hasHousehold && membersAwaitingFirstSnapshot) {
+              _reportPreviewReady(false);
               return Scaffold(
                 resizeToAvoidBottomInset: false,
                 appBar: AppBar(
@@ -2987,6 +3153,7 @@ class _DashboardPageState extends State<DashboardPage> {
             }
 
             if (!canAddExpenses) {
+              _reportPreviewReady(true);
               return PopScope(
                 canPop: !_showWaiting,
                 onPopInvokedWithResult: (didPop, _) {
@@ -3529,11 +3696,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                             expensesSnapshot.data;
                                         if (expensesSnapshot.hasError &&
                                             effectiveSnap == null) {
+                                          _reportPreviewReady(true);
                                           return const Text(
                                             'Kon uitgaven niet laden.',
                                           );
                                         }
                                         if (effectiveSnap == null) {
+                                          _reportPreviewReady(false);
                                           return const Center(
                                             child: CircularProgressIndicator(),
                                           );
@@ -3640,6 +3809,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         .connectionState ==
                                                     ConnectionState.done &&
                                                 secondaryMetadata != null;
+                                            _reportPreviewReady(
+                                              secondaryMetadataReady,
+                                            );
                                             final visibleOtherName =
                                                 secondaryMetadataReady
                                                 ? secondaryMetadata.otherName
