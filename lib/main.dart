@@ -560,10 +560,14 @@ class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
   Timer? _minTimer;
   bool _minElapsed = false;
   bool _revealed = false;
+  late final Duration _fadeDuration;
+  late final Widget _loadingWidget;
 
   @override
   void initState() {
     super.initState();
+    _fadeDuration = _PostSignInHandoffController.fadeDuration;
+    _loadingWidget = _PostSignInHandoffController.loadingWidget;
     _PostSignInHandoffController.dashboardReady.addListener(_maybeReveal);
     final remaining = _PostSignInHandoffController.remaining;
     if (remaining == Duration.zero) {
@@ -607,7 +611,7 @@ class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
           ignoring: !_revealed,
           child: AnimatedOpacity(
             opacity: _revealed ? 1 : 0,
-            duration: _PostSignInHandoffController.fadeDuration,
+            duration: _fadeDuration,
             curve: Curves.easeOut,
             child: widget.child,
           ),
@@ -616,9 +620,9 @@ class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
           ignoring: _revealed,
           child: AnimatedOpacity(
             opacity: _revealed ? 0 : 1,
-            duration: _PostSignInHandoffController.fadeDuration,
+            duration: _fadeDuration,
             curve: Curves.easeOut,
-            child: _PostSignInHandoffController.loadingWidget,
+            child: _loadingWidget,
           ),
         ),
       ],
