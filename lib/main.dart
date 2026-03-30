@@ -416,7 +416,18 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        final existingUser = FirebaseAuth.instance.currentUser;
+        final shouldStartColdStartHandoff =
+            existingUser != null &&
+            _lastUid == null &&
+            !_PostSignInHandoffController.isActive;
+        if (shouldStartColdStartHandoff) {
+          _PostSignInHandoffController.startWhiteHold();
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
+          if (_PostSignInHandoffController.isActive) {
+            return _PostSignInHandoffController.loadingWidget;
+          }
           return const _AuthGateBrandedLoading();
         }
 
@@ -474,12 +485,22 @@ class AuthGate extends StatelessWidget {
 
 class _PostSignInHandoffController {
   static const Duration minDuration = Duration(milliseconds: 1100);
+  static const Duration brandedFadeDuration = Duration(milliseconds: 220);
+  static const Duration whiteHoldFadeDuration = Duration(milliseconds: 350);
   static final ValueNotifier<bool> dashboardReady = ValueNotifier(false);
   static DateTime? _startedAt;
+  static _PostSignInHandoffVisual _visual = _PostSignInHandoffVisual.branded;
 
   static bool get isActive => _startedAt != null;
 
   static void start() {
+    _visual = _PostSignInHandoffVisual.branded;
+    _startedAt = DateTime.now();
+    dashboardReady.value = false;
+  }
+
+  static void startWhiteHold() {
+    _visual = _PostSignInHandoffVisual.whiteHold;
     _startedAt = DateTime.now();
     dashboardReady.value = false;
   }
@@ -487,6 +508,9 @@ class _PostSignInHandoffController {
   static Duration get remaining {
     final startedAt = _startedAt;
     if (startedAt == null) {
+      return Duration.zero;
+    }
+    if (_visual == _PostSignInHandoffVisual.whiteHold) {
       return Duration.zero;
     }
     final elapsed = DateTime.now().difference(startedAt);
@@ -504,11 +528,24 @@ class _PostSignInHandoffController {
     dashboardReady.value = ready;
   }
 
+  static Duration get fadeDuration => switch (_visual) {
+    _PostSignInHandoffVisual.branded => brandedFadeDuration,
+    _PostSignInHandoffVisual.whiteHold => whiteHoldFadeDuration,
+  };
+
+  static Widget get loadingWidget => switch (_visual) {
+    _PostSignInHandoffVisual.branded => const _AuthGateBrandedLoading(),
+    _PostSignInHandoffVisual.whiteHold => const _AuthGateWhiteHoldScreen(),
+  };
+
   static void clear() {
     _startedAt = null;
     dashboardReady.value = false;
+    _visual = _PostSignInHandoffVisual.branded;
   }
 }
+
+enum _PostSignInHandoffVisual { branded, whiteHold }
 
 class _PostSignInHandoffGate extends StatefulWidget {
   const _PostSignInHandoffGate({required this.child});
@@ -520,8 +557,6 @@ class _PostSignInHandoffGate extends StatefulWidget {
 }
 
 class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
-  static const Duration _fadeDuration = Duration(milliseconds: 220);
-
   Timer? _minTimer;
   bool _minElapsed = false;
   bool _revealed = false;
@@ -572,7 +607,7 @@ class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
           ignoring: !_revealed,
           child: AnimatedOpacity(
             opacity: _revealed ? 1 : 0,
-            duration: _fadeDuration,
+            duration: _PostSignInHandoffController.fadeDuration,
             curve: Curves.easeOut,
             child: widget.child,
           ),
@@ -581,9 +616,9 @@ class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
           ignoring: _revealed,
           child: AnimatedOpacity(
             opacity: _revealed ? 0 : 1,
-            duration: _fadeDuration,
+            duration: _PostSignInHandoffController.fadeDuration,
             curve: Curves.easeOut,
-            child: const _AuthGateBrandedLoading(),
+            child: _PostSignInHandoffController.loadingWidget,
           ),
         ),
       ],
@@ -598,13 +633,23 @@ class _AuthGateBrandedLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: Color(0xFFF7F6F4),
-      body: Center(
+      body: Align(
+        alignment: Alignment(0, 0.0),
         child: Image(
           image: AssetImage('assets/images/kidu_icon.png'),
-          width: 140,
+          width: 72,
         ),
       ),
     );
+  }
+}
+
+class _AuthGateWhiteHoldScreen extends StatelessWidget {
+  const _AuthGateWhiteHoldScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(backgroundColor: Colors.white);
   }
 }
 
