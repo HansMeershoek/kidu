@@ -418,6 +418,7 @@ class AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         final existingUser = FirebaseAuth.instance.currentUser;
         final shouldStartColdStartHandoff =
+            snapshot.connectionState == ConnectionState.waiting &&
             existingUser != null &&
             _lastUid == null &&
             !_PostSignInHandoffController.isActive;
