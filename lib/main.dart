@@ -57,6 +57,30 @@ class _DashboardSecondaryMetadata {
   final Map<String, String> notesByExpenseId;
 }
 
+class _CreatedExpenseResult {
+  const _CreatedExpenseResult({
+    required this.expenseId,
+    this.noteForRowFallback,
+    this.successSnackBarMessage,
+  });
+
+  final String expenseId;
+  final String? noteForRowFallback;
+  final String? successSnackBarMessage;
+}
+
+class _PendingExpenseRowFallback {
+  const _PendingExpenseRowFallback({
+    required this.expenseId,
+    required this.savedAt,
+    this.note,
+  });
+
+  final String expenseId;
+  final DateTime savedAt;
+  final String? note;
+}
+
 Color onSurface(BuildContext context, double alpha) =>
     Theme.of(context).colorScheme.onSurface.withValues(alpha: alpha);
 
@@ -787,14 +811,16 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     });
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(
+      SnackBar(content: Text(message), duration: duration ?? const Duration(seconds: 4)),
+    );
   }
 
   Future<void> _save() async {
@@ -1091,14 +1117,19 @@ class _LoginPageState extends State<LoginPage> {
   String? _error;
   bool _busy = false;
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration ?? const Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _signInWithGoogle() async {
@@ -1328,6 +1359,9 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<Map<String, String>>? _namesFuture;
   String? _dashboardSecondaryMetadataCacheKey;
   Future<_DashboardSecondaryMetadata>? _dashboardSecondaryMetadataFuture;
+  String? _lastVisibleDashboardSecondaryMetadataScopeKey;
+  _DashboardSecondaryMetadata? _lastVisibleDashboardSecondaryMetadata;
+  _PendingExpenseRowFallback? _pendingExpenseRowFallback;
 
   List<_ChildItem> _dashChildren = [];
   String? _dashChildrenHouseholdId;
@@ -1492,14 +1526,19 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration ?? const Duration(seconds: 4),
+      ),
+    );
   }
 
   /// Thin dashboard wrapper around [_doManagePrivateNote].
@@ -2136,7 +2175,7 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _createExpense({
+  Future<_CreatedExpenseResult?> _createExpense({
     required String householdId,
     required String title,
     required int amountCents,
@@ -2146,7 +2185,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return;
+      return null;
     }
 
     try {
@@ -2186,13 +2225,16 @@ class _DashboardPageState extends State<DashboardPage> {
         _showSnackBar(
           'Uitgave wordt opgeslagen en is pas zichtbaar voor $naam zodra je weer online bent.',
         );
-      } else {
-        _showSnackBar(
-          noteErrMsg != null
-              ? 'Uitgave opgeslagen, $noteErrMsg'
-              : 'Uitgave opgeslagen.',
-        );
       }
+      return _CreatedExpenseResult(
+        expenseId: ref.id,
+        noteForRowFallback: noteErrMsg == null ? noteTrimmed : null,
+        successSnackBarMessage: isPending
+            ? null
+            : (noteErrMsg != null
+                  ? 'Uitgave opgeslagen, $noteErrMsg'
+                  : 'Uitgave opgeslagen.'),
+      );
     } catch (e) {
       if (kDebugMode) debugPrint('Create expense error: $e');
       rethrow;
@@ -2209,6 +2251,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final noteController = TextEditingController();
     var saving = false;
     var didShow = false;
+    String? pendingSuccessSnackBarMessage;
     // Default selection: all active children (covers 0, 1, 2+ cases).
     var selectedChildIds = children.map((c) => c.id).toList();
     // When true, show individual chips even while all children are selected.
@@ -2492,7 +2535,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   return;
                                 }
                                 try {
-                                  await _createExpense(
+                                  final savedAt = DateTime.now();
+                                  final createResult = await _createExpense(
                                     householdId: householdId,
                                     title: title,
                                     amountCents: amountCents,
@@ -2502,6 +2546,19 @@ class _DashboardPageState extends State<DashboardPage> {
                                     coparentNameForPendingMessage: coparentName,
                                     childIds: selectedChildIds,
                                   );
+                                  if (mounted && createResult != null) {
+                                    setState(() {
+                                      _pendingExpenseRowFallback =
+                                          _PendingExpenseRowFallback(
+                                            expenseId: createResult.expenseId,
+                                            savedAt: savedAt,
+                                            note:
+                                                createResult.noteForRowFallback,
+                                          );
+                                    });
+                                    pendingSuccessSnackBarMessage =
+                                        createResult.successSnackBarMessage;
+                                  }
                                   if (context.mounted) {
                                     await Future<void>.delayed(
                                       const Duration(milliseconds: 150),
@@ -2566,7 +2623,18 @@ class _DashboardPageState extends State<DashboardPage> {
         // transition.
         await Future<void>.delayed(kThemeAnimationDuration);
       }
-      if (mounted) _freezeExpensesVN.value = false;
+      if (mounted) {
+        _freezeExpensesVN.value = false;
+        if (pendingSuccessSnackBarMessage != null) {
+          await WidgetsBinding.instance.endOfFrame;
+          if (mounted) {
+            _showSnackBar(
+              pendingSuccessSnackBarMessage!,
+              duration: const Duration(milliseconds: 2200),
+            );
+          }
+        }
+      }
       titleController.dispose();
       amountController.dispose();
       noteController.dispose();
@@ -3852,6 +3920,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                             context,
                                             secondaryMetaSnapshot,
                                           ) {
+                                            final secondaryMetadataScopeKey =
+                                                '$householdIdStr|$otherUid';
                                             final secondaryMetadata =
                                                 secondaryMetaSnapshot.data;
                                             final secondaryMetadataReady =
@@ -3859,18 +3929,29 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         .connectionState ==
                                                     ConnectionState.done &&
                                                 secondaryMetadata != null;
+                                            if (secondaryMetadataReady) {
+                                              _lastVisibleDashboardSecondaryMetadataScopeKey =
+                                                  secondaryMetadataScopeKey;
+                                              _lastVisibleDashboardSecondaryMetadata =
+                                                  secondaryMetadata;
+                                            }
+                                            final visibleSecondaryMetadata =
+                                                secondaryMetadataReady
+                                                ? secondaryMetadata
+                                                : (_lastVisibleDashboardSecondaryMetadataScopeKey ==
+                                                          secondaryMetadataScopeKey
+                                                      ? _lastVisibleDashboardSecondaryMetadata
+                                                      : null);
                                             _reportPreviewReady(
                                               secondaryMetadataReady,
                                             );
                                             final visibleOtherName =
-                                                secondaryMetadataReady
-                                                ? secondaryMetadata.otherName
-                                                : null;
+                                                visibleSecondaryMetadata
+                                                    ?.otherName;
                                             final visibleNotes =
-                                                secondaryMetadataReady
-                                                ? secondaryMetadata
-                                                      .notesByExpenseId
-                                                : const <String, String>{};
+                                                visibleSecondaryMetadata
+                                                    ?.notesByExpenseId ??
+                                                const <String, String>{};
                                             final balanceBreakdownText =
                                                 visibleOtherName == null
                                                 ? null
@@ -4778,6 +4859,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                             final isPending = d
                                                                 .metadata
                                                                 .hasPendingWrites;
+                                                            final rowFallback =
+                                                                createdBy ==
+                                                                        user.uid &&
+                                                                    _pendingExpenseRowFallback
+                                                                            ?.expenseId ==
+                                                                        d.id
+                                                                ? _pendingExpenseRowFallback
+                                                                : null;
                                                             final createdAtRaw =
                                                                 e['createdAt'];
                                                             DateTime?
@@ -4794,14 +4883,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   createdAtRaw
                                                                       .toLocal();
                                                             }
+                                                            createdAtDateTime ??=
+                                                                rowFallback
+                                                                    ?.savedAt
+                                                                    .toLocal();
                                                             final dateLabel =
                                                                 _formatDashboardExpenseDate(
                                                                   createdAtDateTime,
                                                                 );
                                                             final actorLabel =
-                                                                !secondaryMetadataReady
-                                                                ? null
-                                                                : (createdBy ==
+                                                                (createdBy ==
                                                                         user.uid)
                                                                 ? myName
                                                                 : (otherUid !=
@@ -4821,11 +4912,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 ? actorLabel
                                                                 : '$actorLabel • $dateLabel';
                                                             final note =
-                                                                visibleNotes[d.id];
+                                                                visibleNotes[d.id] ??
+                                                                rowFallback?.note;
                                                             final subtitleText =
-                                                                secondaryMetadataReady &&
-                                                                        note !=
-                                                                            null &&
+                                                                note != null &&
                                                                         note.isNotEmpty
                                                                 ? baseSubtitleText
                                                                           .isEmpty
