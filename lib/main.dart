@@ -32,13 +32,11 @@ const double a70 = 0.70;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
+/// Product UI limit for expense titles; stays below the Firestore rules cap.
+const int _kAddExpenseTitleMaxLength = 60;
+
 /// Calm green for success overlays (e.g. join/connect confirmation).
 const Color _kSuccessGreen = Color(0xFF2E7D32);
-
-/// Fixed height reserved for the child-picker area in the Add Expense dialog.
-/// Both the "all selected" summary pill and the expanded chip grid live inside
-/// a SizedBox of this height so the dialog never resizes on toggle.
-const double _kChildPickerHeight = 140;
 
 /// Lightweight value-object used by the "Voor wie?" feature.
 class _ChildItem {
@@ -2241,6 +2239,307 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  Future<List<String>?> _openAddExpenseChildSelectionDialog({
+    required List<_ChildItem> children,
+    List<String> initialSelectedChildIds = const [],
+  }) async {
+    final allChildIds = children.map((c) => c.id).toList(growable: false);
+    return showDialog<List<String>>(
+      context: context,
+      useSafeArea: true,
+      barrierDismissible: true,
+      builder: (context) {
+        var selectedChildIds = initialSelectedChildIds
+            .where(allChildIds.contains)
+            .toSet();
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            final selectedCount = selectedChildIds.length;
+            final allSelected = selectedCount == allChildIds.length;
+            final cs = Theme.of(context).colorScheme;
+            final dialogBackground = cs.surfaceContainerHigh;
+            final screenW = MediaQuery.sizeOf(context).width;
+            final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+            final modalHeight = min(
+              520.0,
+              MediaQuery.of(context).size.height - 36,
+            );
+            void dismissSelectionDialog() => Navigator.of(context).pop();
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
+              child: SafeArea(
+                child: Align(
+                  alignment: const Alignment(0, -0.08),
+                  child: SizedBox(
+                    width: dialogW,
+                    child: SizedBox(
+                      height: modalHeight,
+                      child: Material(
+                        color: dialogBackground,
+                        elevation: 3,
+                        clipBehavior: Clip.antiAlias,
+                        borderRadius: BorderRadius.circular(
+                          _DashboardPageState._cardRadius,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                              _DashboardPageState._cardRadius,
+                            ),
+                            border: Border.all(color: outlineV(context, a40)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                                child: Center(
+                                  child: Container(
+                                    width: 36,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: cs.outlineVariant.withValues(
+                                        alpha: 0.85,
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                                child: Text(
+                                  'Selectie',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w400,
+                                        color: onSurface(context, a84),
+                                      ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    12,
+                                    16,
+                                    0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => setLocalState(() {
+                                          selectedChildIds = allSelected
+                                              ? <String>{}
+                                              : allChildIds.toSet();
+                                        }),
+                                        style: TextButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: Text(
+                                          allSelected
+                                              ? 'Alles deselecteren'
+                                              : 'Alles selecteren',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      SizedBox(
+                                        height: 28,
+                                        child: Align(
+                                          alignment: Alignment.topLeft,
+                                          child: Opacity(
+                                            opacity: selectedCount == 0 ? 1 : 0,
+                                            child: Text(
+                                              'Selecteer minimaal 1 kind om verder te gaan',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall?.copyWith(
+                                                color: onSurface(context, a68),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: ListView.separated(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                            bottom: 4,
+                                          ),
+                                          itemCount: children.length,
+                                          separatorBuilder: (_, _) => Divider(
+                                            height: 1,
+                                            thickness: 0.4,
+                                            color: cs.outlineVariant.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                          ),
+                                          itemBuilder: (context, index) {
+                                            final child = children[index];
+                                            final selected = selectedChildIds
+                                                .contains(child.id);
+                                            return Material(
+                                              type: MaterialType.transparency,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                onTap: () {
+                                                  setLocalState(() {
+                                                    if (selected) {
+                                                      selectedChildIds =
+                                                          selectedChildIds
+                                                              .where(
+                                                                (id) =>
+                                                                    id !=
+                                                                    child.id,
+                                                              )
+                                                              .toSet();
+                                                    } else {
+                                                      selectedChildIds = {
+                                                        ...selectedChildIds,
+                                                        child.id,
+                                                      };
+                                                    }
+                                                  });
+                                                },
+                                                child: ListTile(
+                                                  dense: true,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  minLeadingWidth: 32,
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 2,
+                                                        vertical: 0,
+                                                      ),
+                                                  leading: Checkbox(
+                                                    value: selected,
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                    activeColor: cs.primary
+                                                        .withValues(alpha: a84),
+                                                    checkColor: cs.surface,
+                                                    side: BorderSide(
+                                                      color: cs.outlineVariant
+                                                          .withValues(
+                                                            alpha: 0.85,
+                                                          ),
+                                                    ),
+                                                    onChanged: (value) {
+                                                      setLocalState(() {
+                                                        if (value ?? false) {
+                                                          selectedChildIds = {
+                                                            ...selectedChildIds,
+                                                            child.id,
+                                                          };
+                                                        } else {
+                                                          selectedChildIds =
+                                                              selectedChildIds
+                                                                  .where(
+                                                                    (id) =>
+                                                                        id !=
+                                                                        child
+                                                                            .id,
+                                                                  )
+                                                                  .toSet();
+                                                        }
+                                                      });
+                                                    },
+                                                  ),
+                                                  title: Text(
+                                                    child.name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a84,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: dialogBackground,
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: outlineV(context, a32),
+                                    ),
+                                  ),
+                                ),
+                                child: SafeArea(
+                                  top: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      8,
+                                      16,
+                                      12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        TextButton(
+                                          onPressed: dismissSelectionDialog,
+                                          child: const Text('Annuleren'),
+                                        ),
+                                        const Spacer(),
+                                        ElevatedButton(
+                                          onPressed: selectedCount == 0
+                                              ? null
+                                              : () => Navigator.of(context).pop(
+                                                  children
+                                                      .where(
+                                                        (child) =>
+                                                            selectedChildIds
+                                                                .contains(
+                                                                  child.id,
+                                                                ),
+                                                      )
+                                                      .map((child) => child.id)
+                                                      .toList(),
+                                                ),
+                                          child: const Text('Gereed'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openAddExpenseDialog(
     String householdId, {
     String? coparentName,
@@ -2249,13 +2548,12 @@ class _DashboardPageState extends State<DashboardPage> {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final noteController = TextEditingController();
+    final allChildIds = children.map((c) => c.id).toList(growable: false);
     var saving = false;
     var didShow = false;
     String? pendingSuccessSnackBarMessage;
-    // Default selection: all active children (covers 0, 1, 2+ cases).
-    var selectedChildIds = children.map((c) => c.id).toList();
-    // When true, show individual chips even while all children are selected.
-    var kidChipsExpanded = false;
+    var hasCustomChildSelection = false;
+    var customSelectedChildIds = <String>[];
     _freezeExpensesVN.value = true;
 
     try {
@@ -2266,8 +2564,16 @@ class _DashboardPageState extends State<DashboardPage> {
         builder: (context) {
           return StatefulBuilder(
             builder: (context, setLocalState) {
+              final effectiveSelectedChildIds = hasCustomChildSelection
+                  ? customSelectedChildIds
+                  : allChildIds;
               final screenW = MediaQuery.sizeOf(context).width;
               final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+              final childSelectionSummary =
+                  !hasCustomChildSelection ||
+                      effectiveSelectedChildIds.length == children.length
+                  ? 'Alle kinderen'
+                  : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
               return Align(
                 alignment: const Alignment(0, -0.15),
                 child: SizedBox(
@@ -2285,6 +2591,14 @@ class _DashboardPageState extends State<DashboardPage> {
                             TextField(
                               controller: titleController,
                               textInputAction: TextInputAction.next,
+                              maxLength: _kAddExpenseTitleMaxLength,
+                              buildCounter:
+                                  (
+                                    context, {
+                                    required int currentLength,
+                                    required bool isFocused,
+                                    required int? maxLength,
+                                  }) => null,
                               decoration: const InputDecoration(
                                 labelText: 'Titel',
                                 floatingLabelBehavior:
@@ -2319,40 +2633,62 @@ class _DashboardPageState extends State<DashboardPage> {
                                 border: OutlineInputBorder(),
                               ),
                             ),
-                            // "Voor wie?" section — only shown for 2+ children.
-                            // Single-child: selectedChildIds already defaults to
-                            // [child.id] so it is stored correctly without UI.
+                            // Child selection stays out of the main dialog for
+                            // 2+ children so the form remains compact.
                             if (children.length > 1) ...[
                               const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Voor wie?',
+                                    'Voor:',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.labelMedium,
                                   ),
-                                  Builder(
-                                    builder: (context) {
-                                      final allSelected =
-                                          selectedChildIds.length ==
-                                          children.length;
-                                      final showPill =
-                                          allSelected && !kidChipsExpanded;
-                                      return TextButton(
-                                        onPressed: () => setLocalState(() {
-                                          if (showPill) {
-                                            kidChipsExpanded = true;
-                                          } else {
-                                            selectedChildIds = children
-                                                .map((c) => c.id)
-                                                .toList();
-                                            kidChipsExpanded = false;
-                                          }
-                                        }),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          childSelectionSummary,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium,
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: saving
+                                            ? null
+                                            : () async {
+                                                FocusManager.instance.primaryFocus
+                                                    ?.unfocus();
+                                                final pickedChildIds =
+                                                    await _openAddExpenseChildSelectionDialog(
+                                                      children: children,
+                                                      initialSelectedChildIds:
+                                                          hasCustomChildSelection
+                                                          ? customSelectedChildIds
+                                                          : const <String>[],
+                                                    );
+                                                if (pickedChildIds == null ||
+                                                    !context.mounted) {
+                                                  return;
+                                                }
+                                                setLocalState(() {
+                                                  if (pickedChildIds.length ==
+                                                      children.length) {
+                                                    hasCustomChildSelection =
+                                                        false;
+                                                    customSelectedChildIds = [];
+                                                  } else {
+                                                    hasCustomChildSelection =
+                                                        true;
+                                                    customSelectedChildIds =
+                                                        pickedChildIds;
+                                                  }
+                                                });
+                                              },
                                         style: TextButton.styleFrom(
                                           visualDensity: VisualDensity.compact,
                                           padding: const EdgeInsets.symmetric(
@@ -2361,135 +2697,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                           tapTargetSize:
                                               MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        child: Text(
-                                          showPill
-                                              ? 'Selecteer'
-                                              : 'Alle kinderen',
-                                        ),
-                                      );
-                                    },
+                                        child: const Text('Selectie'),
+                                      ),
+                                    ],
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 6),
-                              // Fixed-height area: dialog does not resize when
-                              // toggling between the summary pill and chips.
-                              SizedBox(
-                                height: _kChildPickerHeight,
-                                child: Builder(
-                                  builder: (context) {
-                                    final cs = Theme.of(context).colorScheme;
-                                    final allSelected =
-                                        selectedChildIds.length ==
-                                        children.length;
-                                    final showPill =
-                                        allSelected && !kidChipsExpanded;
-
-                                    if (showPill) {
-                                      return Align(
-                                        alignment: Alignment.topLeft,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: cs.primary.withValues(
-                                              alpha: 0.10,
-                                            ),
-                                            border: Border.all(
-                                              color: cs.primary,
-                                              width: 1.0,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'Alle kinderen geselecteerd',
-                                            style: TextStyle(
-                                              color: cs.onSurface,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }
-
-                                    // Individual chips — border width fixed at
-                                    // 1.0; only color/bg change on selection.
-                                    FilterChip kidChip({
-                                      required Widget label,
-                                      required bool selected,
-                                      required ValueChanged<bool> onSelected,
-                                    }) {
-                                      return FilterChip(
-                                        label: label,
-                                        selected: selected,
-                                        showCheckmark: false,
-                                        backgroundColor: cs.surface,
-                                        selectedColor: cs.primary.withValues(
-                                          alpha: 0.10,
-                                        ),
-                                        side: BorderSide(
-                                          color: selected
-                                              ? cs.primary
-                                              : cs.onSurface.withValues(
-                                                  alpha: 0.22,
-                                                ),
-                                          width: 1.0,
-                                        ),
-                                        labelStyle: TextStyle(
-                                          color: selected
-                                              ? cs.onSurface
-                                              : cs.onSurface.withValues(
-                                                  alpha: 0.75,
-                                                ),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        onSelected: onSelected,
-                                      );
-                                    }
-
-                                    return ClipRect(
-                                      child: SingleChildScrollView(
-                                        child: Wrap(
-                                          spacing: 8,
-                                          runSpacing: 4,
-                                          children: [
-                                            ...children.map(
-                                              (c) => kidChip(
-                                                label: Text(c.name),
-                                                selected: selectedChildIds
-                                                    .contains(c.id),
-                                                onSelected: (v) {
-                                                  setLocalState(() {
-                                                    if (v) {
-                                                      selectedChildIds = [
-                                                        ...selectedChildIds,
-                                                        c.id,
-                                                      ];
-                                                    } else {
-                                                      kidChipsExpanded = true;
-                                                      selectedChildIds =
-                                                          selectedChildIds
-                                                              .where(
-                                                                (id) =>
-                                                                    id != c.id,
-                                                              )
-                                                              .toList();
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
                               ),
                             ],
                           ],
@@ -2519,7 +2731,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   _showSnackBar('Vul een geldig bedrag in.');
                                   return;
                                 }
-                                if (selectedChildIds.isEmpty) {
+                                if (effectiveSelectedChildIds.isEmpty) {
                                   _showSnackBar('Selecteer minimaal één kind.');
                                   return;
                                 }
@@ -2544,7 +2756,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ? null
                                         : noteController.text.trim(),
                                     coparentNameForPendingMessage: coparentName,
-                                    childIds: selectedChildIds,
+                                    childIds: effectiveSelectedChildIds,
                                   );
                                   if (mounted && createResult != null) {
                                     setState(() {
