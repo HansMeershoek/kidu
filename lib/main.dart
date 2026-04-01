@@ -7309,6 +7309,24 @@ class _LogboekPageState extends State<_LogboekPage>
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
+  String _wijzigExportEditedByLabel() {
+    if (_wijzigFilterEditedByUid == null) return 'Alle';
+    if (_wijzigFilterEditedByUid == widget.uid) {
+      final mine = widget.myName?.trim();
+      if (mine != null && mine.isNotEmpty) return mine;
+      return 'Jij';
+    }
+    final other = widget.otherName?.trim();
+    if (other != null && other.isNotEmpty) return other;
+    return 'Co-parent';
+  }
+
+  List<({String label, String value})> _wijzigExportSummaryRows() => [
+    (label: 'Tab', value: 'Wijzigingen'),
+    (label: 'Gewijzigd door', value: _wijzigExportEditedByLabel()),
+    (label: 'Periode', value: _expenseExportPeriodLabel()),
+  ];
+
   static String _csvEscape(String value) =>
       '"${value.replaceAll('"', '""')}"';
 
@@ -7416,6 +7434,18 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   String _paymentPartyName(String uid) {
+    final trimmedUid = uid.trim();
+    if (trimmedUid == widget.uid) {
+      final mine = widget.myName?.trim();
+      if (mine != null && mine.isNotEmpty) return mine;
+      return 'Jij';
+    }
+    final other = widget.otherName?.trim();
+    if (other != null && other.isNotEmpty) return other;
+    return 'Co-parent';
+  }
+
+  String _wijzigEditedByName(String uid) {
     final trimmedUid = uid.trim();
     if (trimmedUid == widget.uid) {
       final mine = widget.myName?.trim();
@@ -7625,6 +7655,87 @@ class _LogboekPageState extends State<_LogboekPage>
     }
   }
 
+  Future<void> _exportWijzigingenCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final periodFilter = _periodFilter;
+    final filterStart = _filterStart;
+    final filterEnd = _filterEnd;
+    final editedByUid = _wijzigFilterEditedByUid;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/expenses')
+          .get();
+      final rows = await _loadWijzigRows(
+        snap.docs,
+        periodFilter: periodFilter,
+        filterStart: filterStart,
+        filterEnd: filterEnd,
+        editedByUid: editedByUid,
+      );
+      if (rows.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Geen bedragwijzigingen gevonden voor deze selectie.'),
+          ),
+        );
+        return;
+      }
+
+      final csv = StringBuffer()
+        ..writeln(
+          _csvLine(
+            const [
+              'Datum wijziging',
+              'Titel uitgave',
+              'Van bedrag',
+              'Naar bedrag',
+              'Reden',
+              'Gewijzigd door',
+            ],
+          ),
+        );
+
+      for (final row in rows) {
+        csv.writeln(
+          _csvLine([
+            _ExpenseDetailPage._formatDateTime(row.editedAt),
+            row.title,
+            _fmtCsvAmount(row.fromAmountCents),
+            _fmtCsvAmount(row.toAmountCents),
+            row.reason,
+            _wijzigEditedByName(row.editedBy),
+          ]),
+        );
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('kidu-export-');
+      final file = File(
+        '${tempDir.path}${Platform.pathSeparator}wijzigingen-export-${DateTime.now().year}${DateTime.now().month.toString().padLeft(2, '0')}${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().hour.toString().padLeft(2, '0')}${DateTime.now().minute.toString().padLeft(2, '0')}${DateTime.now().second.toString().padLeft(2, '0')}.csv',
+      );
+      await file.writeAsString(csv.toString(), flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Wijzigingen export',
+        text: 'Wijzigingen uit Logboek',
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildExportSummaryRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -7755,6 +7866,56 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  void _showWijzigingenExportConfirmSheet() {
+    final summaryRows = _wijzigExportSummaryRows();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 8,
+            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exporteer selectie',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Je exporteert de huidige selectie uit Wijzigingen als CSV.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                  color: onSurface(sheetContext, a68),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 20),
+              for (final row in summaryRows)
+                _buildExportSummaryRow(row.label, row.value),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _exportWijzigingenCsv();
+                },
+                child: const Text('Exporteer CSV'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showLogboekMoreSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -7776,12 +7937,18 @@ class _LogboekPageState extends State<_LogboekPage>
                 subtitle: Text(
                   _logboekMode == _LogboekMode.betalingen
                       ? 'CSV voor de huidige Betalingen-selectie'
+                      : _logboekMode == _LogboekMode.wijzigingen
+                      ? 'CSV voor de huidige Wijzigingen-selectie'
                       : 'CSV voor de huidige Uitgaven-selectie',
                 ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   if (_logboekMode == _LogboekMode.betalingen) {
                     _showPaymentExportConfirmSheet();
+                    return;
+                  }
+                  if (_logboekMode == _LogboekMode.wijzigingen) {
+                    _showWijzigingenExportConfirmSheet();
                     return;
                   }
                   _showExpenseExportConfirmSheet();
@@ -7796,7 +7963,17 @@ class _LogboekPageState extends State<_LogboekPage>
 
   Future<List<_WijzigRow>> _loadWijzigRows(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
+    {
+      _PeriodFilter? periodFilter,
+      DateTime? filterStart,
+      DateTime? filterEnd,
+      String? editedByUid,
+    }
   ) async {
+    final effectivePeriodFilter = periodFilter ?? _periodFilter;
+    final effectiveFilterStart = filterStart ?? _filterStart;
+    final effectiveFilterEnd = filterEnd ?? _filterEnd;
+    final effectiveEditedByUid = editedByUid ?? _wijzigFilterEditedByUid;
     final rows = <_WijzigRow>[];
     await Future.wait(
       expenseDocs.map((d) async {
@@ -7833,11 +8010,12 @@ class _LogboekPageState extends State<_LogboekPage>
             editedAtDt = editedAtRaw.toLocal();
           }
           if (editedAtDt == null) continue;
-          if (_periodFilter != _PeriodFilter.all &&
-              _filterStart != null &&
-              _filterEnd != null) {
+          if (effectivePeriodFilter != _PeriodFilter.all &&
+              effectiveFilterStart != null &&
+              effectiveFilterEnd != null) {
             final ed = editedAtDt;
-            if (ed.isBefore(_filterStart!) || !ed.isBefore(_filterEnd!)) {
+            if (ed.isBefore(effectiveFilterStart) ||
+                !ed.isBefore(effectiveFilterEnd)) {
               continue;
             }
           }
@@ -7860,8 +8038,8 @@ class _LogboekPageState extends State<_LogboekPage>
       }),
     );
     rows.sort((a, b) => b.editedAt.compareTo(a.editedAt));
-    if (_wijzigFilterEditedByUid != null) {
-      rows.removeWhere((r) => r.editedBy != _wijzigFilterEditedByUid);
+    if (effectiveEditedByUid != null) {
+      rows.removeWhere((r) => r.editedBy != effectiveEditedByUid);
     }
     return rows;
   }
@@ -7921,7 +8099,8 @@ class _LogboekPageState extends State<_LogboekPage>
           tooltip: 'Filter',
         ),
         if (_logboekMode == _LogboekMode.uitgaven ||
-            _logboekMode == _LogboekMode.betalingen)
+            _logboekMode == _LogboekMode.betalingen ||
+            _logboekMode == _LogboekMode.wijzigingen)
           IconButton(
             icon: const Icon(Icons.more_horiz),
             onPressed: _showLogboekMoreSheet,
