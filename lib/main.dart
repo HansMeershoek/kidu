@@ -6904,6 +6904,8 @@ class _LogboekPage extends StatefulWidget {
 
 class _LogboekPageState extends State<_LogboekPage>
     with SingleTickerProviderStateMixin {
+  static const Duration _logboekHoldMinDuration = Duration(milliseconds: 120);
+  static const Duration _logboekHoldFadeDuration = Duration(milliseconds: 180);
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -6924,7 +6926,10 @@ class _LogboekPageState extends State<_LogboekPage>
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
   late final TabController _modeTabController;
   bool _initialDataReady = false;
+  bool _showInitialHoldOverlay = true;
+  bool _initialHoldDismissScheduled = false;
   bool _isOffline = false;
+  late final DateTime _initialHoldStartedAt;
 
   Query<Map<String, dynamic>> _basePeriodQuery() {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
@@ -6979,6 +6984,7 @@ class _LogboekPageState extends State<_LogboekPage>
   @override
   void initState() {
     super.initState();
+    _initialHoldStartedAt = DateTime.now();
     _modeTabController = TabController(length: 3, vsync: this);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
@@ -6987,7 +6993,9 @@ class _LogboekPageState extends State<_LogboekPage>
       _loadParents(),
       _expensesStream.first.then((_) {}).catchError((_) {}),
     ]).then((_) {
-      if (mounted) setState(() => _initialDataReady = true);
+      if (!mounted) return;
+      setState(() => _initialDataReady = true);
+      _dismissInitialHoldOverlayWhenReady();
     });
     _checkOffline();
   }
@@ -6996,6 +7004,19 @@ class _LogboekPageState extends State<_LogboekPage>
   void dispose() {
     _modeTabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _dismissInitialHoldOverlayWhenReady() async {
+    if (_initialHoldDismissScheduled || !_showInitialHoldOverlay) return;
+    _initialHoldDismissScheduled = true;
+    await WidgetsBinding.instance.endOfFrame;
+    final elapsed = DateTime.now().difference(_initialHoldStartedAt);
+    final remaining = _logboekHoldMinDuration - elapsed;
+    if (remaining > Duration.zero) {
+      await Future.delayed(remaining);
+    }
+    if (!mounted) return;
+    setState(() => _showInitialHoldOverlay = false);
   }
 
   Future<void> _checkOffline() async {
@@ -7291,6 +7312,42 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   Widget build(BuildContext context) {
+    final activeTabIndex = _logboekMode.index;
+    final logboekContent = !_initialDataReady
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_isOffline)
+                Container(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    'Offline — je ziet de laatst geladen gegevens.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a62),
+                    ),
+                  ),
+                ),
+              if (_logboekMode == _LogboekMode.uitgaven)
+                _buildPerspectiveToggle(context),
+              if (_logboekMode == _LogboekMode.wijzigingen)
+                _buildWijzigingenEditorFilterRow(context),
+              Expanded(
+                child: IndexedStack(
+                  index: activeTabIndex,
+                  children: [
+                    _buildExpenseList(context),
+                    _buildPaymentList(context),
+                    _buildWijzigingenList(context),
+                  ],
+                ),
+              ),
+            ],
+          );
     final appBar = AppBar(
       centerTitle: true,
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
@@ -7333,40 +7390,21 @@ class _LogboekPageState extends State<_LogboekPage>
       },
       child: Scaffold(
         appBar: appBar,
-        body: !_initialDataReady
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_isOffline)
-                    Container(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        'Offline — je ziet de laatst geladen gegevens.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a62),
-                        ),
-                      ),
-                    ),
-                  if (_logboekMode == _LogboekMode.uitgaven)
-                    _buildPerspectiveToggle(context),
-                  if (_logboekMode == _LogboekMode.wijzigingen)
-                    _buildWijzigingenEditorFilterRow(context),
-                  Expanded(
-                    child: _logboekMode == _LogboekMode.uitgaven
-                        ? _buildExpenseList(context)
-                        : _logboekMode == _LogboekMode.betalingen
-                        ? _buildPaymentList(context)
-                        : _buildWijzigingenList(context),
-                  ),
-                ],
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            logboekContent,
+            IgnorePointer(
+              ignoring: !_showInitialHoldOverlay,
+              child: AnimatedOpacity(
+                opacity: _showInitialHoldOverlay ? 1 : 0,
+                duration: _logboekHoldFadeDuration,
+                curve: Curves.easeOut,
+                child: const ColoredBox(color: Color(0xFFF7F6F4)),
               ),
+            ),
+          ],
+        ),
       ),
     );
   }
