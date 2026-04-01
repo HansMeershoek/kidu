@@ -5359,6 +5359,329 @@ Widget _balanceRow({required String label, required String value}) {
   );
 }
 
+Future<List<_ChildItem>> _loadExpenseEditChildren(String householdId) async {
+  final snap = await FirebaseFirestore.instance
+      .collection('households/$householdId/children')
+      .get();
+  final docs = snap.docs.toList()
+    ..sort((a, b) {
+      final aTs = a.data()['createdAt'];
+      final bTs = b.data()['createdAt'];
+      if (aTs is Timestamp && bTs is Timestamp) {
+        return aTs.compareTo(bTs);
+      }
+      return 0;
+    });
+  return docs
+      .map(
+        (d) => _ChildItem(
+          id: d.id,
+          name: (d.data()['name'] as String?)?.trim() ?? '?',
+        ),
+      )
+      .toList();
+}
+
+Future<List<String>?> _showExpenseEditChildSelectionDialog(
+  BuildContext context, {
+  required List<_ChildItem> children,
+  List<String> initialSelectedChildIds = const [],
+}) async {
+  final allChildIds = children.map((c) => c.id).toList(growable: false);
+  return showDialog<List<String>>(
+    context: context,
+    useSafeArea: true,
+    barrierDismissible: true,
+    builder: (context) {
+      var selectedChildIds = initialSelectedChildIds
+          .where(allChildIds.contains)
+          .toSet();
+      return StatefulBuilder(
+        builder: (context, setLocalState) {
+          final selectedCount = selectedChildIds.length;
+          final allSelected = selectedCount == allChildIds.length;
+          final cs = Theme.of(context).colorScheme;
+          final dialogBackground = cs.surfaceContainerHigh;
+          final screenW = MediaQuery.sizeOf(context).width;
+          final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+          final modalHeight = min(
+            520.0,
+            MediaQuery.of(context).size.height - 36,
+          );
+          void dismissSelectionDialog() => Navigator.of(context).pop();
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            child: SafeArea(
+              child: Align(
+                alignment: const Alignment(0, -0.08),
+                child: SizedBox(
+                  width: dialogW,
+                  child: SizedBox(
+                    height: modalHeight,
+                    child: Material(
+                      color: dialogBackground,
+                      elevation: 3,
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(
+                        _DashboardPageState._cardRadius,
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            _DashboardPageState._cardRadius,
+                          ),
+                          border: Border.all(color: outlineV(context, a40)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                              child: Center(
+                                child: Container(
+                                  width: 36,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: cs.outlineVariant.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                              child: Text(
+                                'Selectie',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w400,
+                                      color: onSurface(context, a84),
+                                    ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => setLocalState(() {
+                                        selectedChildIds = allSelected
+                                            ? <String>{}
+                                            : allChildIds.toSet();
+                                      }),
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        allSelected
+                                            ? 'Alles deselecteren'
+                                            : 'Alles selecteren',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      height: 28,
+                                      child: Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Opacity(
+                                          opacity: selectedCount == 0 ? 1 : 0,
+                                          child: Text(
+                                            'Selecteer minimaal 1 kind om verder te gaan',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall?.copyWith(
+                                              color: onSurface(context, a68),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: ListView.separated(
+                                        padding: const EdgeInsets.only(
+                                          top: 2,
+                                          bottom: 4,
+                                        ),
+                                        itemCount: children.length,
+                                        separatorBuilder: (_, _) => Divider(
+                                          height: 1,
+                                          thickness: 0.4,
+                                          color: cs.outlineVariant.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                        ),
+                                        itemBuilder: (context, index) {
+                                          final child = children[index];
+                                          final selected = selectedChildIds
+                                              .contains(child.id);
+                                          return Material(
+                                            type: MaterialType.transparency,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              onTap: () {
+                                                setLocalState(() {
+                                                  if (selected) {
+                                                    selectedChildIds =
+                                                        selectedChildIds
+                                                            .where(
+                                                              (id) =>
+                                                                  id != child.id,
+                                                            )
+                                                            .toSet();
+                                                  } else {
+                                                    selectedChildIds = {
+                                                      ...selectedChildIds,
+                                                      child.id,
+                                                    };
+                                                  }
+                                                });
+                                              },
+                                              child: ListTile(
+                                                dense: true,
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                minLeadingWidth: 32,
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 2,
+                                                      vertical: 0,
+                                                    ),
+                                                leading: Checkbox(
+                                                  value: selected,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  activeColor: cs.primary
+                                                      .withValues(alpha: a84),
+                                                  checkColor: cs.surface,
+                                                  side: BorderSide(
+                                                    color: cs.outlineVariant
+                                                        .withValues(
+                                                          alpha: 0.85,
+                                                        ),
+                                                  ),
+                                                  onChanged: (value) {
+                                                    setLocalState(() {
+                                                      if (value ?? false) {
+                                                        selectedChildIds = {
+                                                          ...selectedChildIds,
+                                                          child.id,
+                                                        };
+                                                      } else {
+                                                        selectedChildIds =
+                                                            selectedChildIds
+                                                                .where(
+                                                                  (id) =>
+                                                                      id !=
+                                                                      child.id,
+                                                                )
+                                                                .toSet();
+                                                      }
+                                                    });
+                                                  },
+                                                ),
+                                                title: Text(
+                                                  child.name,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a84,
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: dialogBackground,
+                                border: Border(
+                                  top: BorderSide(
+                                    color: outlineV(context, a32),
+                                  ),
+                                ),
+                              ),
+                              child: SafeArea(
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      TextButton(
+                                        onPressed: dismissSelectionDialog,
+                                        child: const Text('Annuleren'),
+                                      ),
+                                      const Spacer(),
+                                      ElevatedButton(
+                                        onPressed: selectedCount == 0
+                                            ? null
+                                            : () => Navigator.of(context).pop(
+                                                children
+                                                    .where(
+                                                      (child) =>
+                                                          selectedChildIds
+                                                              .contains(
+                                                                child.id,
+                                                              ),
+                                                    )
+                                                    .map((child) => child.id)
+                                                    .toList(),
+                                              ),
+                                        child: const Text('Gereed'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 class _ExpenseDetailPage extends StatefulWidget {
   const _ExpenseDetailPage({
     required this.householdId,
@@ -5493,12 +5816,14 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     required this.expenseId,
     required this.currentAmountCents,
     required this.currentTitle,
+    required this.currentChildIds,
   });
 
   final String householdId;
   final String expenseId;
   final int currentAmountCents;
   final String currentTitle;
+  final List<String> currentChildIds;
 
   @override
   State<_EditExpenseAmountDialog> createState() =>
@@ -5509,6 +5834,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
+  late final Future<List<_ChildItem>> _childrenFuture;
+  bool _didChangeChildSelection = false;
+  bool _hasCustomChildSelection = false;
+  List<String> _customSelectedChildIds = const <String>[];
   bool _saving = false;
 
   @override
@@ -5519,6 +5848,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
     );
     _reasonController = TextEditingController();
+    _childrenFuture = _loadExpenseEditChildren(widget.householdId);
   }
 
   @override
@@ -5529,10 +5859,70 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     super.dispose();
   }
 
+  List<String> _allChildIds(List<_ChildItem> children) =>
+      children.map((c) => c.id).toList(growable: false);
+
+  bool _isAllChildrenSelection(List<_ChildItem> children, List<String> childIds) {
+    final allChildIds = _allChildIds(children);
+    return allChildIds.isNotEmpty &&
+        childIds.length == allChildIds.length &&
+        childIds.toSet().containsAll(allChildIds);
+  }
+
+  List<String> _currentKnownChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
+    return widget.currentChildIds.where(allChildIds.contains).toList();
+  }
+
+  List<String> _effectiveSelectedChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
+    if (!_didChangeChildSelection) {
+      return _isAllChildrenSelection(children, widget.currentChildIds)
+          ? allChildIds
+          : _currentKnownChildIds(children);
+    }
+    return _hasCustomChildSelection ? _customSelectedChildIds : allChildIds;
+  }
+
+  List<String> _dialogInitialSelectedChildIds(List<_ChildItem> children) {
+    if (_didChangeChildSelection) {
+      return _hasCustomChildSelection ? _customSelectedChildIds : const [];
+    }
+    return _isAllChildrenSelection(children, widget.currentChildIds)
+        ? const []
+        : _currentKnownChildIds(children);
+  }
+
+  bool _sameChildIds(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    return a.toSet().containsAll(b);
+  }
+
+  Future<void> _openChildSelectionDialog(List<_ChildItem> children) async {
+    final pickedChildIds = await _showExpenseEditChildSelectionDialog(
+      context,
+      children: children,
+      initialSelectedChildIds: _dialogInitialSelectedChildIds(children),
+    );
+    if (pickedChildIds == null || !mounted) return;
+    setState(() {
+      _didChangeChildSelection = true;
+      if (pickedChildIds.length == children.length) {
+        _hasCustomChildSelection = false;
+        _customSelectedChildIds = const <String>[];
+      } else {
+        _hasCustomChildSelection = true;
+        _customSelectedChildIds = pickedChildIds;
+      }
+    });
+  }
+
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     final reasonTrimmed = _reasonController.text.trim();
     final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    final children = await _childrenFuture;
+    final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
     if (title.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -5555,6 +5945,13 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vul een geldig bedrag in.')),
+      );
+      return;
+    }
+    if (children.length > 1 && effectiveSelectedChildIds.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecteer minimaal één kind.')),
       );
       return;
     }
@@ -5581,12 +5978,17 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       final fresh = await expRef.get(const GetOptions(source: Source.server));
       final currentTitle =
           ((fresh.data()?['title'] as String?) ?? widget.currentTitle).trim();
+      final currentChildIds =
+          (fresh.data()?['childIds'] as List?)?.whereType<String>().toList() ??
+          widget.currentChildIds;
       final fromCents =
           (fresh.data()?['amountCents'] as num?)?.toInt() ??
           widget.currentAmountCents;
       final titleChanged = title != currentTitle;
       final amountChanged = parsed != fromCents;
-      if (!amountChanged && !titleChanged) {
+      final childIdsChanged =
+          !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
+      if (!amountChanged && !titleChanged && !childIdsChanged) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Er zijn geen wijzigingen.')),
@@ -5615,10 +6017,14 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         batch.update(expRef, {
           'amountCents': parsed,
           if (titleChanged) 'title': title,
+          if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
         });
         await batch.commit();
       } else {
-        await expRef.update({'title': title});
+        await expRef.update({
+          'title': title,
+          if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+        });
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -5686,6 +6092,57 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                 alignLabelWithHint: true,
               ),
             ),
+            FutureBuilder<List<_ChildItem>>(
+              future: _childrenFuture,
+              builder: (context, snap) {
+                final children = snap.data ?? const <_ChildItem>[];
+                if (children.length <= 1) return const SizedBox.shrink();
+                final effectiveSelectedChildIds =
+                    _effectiveSelectedChildIds(children);
+                final childSelectionSummary =
+                    _isAllChildrenSelection(children, effectiveSelectedChildIds)
+                    ? 'Alle kinderen'
+                    : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Voor:',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              childSelectionSummary,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _saving || !snap.hasData
+                                ? null
+                                : () async {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    await _openChildSelectionDialog(children);
+                                  },
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Selectie'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -5725,6 +6182,8 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
 
 class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   bool _noteActionBusy = false;
+  List<String>? _resolvedChildNamesIds;
+  Future<List<String>>? _resolvedChildNamesFuture;
 
   void _handleBack() {
     Navigator.of(context).pop();
@@ -5737,9 +6196,75 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  bool _sameChildIds(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  List<String>? _initialChildNamesFor(List<String> currentChildIds) {
+    final childNames = widget.childNames;
+    if (childNames == null || childNames.length != currentChildIds.length) {
+      return null;
+    }
+    return _sameChildIds(currentChildIds, widget.childIds) ? childNames : null;
+  }
+
+  Future<List<String>> _childNamesFutureFor(List<String> currentChildIds) {
+    if (_resolvedChildNamesIds != null &&
+        _resolvedChildNamesFuture != null &&
+        _sameChildIds(_resolvedChildNamesIds!, currentChildIds)) {
+      return _resolvedChildNamesFuture!;
+    }
+    _resolvedChildNamesIds = List<String>.from(
+      currentChildIds,
+      growable: false,
+    );
+    _resolvedChildNamesFuture = _ExpenseDetailPage._resolveChildNames(
+      widget.householdId,
+      currentChildIds,
+    );
+    return _resolvedChildNamesFuture!;
+  }
+
+  Widget _buildChildTile(List<String> childNames) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        'Voor',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: onSurface(context, a70)),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: childNames
+              .map(
+                (n) => Chip(
+                  label: Text(n),
+                  labelStyle: Theme.of(context).textTheme.bodySmall,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openEditAmountDialog({
     required int currentAmountCents,
     required String currentTitle,
+    required List<String> currentChildIds,
   }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
@@ -5757,6 +6282,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
         expenseId: widget.expenseId,
         currentAmountCents: currentAmountCents,
         currentTitle: currentTitle,
+        currentChildIds: currentChildIds,
       ),
     );
     if (saved == true && mounted) {
@@ -5829,83 +6355,35 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     ),
                     subtitle: Text(widget.paidByName),
                   ),
-                  if (widget.childIds.isNotEmpty)
-                    widget.childNames != null
-                        ? ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              'Voor',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: widget.childNames!
-                                    .map(
-                                      (n) => Chip(
-                                        label: Text(n),
-                                        labelStyle: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                        backgroundColor: Theme.of(
-                                          context,
-                                        ).colorScheme.surfaceContainerHighest,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          )
-                        : FutureBuilder<List<String>>(
-                            future: _ExpenseDetailPage._resolveChildNames(
-                              widget.householdId,
-                              widget.childIds,
-                            ),
-                            builder: (context, snap) {
-                              if (!snap.hasData) return const SizedBox.shrink();
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  'Voor',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: onSurface(context, a70),
-                                      ),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: snap.data!
-                                        .map(
-                                          (n) => Chip(
-                                            label: Text(n),
-                                            labelStyle: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                            backgroundColor: Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest,
-                                            materialTapTargetSize:
-                                                MaterialTapTargetSize
-                                                    .shrinkWrap,
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}',
+                        )
+                        .snapshots(),
+                    builder: (context, expSnap) {
+                      final ed = expSnap.data?.data();
+                      final currentChildIds =
+                          (ed?['childIds'] as List?)?.whereType<String>().toList() ??
+                          widget.childIds;
+                      if (currentChildIds.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      final initialChildNames = _initialChildNamesFor(
+                        currentChildIds,
+                      );
+                      if (initialChildNames != null) {
+                        return _buildChildTile(initialChildNames);
+                      }
+                      return FutureBuilder<List<String>>(
+                        future: _childNamesFutureFor(currentChildIds),
+                        builder: (context, snap) {
+                          if (!snap.hasData) return const SizedBox.shrink();
+                          return _buildChildTile(snap.data!);
+                        },
+                      );
+                    },
+                  ),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
@@ -6145,6 +6623,11 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                 final currentCents =
                                     (ed?['amountCents'] as num?)?.toInt() ??
                                     widget.amountCents;
+                                final currentChildIds =
+                                    (ed?['childIds'] as List?)
+                                        ?.whereType<String>()
+                                        .toList() ??
+                                    widget.childIds;
                                 return Padding(
                                   padding: EdgeInsets.only(
                                     top: widget.onManageNote != null ? 8 : 16,
@@ -6155,6 +6638,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                       currentTitle: currentTitle.isEmpty
                                           ? widget.title
                                           : currentTitle,
+                                      currentChildIds: currentChildIds,
                                     ),
                                     icon: const Icon(
                                       Icons.edit_outlined,
