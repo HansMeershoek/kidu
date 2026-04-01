@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -7198,6 +7199,25 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  static String _fmtDateWithYear(DateTime? dt) {
+    if (dt == null) return '—';
+    const mo = [
+      'jan',
+      'feb',
+      'mrt',
+      'apr',
+      'mei',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec',
+    ];
+    return '${dt.day} ${mo[dt.month - 1]} ${dt.year}';
+  }
+
   static String _fmtEur(int cents) {
     final negative = cents < 0;
     final abs = cents.abs();
@@ -7236,6 +7256,333 @@ class _LogboekPageState extends State<_LogboekPage>
       if (p.uid != widget.uid) return p.uid;
     }
     return null;
+  }
+
+  String _expenseExportModeLabel() => _perOuder ? 'Per ouder' : 'Per kind';
+
+  String _expenseExportFilterLabel() {
+    if (_perOuder) {
+      if (_filterParentUid == null) return 'Alle';
+      for (final parent in _parentItems) {
+        if (parent.uid == _filterParentUid) return parent.name;
+      }
+      return 'Alle';
+    }
+    if (_filterChildId == null) return 'Alle';
+    for (final child in _children) {
+      if (child.id == _filterChildId) return child.name;
+    }
+    return 'Alle';
+  }
+
+  String _expenseExportPeriodLabel() {
+    if (_periodFilter == _PeriodFilter.custom &&
+        _filterStart != null &&
+        _filterEnd != null) {
+      final inclusiveEnd = _filterEnd!.subtract(const Duration(days: 1));
+      if (_filterStart!.year == inclusiveEnd.year &&
+          _filterStart!.month == inclusiveEnd.month &&
+          _filterStart!.day == inclusiveEnd.day) {
+        return _fmtDateWithYear(_filterStart);
+      }
+      return '${_fmtDateWithYear(_filterStart)} t/m ${_fmtDateWithYear(inclusiveEnd)}';
+    }
+    return 'Alle tijd';
+  }
+
+  List<({String label, String value})> _expenseExportSummaryRows() => [
+    (label: 'Tab', value: 'Uitgaven'),
+    (label: 'Modus', value: _expenseExportModeLabel()),
+    (label: 'Filter', value: _expenseExportFilterLabel()),
+    (label: 'Periode', value: _expenseExportPeriodLabel()),
+  ];
+
+  static String _csvEscape(String value) =>
+      '"${value.replaceAll('"', '""')}"';
+
+  static String _csvLine(List<String> values) =>
+      values.map(_csvEscape).join(';');
+
+  static String _fmtCsvAmount(int cents) {
+    final negative = cents < 0;
+    final abs = cents.abs();
+    final euros = abs ~/ 100;
+    final rem = abs % 100;
+    return '${negative ? '-' : ''}$euros,${rem.toString().padLeft(2, '0')}';
+  }
+
+  Query<Map<String, dynamic>> _buildFrozenExpenseExportQuery({
+    required bool perOuder,
+    required String? filterChildId,
+    required String? filterParentUid,
+    required _PeriodFilter periodFilter,
+    required DateTime? filterStart,
+    required DateTime? filterEnd,
+  }) {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/expenses',
+    );
+    if (periodFilter != _PeriodFilter.all &&
+        filterStart != null &&
+        filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(filterStart),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(filterEnd));
+    }
+    if (perOuder && filterParentUid != null) {
+      q = q.where('createdBy', isEqualTo: filterParentUid);
+    }
+    if (!perOuder && filterChildId != null) {
+      q = q.where('childIds', arrayContains: filterChildId);
+    }
+    return q.orderBy('createdAt', descending: true);
+  }
+
+  String _expenseExportPaidByName(
+    String createdBy,
+    Map<String, String> parentNamesByUid,
+  ) {
+    final direct = parentNamesByUid[createdBy]?.trim();
+    if (direct != null && direct.isNotEmpty) return direct;
+    if (createdBy == widget.uid) {
+      final mine = widget.myName?.trim();
+      if (mine != null && mine.isNotEmpty) return mine;
+      return 'Jij';
+    }
+    final other = widget.otherName?.trim();
+    if (other != null && other.isNotEmpty) return other;
+    return 'Co-parent';
+  }
+
+  List<String> _expenseExportChildNames(
+    List<String> childIds,
+    Map<String, String> childNamesById,
+  ) {
+    return childIds.map((id) => childNamesById[id] ?? 'Verwijderd kind').toList();
+  }
+
+  int _expenseExportDisplayCents(int amountCents, List<String> childIds) {
+    final nKids = childIds.length;
+    final isFiltered = _filterChildId != null && nKids > 0;
+    return isFiltered ? (amountCents / nKids).round() : amountCents;
+  }
+
+  String _expenseExportFilename() {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'uitgaven-export-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}.csv';
+  }
+
+  Future<void> _exportExpensesCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final perOuder = _perOuder;
+    final filterChildId = _filterChildId;
+    final filterParentUid = _filterParentUid;
+    final periodFilter = _periodFilter;
+    final filterStart = _filterStart;
+    final filterEnd = _filterEnd;
+    final childNamesById = <String, String>{
+      for (final child in _children) child.id: child.name,
+    };
+    final parentNamesByUid = <String, String>{
+      for (final parent in _parentItems) parent.uid: parent.name,
+    };
+
+    try {
+      final query = _buildFrozenExpenseExportQuery(
+        perOuder: perOuder,
+        filterChildId: filterChildId,
+        filterParentUid: filterParentUid,
+        periodFilter: periodFilter,
+        filterStart: filterStart,
+        filterEnd: filterEnd,
+      );
+      final snap = await query.get();
+      final docs = snap.docs;
+      if (docs.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Geen uitgaven gevonden voor deze selectie.'),
+          ),
+        );
+        return;
+      }
+
+      final csv = StringBuffer()
+        ..writeln(
+          _csvLine(const ['Datum', 'Titel', 'Bedrag', 'Betaald door', 'Kinderen']),
+        );
+
+      for (final doc in docs) {
+        final data = doc.data();
+        final title = (data['title'] as String?)?.trim() ?? '(zonder naam)';
+        final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
+        final childIds =
+            (data['childIds'] as List?)?.whereType<String>().toList() ??
+            const <String>[];
+        final createdBy = (data['createdBy'] as String?)?.trim() ?? '';
+        final createdAtRaw = data['createdAt'];
+        DateTime? createdAt;
+        if (createdAtRaw is Timestamp) {
+          createdAt = createdAtRaw.toDate().toLocal();
+        } else if (createdAtRaw is DateTime) {
+          createdAt = createdAtRaw.toLocal();
+        }
+
+        final displayCents = _expenseExportDisplayCents(amountCents, childIds);
+        final paidByName = _expenseExportPaidByName(createdBy, parentNamesByUid);
+        final childNames = _expenseExportChildNames(childIds, childNamesById);
+
+        csv.writeln(
+          _csvLine([
+            _fmtDateWithYear(createdAt),
+            title,
+            _fmtCsvAmount(displayCents),
+            paidByName,
+            childNames.join(' | '),
+          ]),
+        );
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('kidu-export-');
+      final file = File(
+        '${tempDir.path}${Platform.pathSeparator}${_expenseExportFilename()}',
+      );
+      await file.writeAsString(csv.toString(), flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Uitgaven export',
+        text: 'Uitgaven uit Logboek',
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildExportSummaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: onSurface(context, a60)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: onSurface(context, a84),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExpenseExportConfirmSheet() {
+    final summaryRows = _expenseExportSummaryRows();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 8,
+            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exporteer selectie',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Je exporteert de huidige selectie uit Uitgaven als CSV.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                  color: onSurface(sheetContext, a68),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 20),
+              for (final row in summaryRows)
+                _buildExportSummaryRow(row.label, row.value),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _exportExpensesCsv();
+                },
+                child: const Text('Exporteer CSV'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLogboekMoreSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.download_outlined,
+                  color: onSurface(sheetContext, a68),
+                ),
+                title: const Text('Exporteer selectie'),
+                subtitle: const Text('CSV voor de huidige Uitgaven-selectie'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showExpenseExportConfirmSheet();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<List<_WijzigRow>> _loadWijzigRows(
@@ -7364,6 +7711,12 @@ class _LogboekPageState extends State<_LogboekPage>
           onPressed: _showPeriodFilterSheet,
           tooltip: 'Filter',
         ),
+        if (_logboekMode == _LogboekMode.uitgaven)
+          IconButton(
+            icon: const Icon(Icons.more_horiz),
+            onPressed: _showLogboekMoreSheet,
+            tooltip: 'Meer',
+          ),
       ],
       bottom: TabBar(
         controller: _modeTabController,
