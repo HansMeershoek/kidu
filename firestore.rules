@@ -217,9 +217,20 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
         && request.auth.uid == resource.data.createdBy
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amountCents'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'amountCents',
+          'title',
+          'childIds'
+        ])
         && request.resource.data.amountCents is int
-        && request.resource.data.amountCents >= 0;
+        && request.resource.data.amountCents >= 0
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1
+        && request.resource.data.title.size() <= 60
+        && (!('childIds' in request.resource.data)
+            || request.resource.data.childIds == null
+            || (request.resource.data.childIds is list
+                && request.resource.data.childIds.size() <= 7));
 
       allow delete: if false;
     }

@@ -32,19 +32,51 @@ const double a70 = 0.70;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
+/// Product UI limit for expense titles; stays below the Firestore rules cap.
+const int _kAddExpenseTitleMaxLength = 60;
+
 /// Calm green for success overlays (e.g. join/connect confirmation).
 const Color _kSuccessGreen = Color(0xFF2E7D32);
-
-/// Fixed height reserved for the child-picker area in the Add Expense dialog.
-/// Both the "all selected" summary pill and the expanded chip grid live inside
-/// a SizedBox of this height so the dialog never resizes on toggle.
-const double _kChildPickerHeight = 140;
 
 /// Lightweight value-object used by the "Voor wie?" feature.
 class _ChildItem {
   const _ChildItem({required this.id, required this.name});
   final String id;
   final String name;
+}
+
+class _DashboardSecondaryMetadata {
+  const _DashboardSecondaryMetadata({
+    required this.otherName,
+    required this.notesByExpenseId,
+  });
+
+  final String otherName;
+  final Map<String, String> notesByExpenseId;
+}
+
+class _CreatedExpenseResult {
+  const _CreatedExpenseResult({
+    required this.expenseId,
+    this.noteForRowFallback,
+    this.successSnackBarMessage,
+  });
+
+  final String expenseId;
+  final String? noteForRowFallback;
+  final String? successSnackBarMessage;
+}
+
+class _PendingExpenseRowFallback {
+  const _PendingExpenseRowFallback({
+    required this.expenseId,
+    required this.savedAt,
+    this.note,
+  });
+
+  final String expenseId;
+  final DateTime savedAt;
+  final String? note;
 }
 
 Color onSurface(BuildContext context, double alpha) =>
@@ -406,10 +438,20 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        final existingUser = FirebaseAuth.instance.currentUser;
+        final shouldStartColdStartHandoff =
+            snapshot.connectionState == ConnectionState.waiting &&
+            existingUser != null &&
+            _lastUid == null &&
+            !_PostSignInHandoffController.isActive;
+        if (shouldStartColdStartHandoff) {
+          _PostSignInHandoffController.startWhiteHold();
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          if (_PostSignInHandoffController.isActive) {
+            return _PostSignInHandoffController.loadingWidget;
+          }
+          return const _AuthGateBrandedLoading();
         }
 
         final user = snapshot.data;
@@ -419,6 +461,7 @@ class AuthGate extends StatelessWidget {
           _lastUid = currentUid;
         }
         if (user == null) {
+          _PostSignInHandoffController.clear();
           return const LoginPage();
         }
 
@@ -426,27 +469,214 @@ class AuthGate extends StatelessWidget {
           key: ValueKey('profileNameCheck-${user.uid}'),
           future: FirebaseFirestore.instance.doc('users/${user.uid}').get(),
           builder: (context, userDocSnapshot) {
+            final dashboard = DashboardPage(
+              key: ValueKey('dashboard-${user.uid}'),
+              initialUserSnapshot: userDocSnapshot.data,
+              onPreviewReadyChanged:
+                  _PostSignInHandoffController.setDashboardReady,
+            );
+
             if (userDocSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
+              if (_PostSignInHandoffController.isActive) {
+                return _PostSignInHandoffGate(child: dashboard);
+              }
+              return const _AuthGateBrandedLoading();
             }
 
             if (userDocSnapshot.hasError) {
+              _PostSignInHandoffController.clear();
               return const ProfileNamePage();
             }
 
             final data = userDocSnapshot.data?.data();
             final profileName = (data?['profileName'] as String?)?.trim();
             if (profileName == null || profileName.isEmpty) {
+              _PostSignInHandoffController.clear();
               return const ProfileNamePage();
             }
 
-            return const DashboardPage();
+            if (_PostSignInHandoffController.isActive) {
+              return _PostSignInHandoffGate(child: dashboard);
+            }
+            return dashboard;
           },
         );
       },
     );
+  }
+}
+
+class _PostSignInHandoffController {
+  static const Duration minDuration = Duration(milliseconds: 1100);
+  static const Duration brandedFadeDuration = Duration(milliseconds: 220);
+  static const Duration whiteHoldFadeDuration = Duration(milliseconds: 350);
+  static final ValueNotifier<bool> dashboardReady = ValueNotifier(false);
+  static DateTime? _startedAt;
+  static _PostSignInHandoffVisual _visual = _PostSignInHandoffVisual.branded;
+
+  static bool get isActive => _startedAt != null;
+
+  static void start() {
+    _visual = _PostSignInHandoffVisual.branded;
+    _startedAt = DateTime.now();
+    dashboardReady.value = false;
+  }
+
+  static void startWhiteHold() {
+    _visual = _PostSignInHandoffVisual.whiteHold;
+    _startedAt = DateTime.now();
+    dashboardReady.value = false;
+  }
+
+  static Duration get remaining {
+    final startedAt = _startedAt;
+    if (startedAt == null) {
+      return Duration.zero;
+    }
+    if (_visual == _PostSignInHandoffVisual.whiteHold) {
+      return Duration.zero;
+    }
+    final elapsed = DateTime.now().difference(startedAt);
+    final remaining = minDuration - elapsed;
+    if (remaining.isNegative) {
+      return Duration.zero;
+    }
+    return remaining;
+  }
+
+  static void setDashboardReady(bool ready) {
+    if (!isActive || dashboardReady.value == ready) {
+      return;
+    }
+    dashboardReady.value = ready;
+  }
+
+  static Duration get fadeDuration => switch (_visual) {
+    _PostSignInHandoffVisual.branded => brandedFadeDuration,
+    _PostSignInHandoffVisual.whiteHold => whiteHoldFadeDuration,
+  };
+
+  static Widget get loadingWidget => switch (_visual) {
+    _PostSignInHandoffVisual.branded => const _AuthGateBrandedLoading(),
+    _PostSignInHandoffVisual.whiteHold => const _AuthGateWhiteHoldScreen(),
+  };
+
+  static void clear() {
+    _startedAt = null;
+    dashboardReady.value = false;
+    _visual = _PostSignInHandoffVisual.branded;
+  }
+}
+
+enum _PostSignInHandoffVisual { branded, whiteHold }
+
+class _PostSignInHandoffGate extends StatefulWidget {
+  const _PostSignInHandoffGate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_PostSignInHandoffGate> createState() => _PostSignInHandoffGateState();
+}
+
+class _PostSignInHandoffGateState extends State<_PostSignInHandoffGate> {
+  Timer? _minTimer;
+  bool _minElapsed = false;
+  bool _revealed = false;
+  late final Duration _fadeDuration;
+  late final Widget _loadingWidget;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeDuration = _PostSignInHandoffController.fadeDuration;
+    _loadingWidget = _PostSignInHandoffController.loadingWidget;
+    _PostSignInHandoffController.dashboardReady.addListener(_maybeReveal);
+    final remaining = _PostSignInHandoffController.remaining;
+    if (remaining == Duration.zero) {
+      _minElapsed = true;
+    } else {
+      _minTimer = Timer(remaining, () {
+        if (!mounted) {
+          return;
+        }
+        _minElapsed = true;
+        _maybeReveal();
+      });
+    }
+    _maybeReveal();
+  }
+
+  @override
+  void dispose() {
+    _minTimer?.cancel();
+    _PostSignInHandoffController.dashboardReady.removeListener(_maybeReveal);
+    super.dispose();
+  }
+
+  void _maybeReveal() {
+    if (!mounted ||
+        _revealed ||
+        !_minElapsed ||
+        !_PostSignInHandoffController.dashboardReady.value) {
+      return;
+    }
+    _PostSignInHandoffController.clear();
+    setState(() => _revealed = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        IgnorePointer(
+          ignoring: !_revealed,
+          child: AnimatedOpacity(
+            opacity: _revealed ? 1 : 0,
+            duration: _fadeDuration,
+            curve: Curves.easeOut,
+            child: widget.child,
+          ),
+        ),
+        IgnorePointer(
+          ignoring: _revealed,
+          child: AnimatedOpacity(
+            opacity: _revealed ? 0 : 1,
+            duration: _fadeDuration,
+            curve: Curves.easeOut,
+            child: _loadingWidget,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthGateBrandedLoading extends StatelessWidget {
+  const _AuthGateBrandedLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFF7F6F4),
+      body: Align(
+        alignment: Alignment(0, 0.0),
+        child: Image(
+          image: AssetImage('assets/images/kidu_icon.png'),
+          width: 72,
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthGateWhiteHoldScreen extends StatelessWidget {
+  const _AuthGateWhiteHoldScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(backgroundColor: Colors.white);
   }
 }
 
@@ -561,6 +791,7 @@ class ProfileNamePage extends StatefulWidget {
 
 class _ProfileNamePageState extends State<ProfileNamePage> {
   final _controller = TextEditingController();
+  final FocusNode _nameFocus = FocusNode();
   bool _busy = false;
   String? _nameInlineHint;
 
@@ -571,16 +802,23 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     if (initial != null && initial.trim().isNotEmpty) {
       _controller.text = initial.trim();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _nameFocus.requestFocus();
+      }
+    });
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(
+      SnackBar(content: Text(message), duration: duration ?? const Duration(seconds: 4)),
+    );
   }
 
   Future<void> _save() async {
@@ -617,8 +855,16 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       if (widget.fromSettings) {
         Navigator.of(context).pop();
       } else {
+        final userSnap = await FirebaseFirestore.instance
+            .doc('users/$uid')
+            .get();
+        if (!mounted) {
+          return;
+        }
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
+          MaterialPageRoute(
+            builder: (_) => DashboardPage(initialUserSnapshot: userSnap),
+          ),
         );
       }
     } catch (e) {
@@ -635,6 +881,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
 
   @override
   void dispose() {
+    _nameFocus.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -699,61 +946,117 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
           ),
         ),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 24),
-                Text(
-                  'Welke naam wil je gebruiken?',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: onSurface(context, a62),
-                    height: 1.35,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 20,
+              bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: KiduCard(
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Welke naam wil je gebruiken?',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                              height: 1.25,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a68),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Color.alphaBlend(
+                            Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: a06),
+                            Theme.of(context).colorScheme.surface,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: outlineV(context, a45)),
+                        ),
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _nameFocus,
+                          maxLength: 20,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _busy ? null : _save(),
+                          onChanged: (_) {
+                            if (_nameInlineHint != null) {
+                              setState(() => _nameInlineHint = null);
+                            }
+                          },
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.12,
+                              ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
+                            counterText: '',
+                          ),
+                        ),
+                      ),
+                      if (_nameInlineHint != null) ...[
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: Text(
+                            _nameInlineHint!,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: onSurface(context, a62),
+                                  height: 1.35,
+                                ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      FilledButton.tonalIcon(
+                        onPressed: _busy ? null : _save,
+                        icon: _busy
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              )
+                            : const Icon(Icons.check, size: 18),
+                        label: Text(
+                          'Opslaan',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  maxLength: 20,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _busy ? null : _save(),
-                  onChanged: (_) {
-                    if (_nameInlineHint != null) {
-                      setState(() => _nameInlineHint = null);
-                    }
-                  },
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (_nameInlineHint != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _nameInlineHint!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a62),
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _busy ? null : _save,
-                    child: Text(_busy ? 'Bezig...' : 'Opslaan'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -812,14 +1115,19 @@ class _LoginPageState extends State<LoginPage> {
   String? _error;
   bool _busy = false;
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration ?? const Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _signInWithGoogle() async {
@@ -853,6 +1161,7 @@ class _LoginPageState extends State<LoginPage> {
 
       // e) Sign in to Firebase
       await FirebaseAuth.instance.signInWithCredential(credential);
+      _PostSignInHandoffController.start();
       debugPrint(
         'After sign-in currentUser: uid=${FirebaseAuth.instance.currentUser?.uid} '
         'email=${FirebaseAuth.instance.currentUser?.email}',
@@ -888,12 +1197,16 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_PostSignInHandoffController.isActive) {
+      return const _AuthGateBrandedLoading();
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.only(top: 10, bottom: 38),
+              padding: const EdgeInsets.only(top: 34, bottom: 38),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Container(
@@ -1012,7 +1325,15 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+  const DashboardPage({
+    super.key,
+    this.initialUserSnapshot,
+    this.onPreviewReadyChanged,
+  });
+
+  /// Seeds the user-doc stream from [AuthGate] to skip an extra loading frame.
+  final DocumentSnapshot<Map<String, dynamic>>? initialUserSnapshot;
+  final ValueChanged<bool>? onPreviewReadyChanged;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -1022,7 +1343,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _setupBusy = false;
   bool _inviteBusy = false;
   bool _inviteSheetOpening = false;
-  bool _switchBusy = false;
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
@@ -1035,6 +1355,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
   String? _namesCacheKey;
   Future<Map<String, String>>? _namesFuture;
+  String? _dashboardSecondaryMetadataCacheKey;
+  Future<_DashboardSecondaryMetadata>? _dashboardSecondaryMetadataFuture;
+  String? _lastVisibleDashboardSecondaryMetadataScopeKey;
+  _DashboardSecondaryMetadata? _lastVisibleDashboardSecondaryMetadata;
+  _PendingExpenseRowFallback? _pendingExpenseRowFallback;
 
   List<_ChildItem> _dashChildren = [];
   String? _dashChildrenHouseholdId;
@@ -1057,6 +1382,20 @@ class _DashboardPageState extends State<DashboardPage> {
   _confirmedPaymentsSubscription;
   int _confirmedPaidByMe = 0;
   int _confirmedPaidToMe = 0;
+  bool? _lastReportedPreviewReady;
+
+  void _reportPreviewReady(bool ready) {
+    if (_lastReportedPreviewReady == ready) {
+      return;
+    }
+    _lastReportedPreviewReady = ready;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      widget.onPreviewReadyChanged?.call(ready);
+    });
+  }
 
   Future<String?> _loadMyPrivateNote({
     required String householdId,
@@ -1083,18 +1422,121 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Future<String> _loadUserDisplayName({
+    required String uid,
+    required String fallback,
+  }) async {
+    try {
+      final snap = await FirebaseFirestore.instance.doc('users/$uid').get();
+      final data = snap.data();
+      final profileName = (data?['profileName'] as String?)?.trim();
+      final displayName = (data?['displayName'] as String?)?.trim();
+      final email = (data?['email'] as String?)?.trim();
+
+      return (profileName != null && profileName.isNotEmpty)
+          ? profileName
+          : (displayName != null && displayName.isNotEmpty)
+          ? displayName
+          : (email != null && email.isNotEmpty)
+          ? email
+          : fallback;
+    } catch (e) {
+      debugPrint('Fetch user name error (uid=$uid): $e');
+      return fallback;
+    }
+  }
+
+  Future<_DashboardSecondaryMetadata> _fetchDashboardSecondaryMetadata({
+    required String householdId,
+    required String otherUid,
+    required List<String> visibleOwnExpenseIds,
+    required String otherFallback,
+  }) async {
+    final otherNameFuture = _loadUserDisplayName(
+      uid: otherUid,
+      fallback: otherFallback,
+    );
+    final notesFuture = Future.wait(
+      visibleOwnExpenseIds.map(
+        (expenseId) => _getNoteFuture(
+          householdId,
+          expenseId,
+        ).then((note) => MapEntry(expenseId, note)),
+      ),
+    );
+
+    final otherName = await otherNameFuture;
+    final noteEntries = await notesFuture;
+    final notesByExpenseId = <String, String>{};
+    for (final entry in noteEntries) {
+      final note = entry.value?.trim();
+      if (note != null && note.isNotEmpty) {
+        notesByExpenseId[entry.key] = note;
+      }
+    }
+
+    return _DashboardSecondaryMetadata(
+      otherName: otherName,
+      notesByExpenseId: notesByExpenseId,
+    );
+  }
+
+  Future<_DashboardSecondaryMetadata> _getDashboardSecondaryMetadataFuture({
+    required String householdId,
+    required String otherUid,
+    required List<String> visibleOwnExpenseIds,
+  }) {
+    final visibleIdsKey = visibleOwnExpenseIds.join(',');
+    final key = '$householdId|$otherUid|$visibleIdsKey|$_notesRefreshTick';
+    if (_dashboardSecondaryMetadataFuture == null ||
+        _dashboardSecondaryMetadataCacheKey != key) {
+      _dashboardSecondaryMetadataCacheKey = key;
+      _dashboardSecondaryMetadataFuture = _fetchDashboardSecondaryMetadata(
+        householdId: householdId,
+        otherUid: otherUid,
+        visibleOwnExpenseIds: visibleOwnExpenseIds,
+        otherFallback: 'Co-parent',
+      );
+    }
+    return _dashboardSecondaryMetadataFuture!;
+  }
+
+  String _formatDashboardExpenseDate(DateTime? dt) {
+    if (dt == null) return '';
+    const nlMonths = <String>[
+      'jan',
+      'feb',
+      'mrt',
+      'apr',
+      'mei',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec',
+    ];
+    return '${dt.day} ${nlMonths[dt.month - 1]}';
+  }
+
   static const double _pagePadding = 16;
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration ?? const Duration(seconds: 4),
+      ),
+    );
   }
 
   /// Thin dashboard wrapper around [_doManagePrivateNote].
@@ -1185,25 +1627,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final result = <String, String>{};
 
     Future<void> loadOne(String uid, String fallback) async {
-      try {
-        final snap = await FirebaseFirestore.instance.doc('users/$uid').get();
-        final data = snap.data();
-        final profileName = (data?['profileName'] as String?)?.trim();
-        final displayName = (data?['displayName'] as String?)?.trim();
-        final email = (data?['email'] as String?)?.trim();
-
-        final effective = (profileName != null && profileName.isNotEmpty)
-            ? profileName
-            : (displayName != null && displayName.isNotEmpty)
-            ? displayName
-            : (email != null && email.isNotEmpty)
-            ? email
-            : fallback;
-        result[uid] = effective;
-      } catch (e) {
-        debugPrint('Fetch user name error (uid=$uid): $e');
-        result[uid] = fallback;
-      }
+      result[uid] = await _loadUserDisplayName(uid: uid, fallback: fallback);
     }
 
     await loadOne(myUid, myFallback);
@@ -1344,7 +1768,7 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1364,39 +1788,40 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isPaired ? 'Instellingen' : 'Koppel met co-parent',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 10),
-                      if (isPaired)
+                  child: KiduCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          'Verbonden met $effectiveOtherName',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: onSurface(context, a68),
-                                height: 1.35,
-                              ),
-                        )
-                      else
-                        Text(
-                          'Koppel met je co-parent om samen kosten te delen.',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: onSurface(context, a68),
-                                height: 1.35,
-                              ),
+                          isPaired ? 'Instellingen' : 'Koppel met co-parent',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                      const SizedBox(height: 22),
-                      if (!isPaired && hasHousehold && canInvite) ...[
-                        SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
+                        const SizedBox(height: 8),
+                        if (isPaired)
+                          Text(
+                            trimmedOther == 'Co-parent'
+                                ? 'Verbinden met Co-parent'
+                                : 'Verbonden met $effectiveOtherName',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a68),
+                                  height: 1.35,
+                                ),
+                          )
+                        else
+                          Text(
+                            'Koppel met je co-parent om samen kosten te delen.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a68),
+                                  height: 1.35,
+                                ),
+                          ),
+                        const SizedBox(height: 16),
+                        if (!isPaired && hasHousehold && canInvite) ...[
+                          FilledButton.tonalIcon(
                             onPressed: _inviteBusy
                                 ? null
                                 : () async {
@@ -1406,36 +1831,42 @@ class _DashboardPageState extends State<DashboardPage> {
                                       setModalState(() {});
                                     }
                                   },
-                            child: Text(
+                            icon: Icon(
+                              Icons.key_outlined,
+                              size: 18,
+                              color: onSurface(context, a58),
+                            ),
+                            label: Text(
                               _inviteBusy ? 'Bezig...' : 'Genereer invite code',
+                              style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ),
-                        ),
-                        if (_inviteCode != null &&
-                            _inviteCode!.trim().isNotEmpty) ...[
+                          if (_inviteCode != null &&
+                              _inviteCode!.trim().isNotEmpty) ...[
+                            const SizedBox(height: _cardGap),
+                            KiduCodePill(
+                              code: _inviteCode!.trim(),
+                              onCopy: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: _inviteCode!.trim()),
+                                );
+                                _showSnackBar('Invite code gekopieerd.');
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            FilledButton.tonalIcon(
+                              onPressed: () => _shareInviteCode(_inviteCode!),
+                              icon: const Icon(Icons.share_outlined, size: 18),
+                              label: Text(
+                                'Delen',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: _cardGap),
-                          KiduCodePill(
-                            code: _inviteCode!.trim(),
-                            onCopy: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: _inviteCode!.trim()),
-                              );
-                              _showSnackBar('Invite code gekopieerd.');
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          FilledButton.icon(
-                            onPressed: () => _shareInviteCode(_inviteCode!),
-                            icon: const Icon(Icons.share),
-                            label: const Text('Delen'),
-                          ),
                         ],
-                        const SizedBox(height: _cardGap),
-                      ],
-                      if (!isPaired) ...[
-                        SizedBox(
-                          height: 48,
-                          child: OutlinedButton.icon(
+                        if (!isPaired) ...[
+                          OutlinedButton.icon(
                             onPressed: () {
                               Navigator.of(context).pop();
                               Navigator.of(rootContext).push(
@@ -1444,243 +1875,257 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.link, size: 20),
-                            label: const Text('Ik heb een invite-code'),
-                          ),
-                        ),
-                      ],
-                      Divider(height: 24, color: outlineV(context, a32)),
-                      Text(
-                        'Account',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: onSurface(context, a58),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.edit,
-                          color: onSurface(context, a58),
-                        ),
-                        title: const Text('Naam'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          Navigator.of(rootContext).push(
-                            MaterialPageRoute(
-                              builder: (_) => ProfileNamePage(
-                                fromSettings: true,
-                                initialName: myName,
-                              ),
+                            icon: Icon(
+                              Icons.link,
+                              size: 18,
+                              color: onSurface(context, a70),
                             ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Huishouden',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: onSurface(context, a58),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.4,
+                            label: Text(
+                              'Ik heb een invite-code',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                          ),
+                        ],
+                        Divider(height: 24, color: outlineV(context, a40)),
+                        Text(
+                          'Account',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (hasHousehold)
+                        const SizedBox(height: 8),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           leading: Icon(
-                            Icons.child_care,
+                            Icons.edit_outlined,
+                            size: 20,
                             color: onSurface(context, a58),
                           ),
-                          title: const Text('Kinderen'),
+                          title: Text(
+                            'Naam',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
                           onTap: () {
                             Navigator.of(context).pop();
                             Navigator.of(rootContext).push(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    _KinderenPage(householdId: householdId),
-                              ),
-                            );
-                          },
-                        ),
-                      if (hasHousehold)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
-                          leading: Icon(
-                            Icons.menu_book_outlined,
-                            color: onSurface(context, a58),
-                          ),
-                          title: const Text('Logboek'),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            Navigator.of(rootContext).push(
-                              MaterialPageRoute(
-                                builder: (_) => _LogboekPage(
-                                  householdId: householdId,
-                                  uid: myUid,
-                                  myName: myName,
-                                  otherName: otherName,
+                                builder: (_) => ProfileNamePage(
+                                  fromSettings: true,
+                                  initialName: myName,
                                 ),
                               ),
                             );
                           },
                         ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Info',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: onSurface(context, a58),
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.privacy_tip_outlined,
-                          color: onSurface(context, a58),
-                        ),
-                        title: const Text('Privacy'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          showDialog<void>(
-                            context: rootContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Privacy in KiDu'),
-                              content: SingleChildScrollView(
-                                child: Text(
-                                  'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
-                                  'Wat we wél gebruiken (alleen wat nodig is):\n'
-                                  '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
-                                  '• Je Google-account (voor veilig inloggen)\n'
-                                  '• Jullie gedeelde uitgaven in KiDu\n\n'
-                                  'Wat KiDu níét vraagt of gebruikt:\n'
-                                  '• Geen telefoonnummer\n'
-                                  '• Geen toegang tot je contacten\n'
-                                  '• Geen locatie\n'
-                                  '• Geen agenda, microfoon of camera\n'
-                                  '• Geen push-notificaties of "ping-gedrag"\n\n'
-                                  'Delen met anderen?\n'
-                                  '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
-                                  '• We delen geen gegevens voor marketingdoeleinden.\n'
-                                  '• We verkopen je gegevens niet.\n\n'
-                                  'Je houdt de controle:\n'
-                                  '• Je kunt je naam altijd aanpassen.\n'
-                                  '• Je kunt uitloggen wanneer je wilt.',
-                                  style: Theme.of(ctx).textTheme.bodyMedium
-                                      ?.copyWith(color: onSurface(ctx, a68)),
-                                ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Huishouden',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx).pop();
-                                    Navigator.of(rootContext).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const PrivacyPolicyPage(),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    'Volledige privacyverklaring',
+                        ),
+                        const SizedBox(height: 8),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            leading: Icon(
+                              Icons.child_care_outlined,
+                              size: 20,
+                              color: onSurface(context, a58),
+                            ),
+                            title: Text(
+                              'Kinderen',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      _KinderenPage(householdId: householdId),
+                                ),
+                              );
+                            },
+                          ),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            leading: Icon(
+                              Icons.menu_book_outlined,
+                              size: 20,
+                              color: onSurface(context, a58),
+                            ),
+                            title: Text(
+                              'Logboek',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) => _LogboekPage(
+                                    householdId: householdId,
+                                    uid: myUid,
+                                    myName: myName,
+                                    otherName: otherName,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.info_outline,
-                          color: onSurface(context, a58),
-                        ),
-                        title: const Text('Over KiDu'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          showDialog<void>(
-                            context: rootContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('KiDu'),
-                              content: const Text(
-                                'Rust in gedeelde kosten tussen co-parents.\n'
-                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Info',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      Divider(height: 32, color: outlineV(context, a32)),
-                      if (kDebugMode)
+                        ),
+                        const SizedBox(height: 8),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           leading: Icon(
-                            Icons.switch_account,
+                            Icons.privacy_tip_outlined,
+                            size: 20,
                             color: onSurface(context, a58),
                           ),
-                          title: const Text('Wissel account'),
-                          onTap: _switchBusy
-                              ? null
-                              : () {
-                                  Navigator.of(context).pop();
-                                  WidgetsBinding.instance.addPostFrameCallback((
-                                    _,
-                                  ) {
-                                    if (!mounted) {
-                                      return;
-                                    }
-                                    _switchAccount(rootContext);
-                                  });
-                                },
+                          title: Text(
+                            'Privacy',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            showDialog<void>(
+                              context: rootContext,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Privacy in KiDu'),
+                                content: SingleChildScrollView(
+                                  child: Text(
+                                    'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+                                    'Wat we wél gebruiken (alleen wat nodig is):\n'
+                                    '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
+                                    '• Je Google-account (voor veilig inloggen)\n'
+                                    '• Jullie gedeelde uitgaven in KiDu\n\n'
+                                    'Wat KiDu níét vraagt of gebruikt:\n'
+                                    '• Geen telefoonnummer\n'
+                                    '• Geen toegang tot je contacten\n'
+                                    '• Geen locatie\n'
+                                    '• Geen agenda, microfoon of camera\n'
+                                    '• Geen push-notificaties of "ping-gedrag"\n\n'
+                                    'Delen met anderen?\n'
+                                    '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
+                                    '• We delen geen gegevens voor marketingdoeleinden.\n'
+                                    '• We verkopen je gegevens niet.\n\n'
+                                    'Je houdt de controle:\n'
+                                    '• Je kunt je naam altijd aanpassen.\n'
+                                    '• Je kunt uitloggen wanneer je wilt.',
+                                    style: Theme.of(ctx).textTheme.bodyMedium
+                                        ?.copyWith(color: onSurface(ctx, a68)),
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(ctx).pop();
+                                      Navigator.of(rootContext).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const PrivacyPolicyPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Volledige privacyverklaring',
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('Sluiten'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        visualDensity: VisualDensity.compact,
-                        leading: Icon(
-                          Icons.logout,
-                          color: onSurface(context, a58),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: Icon(
+                            Icons.info_outline,
+                            size: 20,
+                            color: onSurface(context, a58),
+                          ),
+                          title: Text(
+                            'Over KiDu',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            showDialog<void>(
+                              context: rootContext,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('KiDu'),
+                                content: const Text(
+                                  'Rust in gedeelde kosten tussen co-parents.\n'
+                                  'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    child: const Text('Sluiten'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                        title: const Text('Uitloggen'),
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) {
-                              return;
-                            }
-                            _signOut(rootContext);
-                          });
-                        },
-                      ),
-                    ],
+                        Divider(height: 32, color: outlineV(context, a40)),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          leading: Icon(
+                            Icons.logout,
+                            size: 20,
+                            color: onSurface(context, a58),
+                          ),
+                          title: Text(
+                            'Uitloggen',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) {
+                                return;
+                              }
+                              _signOut(rootContext);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1728,7 +2173,7 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  Future<void> _createExpense({
+  Future<_CreatedExpenseResult?> _createExpense({
     required String householdId,
     required String title,
     required int amountCents,
@@ -1738,7 +2183,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return;
+      return null;
     }
 
     try {
@@ -1778,17 +2223,321 @@ class _DashboardPageState extends State<DashboardPage> {
         _showSnackBar(
           'Uitgave wordt opgeslagen en is pas zichtbaar voor $naam zodra je weer online bent.',
         );
-      } else {
-        _showSnackBar(
-          noteErrMsg != null
-              ? 'Uitgave opgeslagen, $noteErrMsg'
-              : 'Uitgave opgeslagen.',
-        );
       }
+      return _CreatedExpenseResult(
+        expenseId: ref.id,
+        noteForRowFallback: noteErrMsg == null ? noteTrimmed : null,
+        successSnackBarMessage: isPending
+            ? null
+            : (noteErrMsg != null
+                  ? 'Uitgave opgeslagen, $noteErrMsg'
+                  : 'Uitgave opgeslagen.'),
+      );
     } catch (e) {
       if (kDebugMode) debugPrint('Create expense error: $e');
       rethrow;
     }
+  }
+
+  Future<List<String>?> _openAddExpenseChildSelectionDialog({
+    required List<_ChildItem> children,
+    List<String> initialSelectedChildIds = const [],
+  }) async {
+    final allChildIds = children.map((c) => c.id).toList(growable: false);
+    return showDialog<List<String>>(
+      context: context,
+      useSafeArea: true,
+      barrierDismissible: true,
+      builder: (context) {
+        var selectedChildIds = initialSelectedChildIds
+            .where(allChildIds.contains)
+            .toSet();
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            final selectedCount = selectedChildIds.length;
+            final allSelected = selectedCount == allChildIds.length;
+            final cs = Theme.of(context).colorScheme;
+            final dialogBackground = cs.surfaceContainerHigh;
+            final screenW = MediaQuery.sizeOf(context).width;
+            final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+            final modalHeight = min(
+              520.0,
+              MediaQuery.of(context).size.height - 36,
+            );
+            void dismissSelectionDialog() => Navigator.of(context).pop();
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
+              child: SafeArea(
+                child: Align(
+                  alignment: const Alignment(0, -0.08),
+                  child: SizedBox(
+                    width: dialogW,
+                    child: SizedBox(
+                      height: modalHeight,
+                      child: Material(
+                        color: dialogBackground,
+                        elevation: 3,
+                        clipBehavior: Clip.antiAlias,
+                        borderRadius: BorderRadius.circular(
+                          _DashboardPageState._cardRadius,
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                              _DashboardPageState._cardRadius,
+                            ),
+                            border: Border.all(color: outlineV(context, a40)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                                child: Center(
+                                  child: Container(
+                                    width: 36,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: cs.outlineVariant.withValues(
+                                        alpha: 0.85,
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                                child: Text(
+                                  'Selectie',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w400,
+                                        color: onSurface(context, a84),
+                                      ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    12,
+                                    16,
+                                    0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () => setLocalState(() {
+                                          selectedChildIds = allSelected
+                                              ? <String>{}
+                                              : allChildIds.toSet();
+                                        }),
+                                        style: TextButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: Text(
+                                          allSelected
+                                              ? 'Alles deselecteren'
+                                              : 'Alles selecteren',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      SizedBox(
+                                        height: 28,
+                                        child: Align(
+                                          alignment: Alignment.topLeft,
+                                          child: Opacity(
+                                            opacity: selectedCount == 0 ? 1 : 0,
+                                            child: Text(
+                                              'Selecteer minimaal 1 kind om verder te gaan',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall?.copyWith(
+                                                color: onSurface(context, a68),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: ListView.separated(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                            bottom: 4,
+                                          ),
+                                          itemCount: children.length,
+                                          separatorBuilder: (_, _) => Divider(
+                                            height: 1,
+                                            thickness: 0.4,
+                                            color: cs.outlineVariant.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                          ),
+                                          itemBuilder: (context, index) {
+                                            final child = children[index];
+                                            final selected = selectedChildIds
+                                                .contains(child.id);
+                                            return Material(
+                                              type: MaterialType.transparency,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                onTap: () {
+                                                  setLocalState(() {
+                                                    if (selected) {
+                                                      selectedChildIds =
+                                                          selectedChildIds
+                                                              .where(
+                                                                (id) =>
+                                                                    id !=
+                                                                    child.id,
+                                                              )
+                                                              .toSet();
+                                                    } else {
+                                                      selectedChildIds = {
+                                                        ...selectedChildIds,
+                                                        child.id,
+                                                      };
+                                                    }
+                                                  });
+                                                },
+                                                child: ListTile(
+                                                  dense: true,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  minLeadingWidth: 32,
+                                                  contentPadding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 2,
+                                                        vertical: 0,
+                                                      ),
+                                                  leading: Checkbox(
+                                                    value: selected,
+                                                    visualDensity:
+                                                        VisualDensity.compact,
+                                                    activeColor: cs.primary
+                                                        .withValues(alpha: a84),
+                                                    checkColor: cs.surface,
+                                                    side: BorderSide(
+                                                      color: cs.outlineVariant
+                                                          .withValues(
+                                                            alpha: 0.85,
+                                                          ),
+                                                    ),
+                                                    onChanged: (value) {
+                                                      setLocalState(() {
+                                                        if (value ?? false) {
+                                                          selectedChildIds = {
+                                                            ...selectedChildIds,
+                                                            child.id,
+                                                          };
+                                                        } else {
+                                                          selectedChildIds =
+                                                              selectedChildIds
+                                                                  .where(
+                                                                    (id) =>
+                                                                        id !=
+                                                                        child
+                                                                            .id,
+                                                                  )
+                                                                  .toSet();
+                                                        }
+                                                      });
+                                                    },
+                                                  ),
+                                                  title: Text(
+                                                    child.name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a84,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: dialogBackground,
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: outlineV(context, a32),
+                                    ),
+                                  ),
+                                ),
+                                child: SafeArea(
+                                  top: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      8,
+                                      16,
+                                      12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        TextButton(
+                                          onPressed: dismissSelectionDialog,
+                                          child: const Text('Annuleren'),
+                                        ),
+                                        const Spacer(),
+                                        ElevatedButton(
+                                          onPressed: selectedCount == 0
+                                              ? null
+                                              : () => Navigator.of(context).pop(
+                                                  children
+                                                      .where(
+                                                        (child) =>
+                                                            selectedChildIds
+                                                                .contains(
+                                                                  child.id,
+                                                                ),
+                                                      )
+                                                      .map((child) => child.id)
+                                                      .toList(),
+                                                ),
+                                          child: const Text('Gereed'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _openAddExpenseDialog(
@@ -1799,12 +2548,12 @@ class _DashboardPageState extends State<DashboardPage> {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final noteController = TextEditingController();
+    final allChildIds = children.map((c) => c.id).toList(growable: false);
     var saving = false;
     var didShow = false;
-    // Default selection: all active children (covers 0, 1, 2+ cases).
-    var selectedChildIds = children.map((c) => c.id).toList();
-    // When true, show individual chips even while all children are selected.
-    var kidChipsExpanded = false;
+    String? pendingSuccessSnackBarMessage;
+    var hasCustomChildSelection = false;
+    var customSelectedChildIds = <String>[];
     _freezeExpensesVN.value = true;
 
     try {
@@ -1815,8 +2564,16 @@ class _DashboardPageState extends State<DashboardPage> {
         builder: (context) {
           return StatefulBuilder(
             builder: (context, setLocalState) {
+              final effectiveSelectedChildIds = hasCustomChildSelection
+                  ? customSelectedChildIds
+                  : allChildIds;
               final screenW = MediaQuery.sizeOf(context).width;
               final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+              final childSelectionSummary =
+                  !hasCustomChildSelection ||
+                      effectiveSelectedChildIds.length == children.length
+                  ? 'Alle kinderen'
+                  : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
               return Align(
                 alignment: const Alignment(0, -0.15),
                 child: SizedBox(
@@ -1834,6 +2591,14 @@ class _DashboardPageState extends State<DashboardPage> {
                             TextField(
                               controller: titleController,
                               textInputAction: TextInputAction.next,
+                              maxLength: _kAddExpenseTitleMaxLength,
+                              buildCounter:
+                                  (
+                                    context, {
+                                    required int currentLength,
+                                    required bool isFocused,
+                                    required int? maxLength,
+                                  }) => null,
                               decoration: const InputDecoration(
                                 labelText: 'Titel',
                                 floatingLabelBehavior:
@@ -1868,40 +2633,62 @@ class _DashboardPageState extends State<DashboardPage> {
                                 border: OutlineInputBorder(),
                               ),
                             ),
-                            // "Voor wie?" section — only shown for 2+ children.
-                            // Single-child: selectedChildIds already defaults to
-                            // [child.id] so it is stored correctly without UI.
+                            // Child selection stays out of the main dialog for
+                            // 2+ children so the form remains compact.
                             if (children.length > 1) ...[
                               const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Voor wie?',
+                                    'Voor:',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.labelMedium,
                                   ),
-                                  Builder(
-                                    builder: (context) {
-                                      final allSelected =
-                                          selectedChildIds.length ==
-                                          children.length;
-                                      final showPill =
-                                          allSelected && !kidChipsExpanded;
-                                      return TextButton(
-                                        onPressed: () => setLocalState(() {
-                                          if (showPill) {
-                                            kidChipsExpanded = true;
-                                          } else {
-                                            selectedChildIds = children
-                                                .map((c) => c.id)
-                                                .toList();
-                                            kidChipsExpanded = false;
-                                          }
-                                        }),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          childSelectionSummary,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodyMedium,
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: saving
+                                            ? null
+                                            : () async {
+                                                FocusManager.instance.primaryFocus
+                                                    ?.unfocus();
+                                                final pickedChildIds =
+                                                    await _openAddExpenseChildSelectionDialog(
+                                                      children: children,
+                                                      initialSelectedChildIds:
+                                                          hasCustomChildSelection
+                                                          ? customSelectedChildIds
+                                                          : const <String>[],
+                                                    );
+                                                if (pickedChildIds == null ||
+                                                    !context.mounted) {
+                                                  return;
+                                                }
+                                                setLocalState(() {
+                                                  if (pickedChildIds.length ==
+                                                      children.length) {
+                                                    hasCustomChildSelection =
+                                                        false;
+                                                    customSelectedChildIds = [];
+                                                  } else {
+                                                    hasCustomChildSelection =
+                                                        true;
+                                                    customSelectedChildIds =
+                                                        pickedChildIds;
+                                                  }
+                                                });
+                                              },
                                         style: TextButton.styleFrom(
                                           visualDensity: VisualDensity.compact,
                                           padding: const EdgeInsets.symmetric(
@@ -1910,135 +2697,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                           tapTargetSize:
                                               MaterialTapTargetSize.shrinkWrap,
                                         ),
-                                        child: Text(
-                                          showPill
-                                              ? 'Selecteer'
-                                              : 'Alle kinderen',
-                                        ),
-                                      );
-                                    },
+                                        child: const Text('Selectie'),
+                                      ),
+                                    ],
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 6),
-                              // Fixed-height area: dialog does not resize when
-                              // toggling between the summary pill and chips.
-                              SizedBox(
-                                height: _kChildPickerHeight,
-                                child: Builder(
-                                  builder: (context) {
-                                    final cs = Theme.of(context).colorScheme;
-                                    final allSelected =
-                                        selectedChildIds.length ==
-                                        children.length;
-                                    final showPill =
-                                        allSelected && !kidChipsExpanded;
-
-                                    if (showPill) {
-                                      return Align(
-                                        alignment: Alignment.topLeft,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: cs.primary.withValues(
-                                              alpha: 0.10,
-                                            ),
-                                            border: Border.all(
-                                              color: cs.primary,
-                                              width: 1.0,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            'Alle kinderen geselecteerd',
-                                            style: TextStyle(
-                                              color: cs.onSurface,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    }
-
-                                    // Individual chips — border width fixed at
-                                    // 1.0; only color/bg change on selection.
-                                    FilterChip kidChip({
-                                      required Widget label,
-                                      required bool selected,
-                                      required ValueChanged<bool> onSelected,
-                                    }) {
-                                      return FilterChip(
-                                        label: label,
-                                        selected: selected,
-                                        showCheckmark: false,
-                                        backgroundColor: cs.surface,
-                                        selectedColor: cs.primary.withValues(
-                                          alpha: 0.10,
-                                        ),
-                                        side: BorderSide(
-                                          color: selected
-                                              ? cs.primary
-                                              : cs.onSurface.withValues(
-                                                  alpha: 0.22,
-                                                ),
-                                          width: 1.0,
-                                        ),
-                                        labelStyle: TextStyle(
-                                          color: selected
-                                              ? cs.onSurface
-                                              : cs.onSurface.withValues(
-                                                  alpha: 0.75,
-                                                ),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        onSelected: onSelected,
-                                      );
-                                    }
-
-                                    return ClipRect(
-                                      child: SingleChildScrollView(
-                                        child: Wrap(
-                                          spacing: 8,
-                                          runSpacing: 4,
-                                          children: [
-                                            ...children.map(
-                                              (c) => kidChip(
-                                                label: Text(c.name),
-                                                selected: selectedChildIds
-                                                    .contains(c.id),
-                                                onSelected: (v) {
-                                                  setLocalState(() {
-                                                    if (v) {
-                                                      selectedChildIds = [
-                                                        ...selectedChildIds,
-                                                        c.id,
-                                                      ];
-                                                    } else {
-                                                      kidChipsExpanded = true;
-                                                      selectedChildIds =
-                                                          selectedChildIds
-                                                              .where(
-                                                                (id) =>
-                                                                    id != c.id,
-                                                              )
-                                                              .toList();
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
                               ),
                             ],
                           ],
@@ -2068,7 +2731,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   _showSnackBar('Vul een geldig bedrag in.');
                                   return;
                                 }
-                                if (selectedChildIds.isEmpty) {
+                                if (effectiveSelectedChildIds.isEmpty) {
                                   _showSnackBar('Selecteer minimaal één kind.');
                                   return;
                                 }
@@ -2084,7 +2747,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   return;
                                 }
                                 try {
-                                  await _createExpense(
+                                  final savedAt = DateTime.now();
+                                  final createResult = await _createExpense(
                                     householdId: householdId,
                                     title: title,
                                     amountCents: amountCents,
@@ -2092,8 +2756,21 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ? null
                                         : noteController.text.trim(),
                                     coparentNameForPendingMessage: coparentName,
-                                    childIds: selectedChildIds,
+                                    childIds: effectiveSelectedChildIds,
                                   );
+                                  if (mounted && createResult != null) {
+                                    setState(() {
+                                      _pendingExpenseRowFallback =
+                                          _PendingExpenseRowFallback(
+                                            expenseId: createResult.expenseId,
+                                            savedAt: savedAt,
+                                            note:
+                                                createResult.noteForRowFallback,
+                                          );
+                                    });
+                                    pendingSuccessSnackBarMessage =
+                                        createResult.successSnackBarMessage;
+                                  }
                                   if (context.mounted) {
                                     await Future<void>.delayed(
                                       const Duration(milliseconds: 150),
@@ -2158,7 +2835,18 @@ class _DashboardPageState extends State<DashboardPage> {
         // transition.
         await Future<void>.delayed(kThemeAnimationDuration);
       }
-      if (mounted) _freezeExpensesVN.value = false;
+      if (mounted) {
+        _freezeExpensesVN.value = false;
+        if (pendingSuccessSnackBarMessage != null) {
+          await WidgetsBinding.instance.endOfFrame;
+          if (mounted) {
+            _showSnackBar(
+              pendingSuccessSnackBarMessage!,
+              duration: const Duration(milliseconds: 2200),
+            );
+          }
+        }
+      }
       titleController.dispose();
       amountController.dispose();
       noteController.dispose();
@@ -2197,6 +2885,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    widget.onPreviewReadyChanged?.call(false);
     _settlementsSubscription?.cancel();
     _paymentsSubscription?.cancel();
     _confirmedPaymentsSubscription?.cancel();
@@ -2508,7 +3197,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.share_outlined, size: 18),
                             label: Text(
                               'Delen',
-                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                              style: Theme.of(
+                                sheetContext,
+                              ).textTheme.bodyMedium,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -2520,7 +3211,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.check, size: 18),
                             label: Text(
                               'Klaar',
-                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                              style: Theme.of(
+                                sheetContext,
+                              ).textTheme.bodyMedium,
                             ),
                           ),
                         ] else ...[
@@ -2542,7 +3235,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             icon: const Icon(Icons.refresh, size: 18),
                             label: Text(
                               'Opnieuw',
-                              style: Theme.of(sheetContext).textTheme.bodyMedium,
+                              style: Theme.of(
+                                sheetContext,
+                              ).textTheme.bodyMedium,
                             ),
                           ),
                         ],
@@ -2561,49 +3256,6 @@ class _DashboardPageState extends State<DashboardPage> {
     if (didConfirm == true) {
       setState(() => _showWaiting = true);
     }
-  }
-
-  Future<void> _switchAccount(BuildContext context) async {
-    if (_switchBusy) {
-      return;
-    }
-
-    setState(() => _switchBusy = true);
-
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final navigator = Navigator.of(context);
-
-    try {
-      debugPrint(
-        'Before sign-out currentUser: uid=${FirebaseAuth.instance.currentUser?.uid} '
-        'email=${FirebaseAuth.instance.currentUser?.email}',
-      );
-      await _googleSignIn.signOut(); // clear current Google session
-      await FirebaseAuth.instance.signOut();
-      debugPrint(
-        'After sign-out currentUser: uid=${FirebaseAuth.instance.currentUser?.uid} '
-        'email=${FirebaseAuth.instance.currentUser?.email}',
-      );
-    } catch (e) {
-      debugPrint('Switch account error: $e');
-    }
-
-    if (!mounted) {
-      return;
-    }
-    setState(() => _switchBusy = false);
-
-    navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthGate()),
-      (_) => false,
-    );
-
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      const SnackBar(
-        content: Text('Uitgelogd. Kies een ander Google-account.'),
-      ),
-    );
   }
 
   Future<void> _signOut(BuildContext context) async {
@@ -2629,14 +3281,17 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      _reportPreviewReady(false);
       // Avoid endless spinner if auth state flips during navigation/sign-out.
       return const AuthGate();
     }
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.doc('users/${user.uid}').snapshots(),
+      initialData: widget.initialUserSnapshot,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          _reportPreviewReady(true);
           return Scaffold(
             resizeToAvoidBottomInset: false,
             appBar: AppBar(
@@ -2675,8 +3330,10 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           );
         }
-        if (!snapshot.hasData ||
-            snapshot.connectionState == ConnectionState.waiting) {
+        // Do not treat ConnectionState.waiting as loading when [initialData] is
+        // present — Firestore keeps waiting until the first snapshot event.
+        if (!snapshot.hasData) {
+          _reportPreviewReady(false);
           return Scaffold(
             resizeToAvoidBottomInset: false,
             appBar: AppBar(
@@ -2736,9 +3393,11 @@ class _DashboardPageState extends State<DashboardPage> {
                     .snapshots()
               : Stream.value(null),
           builder: (context, membersSnapshot) {
-            // Prevent "not linked" UI flash while member list is still loading
-            // after re-login (hasHousehold=true but snapshot not ready yet).
+            // Avoid full-screen loading here: while members are resolving, keep
+            // the normal dashboard subtree (invite flow) instead of replacing the
+            // scaffold with a spinner (jank when household first appears).
             if (hasHousehold && membersSnapshot.hasError) {
+              _reportPreviewReady(true);
               return Scaffold(
                 resizeToAvoidBottomInset: false,
                 appBar: AppBar(
@@ -2764,7 +3423,47 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               );
             }
-            if (hasHousehold && !membersSnapshot.hasData) {
+
+            final membersAwaitingFirstSnapshot =
+                hasHousehold &&
+                !membersSnapshot.hasData &&
+                !membersSnapshot.hasError;
+
+            final memberDocs = hasHousehold && membersSnapshot.hasData
+                ? membersSnapshot.data!.docs
+                : <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            final memberCount = memberDocs.length;
+
+            String? otherUid;
+            for (final d in memberDocs) {
+              if (d.id != user.uid) {
+                otherUid = d.id;
+                break;
+              }
+            }
+
+            final canInvite = membersAwaitingFirstSnapshot || memberCount == 1;
+            final canAddExpenses =
+                otherUid != null && otherUid.trim().isNotEmpty;
+            final myDashboardName =
+                (myProfileName != null && myProfileName.isNotEmpty)
+                ? myProfileName
+                : ((user.displayName != null &&
+                          user.displayName!.trim().isNotEmpty)
+                      ? user.displayName!.trim()
+                      : 'Jij');
+
+            if (canAddExpenses && _showWaiting) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() => _showWaiting = false);
+              });
+            }
+
+            // Solo/invite UI uses !canAddExpenses; that is also true while members
+            // have not emitted yet — show loading instead of a false "not linked" state.
+            if (hasHousehold && membersAwaitingFirstSnapshot) {
+              _reportPreviewReady(false);
               return Scaffold(
                 resizeToAvoidBottomInset: false,
                 appBar: AppBar(
@@ -2783,38 +3482,8 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             }
 
-            final memberDocs = hasHousehold && membersSnapshot.hasData
-                ? membersSnapshot.data!.docs
-                : <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-            final memberCount = memberDocs.length;
-
-            String? otherUid;
-            for (final d in memberDocs) {
-              if (d.id != user.uid) {
-                otherUid = d.id;
-                break;
-              }
-            }
-
-            final canInvite = memberCount == 1;
-            final canAddExpenses =
-                otherUid != null && otherUid.trim().isNotEmpty;
-            final myDashboardName =
-                (myProfileName != null && myProfileName.isNotEmpty)
-                ? myProfileName
-                : ((user.displayName != null &&
-                          user.displayName!.trim().isNotEmpty)
-                      ? user.displayName!.trim()
-                      : 'Jij');
-
-            if (canAddExpenses && _showWaiting) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                setState(() => _showWaiting = false);
-              });
-            }
-
             if (!canAddExpenses) {
+              _reportPreviewReady(true);
               return PopScope(
                 canPop: !_showWaiting,
                 onPopInvokedWithResult: (didPop, _) {
@@ -2997,26 +3666,26 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       child: ElevatedButton(
                                                         onPressed:
                                                             (_inviteBusy ||
-                                                                    _setupBusy)
-                                                                ? null
-                                                                : () async {
-                                                                    if (_inviteSheetOpening) {
-                                                                      return;
-                                                                    }
-                                                                    HapticFeedback.selectionClick();
+                                                                _setupBusy)
+                                                            ? null
+                                                            : () async {
+                                                                if (_inviteSheetOpening) {
+                                                                  return;
+                                                                }
+                                                                HapticFeedback.selectionClick();
+                                                                _inviteSheetOpening =
+                                                                    true;
+                                                                try {
+                                                                  await _openInviteSheetFlow(
+                                                                    householdIdStr,
+                                                                  );
+                                                                } finally {
+                                                                  if (mounted) {
                                                                     _inviteSheetOpening =
-                                                                        true;
-                                                                    try {
-                                                                      await _openInviteSheetFlow(
-                                                                        householdIdStr,
-                                                                      );
-                                                                    } finally {
-                                                                      if (mounted) {
-                                                                        _inviteSheetOpening =
-                                                                            false;
-                                                                      }
-                                                                    }
-                                                                  },
+                                                                        false;
+                                                                  }
+                                                                }
+                                                              },
                                                         child: const Text(
                                                           'Co-parent uitnodigen',
                                                         ),
@@ -3041,32 +3710,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ),
                                                       ),
                                                     ),
-                                                    if (kDebugMode) ...[
-                                                      const SizedBox(
-                                                        height: 10,
-                                                      ),
-                                                      Center(
-                                                        child: TextButton(
-                                                          onPressed: _switchBusy
-                                                              ? null
-                                                              : () =>
-                                                                    _switchAccount(
-                                                                      context,
-                                                                    ),
-                                                          style:
-                                                              TextButton.styleFrom(
-                                                                foregroundColor:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a62,
-                                                                    ),
-                                                              ),
-                                                          child: const Text(
-                                                            'Wissel account',
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
                                                   ],
                                                 ),
                                               ),
@@ -3242,8 +3885,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         dialogOpen ||
                                         fabBusy ||
                                         _setupBusy ||
-                                        _inviteBusy ||
-                                        _switchBusy;
+                                        _inviteBusy;
 
                                     return FloatingActionButton(
                                       heroTag: 'add_expense_fab',
@@ -3384,13 +4026,34 @@ class _DashboardPageState extends State<DashboardPage> {
                                             expensesSnapshot.data;
                                         if (expensesSnapshot.hasError &&
                                             effectiveSnap == null) {
+                                          _reportPreviewReady(true);
                                           return const Text(
                                             'Kon uitgaven niet laden.',
                                           );
                                         }
+                                        if (effectiveSnap == null) {
+                                          _reportPreviewReady(false);
+                                          return const Center(
+                                            child: CircularProgressIndicator(),
+                                          );
+                                        }
 
-                                        final docs =
-                                            effectiveSnap?.docs ?? const [];
+                                        final docs = effectiveSnap.docs;
+                                        final visibleDocs = docs.take(6).toList(
+                                          growable: false,
+                                        );
+                                        final visibleOwnExpenseIds =
+                                            visibleDocs
+                                                .where(
+                                                  (d) =>
+                                                      ((d
+                                                                  .data()['createdBy']
+                                                              as String?)
+                                                          ?.trim()) ==
+                                                      user.uid,
+                                                )
+                                                .map((d) => d.id)
+                                                .toList(growable: false);
 
                                         var totalCents = 0;
                                         var myPaidCents = 0;
@@ -3428,8 +4091,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             _confirmedPaidByMe -
                                             _confirmedPaidToMe;
 
-                                        final absBalance = balanceCents
-                                            .abs();
+                                        final absBalance = balanceCents.abs();
                                         final pendingInCents =
                                             (_pendingIncoming?['amountCents']
                                                     as num?)
@@ -3438,26 +4100,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                             (_pendingOutgoing?['amountCents']
                                                     as num?)
                                                 ?.toInt();
-
-                                        final String statusText;
-                                        if (pendingInCents != null &&
-                                            pendingInCents > 0) {
-                                          statusText =
-                                              '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
-                                        } else if (pendingOutCents != null &&
-                                            pendingOutCents > 0) {
-                                          statusText =
-                                              '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
-                                        } else if (balanceCents > 0) {
-                                          statusText =
-                                              '$otherName betaalt jou ${_formatEur(absBalance)}';
-                                        } else if (balanceCents < 0) {
-                                          statusText =
-                                              'Jij betaalt $otherName ${_formatEur(absBalance)}';
-                                        } else {
-                                          statusText =
-                                              'Jullie zijn in balans';
-                                        }
 
                                         String? lastActivityText;
                                         if (docs.isNotEmpty) {
@@ -3474,10 +4116,85 @@ class _DashboardPageState extends State<DashboardPage> {
                                               'Laatste activiteit · $timeStr';
                                         }
 
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
+                                        final secondaryMetadataFuture =
+                                            _getDashboardSecondaryMetadataFuture(
+                                              householdId: householdIdStr,
+                                              otherUid: otherUid!,
+                                              visibleOwnExpenseIds:
+                                                  visibleOwnExpenseIds,
+                                            );
+
+                                        return FutureBuilder<
+                                          _DashboardSecondaryMetadata
+                                        >(
+                                          future: secondaryMetadataFuture,
+                                          builder: (
+                                            context,
+                                            secondaryMetaSnapshot,
+                                          ) {
+                                            final secondaryMetadataScopeKey =
+                                                '$householdIdStr|$otherUid';
+                                            final secondaryMetadata =
+                                                secondaryMetaSnapshot.data;
+                                            final secondaryMetadataReady =
+                                                secondaryMetaSnapshot
+                                                        .connectionState ==
+                                                    ConnectionState.done &&
+                                                secondaryMetadata != null;
+                                            if (secondaryMetadataReady) {
+                                              _lastVisibleDashboardSecondaryMetadataScopeKey =
+                                                  secondaryMetadataScopeKey;
+                                              _lastVisibleDashboardSecondaryMetadata =
+                                                  secondaryMetadata;
+                                            }
+                                            final visibleSecondaryMetadata =
+                                                secondaryMetadataReady
+                                                ? secondaryMetadata
+                                                : (_lastVisibleDashboardSecondaryMetadataScopeKey ==
+                                                          secondaryMetadataScopeKey
+                                                      ? _lastVisibleDashboardSecondaryMetadata
+                                                      : null);
+                                            _reportPreviewReady(
+                                              secondaryMetadataReady,
+                                            );
+                                            final visibleOtherName =
+                                                visibleSecondaryMetadata
+                                                    ?.otherName;
+                                            final visibleNotes =
+                                                visibleSecondaryMetadata
+                                                    ?.notesByExpenseId ??
+                                                const <String, String>{};
+                                            final balanceBreakdownText =
+                                                visibleOtherName == null
+                                                ? null
+                                                : '$myName ${_formatEur(myPaidCents)} • $visibleOtherName ${_formatEur(otherPaidCents)}';
+
+                                            String? visibleStatusText;
+                                            if (pendingInCents != null &&
+                                                pendingInCents > 0) {
+                                              visibleStatusText =
+                                                  '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
+                                            } else if (pendingOutCents != null &&
+                                                pendingOutCents > 0) {
+                                              visibleStatusText =
+                                                  '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
+                                            } else if (balanceCents > 0 &&
+                                                visibleOtherName != null) {
+                                              visibleStatusText =
+                                                  '$visibleOtherName betaalt jou ${_formatEur(absBalance)}';
+                                            } else if (balanceCents < 0 &&
+                                                visibleOtherName != null) {
+                                              visibleStatusText =
+                                                  'Jij betaalt $visibleOtherName ${_formatEur(absBalance)}';
+                                            } else if (balanceCents == 0) {
+                                              visibleStatusText =
+                                                  'Jullie zijn in balans';
+                                            }
+
+                                            return Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
                                             if (lastActivityText != null) ...[
                                               Text(
                                                 lastActivityText,
@@ -3520,93 +4237,187 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       .primary
                                                       .withValues(alpha: 0.08),
                                                   onTap: () {
-                                                    if (_pendingIncoming != null && _pendingIncomingId != null) {
-                                                      final inPayment = _pendingIncoming!;
-                                                      final inId = _pendingIncomingId!;
-                                                      final inCents = (inPayment['amountCents'] as num?)?.toInt() ?? 0;
-                                                      showModalBottomSheet<void>(
+                                                    if (_pendingIncoming !=
+                                                            null &&
+                                                        _pendingIncomingId !=
+                                                            null) {
+                                                      final inPayment =
+                                                          _pendingIncoming!;
+                                                      final inId =
+                                                          _pendingIncomingId!;
+                                                      final inCents =
+                                                          (inPayment['amountCents']
+                                                                  as num?)
+                                                              ?.toInt() ??
+                                                          0;
+                                                      showModalBottomSheet<
+                                                        void
+                                                      >(
                                                         context: context,
-                                                        isScrollControlled: true,
+                                                        isScrollControlled:
+                                                            true,
                                                         shape: const RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                          borderRadius:
+                                                              BorderRadius.vertical(
+                                                                top:
+                                                                    Radius.circular(
+                                                                      20,
+                                                                    ),
+                                                              ),
                                                         ),
                                                         builder: (sheetCtx) {
                                                           return SafeArea(
                                                             child: Padding(
-                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              padding:
+                                                                  const EdgeInsets.fromLTRB(
+                                                                    24,
+                                                                    20,
+                                                                    24,
+                                                                    28,
+                                                                  ),
                                                               child: Column(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .stretch,
                                                                 children: [
                                                                   Center(
                                                                     child: Container(
                                                                       width: 36,
                                                                       height: 4,
                                                                       decoration: BoxDecoration(
-                                                                        color: Theme.of(context).colorScheme.outlineVariant,
-                                                                        borderRadius: BorderRadius.circular(2),
+                                                                        color: Theme.of(
+                                                                          context,
+                                                                        ).colorScheme.outlineVariant,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(
+                                                                              2,
+                                                                            ),
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                  const SizedBox(height: 20),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
                                                                   Text(
                                                                     'Ontvangst bevestigen',
-                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                                      fontWeight: FontWeight.w700,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w700,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 16),
+                                                                  const SizedBox(
+                                                                    height: 16,
+                                                                  ),
                                                                   Text(
                                                                     'Betaling gemeld door $otherName',
-                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                                      color: onSurface(context, a84),
-                                                                      height: 1.4,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 4),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
                                                                   Text(
-                                                                    _formatEur(inCents),
-                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                                                      fontWeight: FontWeight.w600,
-                                                                      color: onSurface(context, a84),
+                                                                    _formatEur(
+                                                                      inCents,
                                                                     ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleSmall
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 20),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
                                                                   FilledButton(
                                                                     onPressed: () {
-                                                                      Navigator.of(sheetCtx).pop();
+                                                                      Navigator.of(
+                                                                        sheetCtx,
+                                                                      ).pop();
                                                                       showDialog<bool>(
-                                                                        context: context,
-                                                                        builder: (dialogCtx) => AlertDialog(
-                                                                          title: const Text('Ontvangst bevestigen'),
-                                                                          content: Text(
-                                                                            'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
-                                                                          ),
-                                                                          actions: [
-                                                                            TextButton(
-                                                                              onPressed: () => Navigator.of(dialogCtx).pop(false),
-                                                                              child: const Text('Annuleren'),
+                                                                        context:
+                                                                            context,
+                                                                        builder:
+                                                                            (
+                                                                              dialogCtx,
+                                                                            ) => AlertDialog(
+                                                                              title: const Text(
+                                                                                'Ontvangst bevestigen',
+                                                                              ),
+                                                                              content: Text(
+                                                                                'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
+                                                                              ),
+                                                                              actions: [
+                                                                                TextButton(
+                                                                                  onPressed: () =>
+                                                                                      Navigator.of(
+                                                                                        dialogCtx,
+                                                                                      ).pop(
+                                                                                        false,
+                                                                                      ),
+                                                                                  child: const Text(
+                                                                                    'Annuleren',
+                                                                                  ),
+                                                                                ),
+                                                                                FilledButton(
+                                                                                  onPressed: () =>
+                                                                                      Navigator.of(
+                                                                                        dialogCtx,
+                                                                                      ).pop(
+                                                                                        true,
+                                                                                      ),
+                                                                                  child: const Text(
+                                                                                    'Bevestigen',
+                                                                                  ),
+                                                                                ),
+                                                                              ],
                                                                             ),
-                                                                            FilledButton(
-                                                                              onPressed: () => Navigator.of(dialogCtx).pop(true),
-                                                                              child: const Text('Bevestigen'),
-                                                                            ),
-                                                                          ],
-                                                                        ),
-                                                                      ).then((confirmed) async {
-                                                                        if (confirmed == true) {
+                                                                      ).then((
+                                                                        confirmed,
+                                                                      ) async {
+                                                                        if (confirmed ==
+                                                                            true) {
                                                                           try {
                                                                             await FirebaseFirestore.instance
-                                                                                .doc('households/$householdIdStr/payments/$inId')
+                                                                                .doc(
+                                                                                  'households/$householdIdStr/payments/$inId',
+                                                                                )
                                                                                 .update({
                                                                                   'status': 'confirmed',
                                                                                   'confirmedAt': FieldValue.serverTimestamp(),
                                                                                   'confirmedBy': user.uid,
                                                                                 });
-                                                                            _showSnackBar('Ontvangst bevestigd.');
-                                                                          } catch (e) {
+                                                                            _showSnackBar(
+                                                                              'Ontvangst bevestigd.',
+                                                                            );
+                                                                          } catch (
+                                                                            e
+                                                                          ) {
                                                                             if (kDebugMode) {
-                                                                              debugPrint('Payment confirm error: $e');
+                                                                              debugPrint(
+                                                                                'Payment confirm error: $e',
+                                                                              );
                                                                             }
                                                                             _showSnackBar(
                                                                               mapUserFacingError(
@@ -3618,7 +4429,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         }
                                                                       });
                                                                     },
-                                                                    child: const Text('Ontvangst bevestigen'),
+                                                                    child: const Text(
+                                                                      'Ontvangst bevestigen',
+                                                                    ),
                                                                   ),
                                                                 ],
                                                               ),
@@ -3629,62 +4442,124 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       return;
                                                     }
 
-                                                    if (_pendingOutgoing != null) {
-                                                      final outPayment = _pendingOutgoing!;
-                                                      final outCents = (outPayment['amountCents'] as num?)?.toInt() ?? 0;
-                                                      showModalBottomSheet<void>(
+                                                    if (_pendingOutgoing !=
+                                                        null) {
+                                                      final outPayment =
+                                                          _pendingOutgoing!;
+                                                      final outCents =
+                                                          (outPayment['amountCents']
+                                                                  as num?)
+                                                              ?.toInt() ??
+                                                          0;
+                                                      showModalBottomSheet<
+                                                        void
+                                                      >(
                                                         context: context,
                                                         shape: const RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                                          borderRadius:
+                                                              BorderRadius.vertical(
+                                                                top:
+                                                                    Radius.circular(
+                                                                      20,
+                                                                    ),
+                                                              ),
                                                         ),
                                                         builder: (sheetCtx) {
                                                           return SafeArea(
                                                             child: Padding(
-                                                              padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                                                              padding:
+                                                                  const EdgeInsets.fromLTRB(
+                                                                    24,
+                                                                    20,
+                                                                    24,
+                                                                    28,
+                                                                  ),
                                                               child: Column(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                                mainAxisSize:
+                                                                    MainAxisSize
+                                                                        .min,
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .stretch,
                                                                 children: [
                                                                   Center(
                                                                     child: Container(
                                                                       width: 36,
                                                                       height: 4,
                                                                       decoration: BoxDecoration(
-                                                                        color: Theme.of(context).colorScheme.outlineVariant,
-                                                                        borderRadius: BorderRadius.circular(2),
+                                                                        color: Theme.of(
+                                                                          context,
+                                                                        ).colorScheme.outlineVariant,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(
+                                                                              2,
+                                                                            ),
                                                                       ),
                                                                     ),
                                                                   ),
-                                                                  const SizedBox(height: 20),
+                                                                  const SizedBox(
+                                                                    height: 20,
+                                                                  ),
                                                                   Text(
                                                                     'Betaling melden',
-                                                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                                      fontWeight: FontWeight.w700,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleMedium
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w700,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 16),
+                                                                  const SizedBox(
+                                                                    height: 16,
+                                                                  ),
                                                                   Text(
                                                                     'Betaling gemeld',
-                                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                                      color: onSurface(context, a84),
-                                                                      height: 1.4,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodyMedium
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 4),
+                                                                  const SizedBox(
+                                                                    height: 4,
+                                                                  ),
                                                                   Text(
                                                                     '${_formatEur(outCents)} aan $otherName',
-                                                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                                                      fontWeight: FontWeight.w600,
-                                                                      color: onSurface(context, a84),
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .titleSmall
+                                                                        ?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a84,
+                                                                          ),
+                                                                        ),
                                                                   ),
-                                                                  const SizedBox(height: 8),
+                                                                  const SizedBox(
+                                                                    height: 8,
+                                                                  ),
                                                                   Text(
                                                                     'Wacht op bevestiging door $otherName',
-                                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                                      color: onSurface(context, a62),
-                                                                      height: 1.4,
-                                                                    ),
+                                                                    style: Theme.of(context)
+                                                                        .textTheme
+                                                                        .bodySmall
+                                                                        ?.copyWith(
+                                                                          color: onSurface(
+                                                                            context,
+                                                                            a62,
+                                                                          ),
+                                                                          height:
+                                                                              1.4,
+                                                                        ),
                                                                   ),
                                                                 ],
                                                               ),
@@ -3722,7 +4597,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     null &&
                                                                 enteredCents! >
                                                                     0;
-                                                            final bottomInset = MediaQuery.of(sheetCtx).viewInsets.bottom;
+                                                            final bottomInset =
+                                                                MediaQuery.of(
+                                                                      sheetCtx,
+                                                                    )
+                                                                    .viewInsets
+                                                                    .bottom;
                                                             return SafeArea(
                                                               child: Padding(
                                                                 padding:
@@ -3730,7 +4610,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       24,
                                                                       20,
                                                                       24,
-                                                                      28 + bottomInset,
+                                                                      28 +
+                                                                          bottomInset,
                                                                     ),
                                                                 child: Column(
                                                                   mainAxisSize:
@@ -3762,7 +4643,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           20,
                                                                     ),
                                                                     Text(
-                                                                      balanceCents < 0
+                                                                      balanceCents <
+                                                                              0
                                                                           ? 'Betaling melden'
                                                                           : 'Balans',
                                                                       style: Theme.of(context)
@@ -4040,7 +4922,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           height: 8,
                                                         ),
                                                         Text(
-                                                          '$myName ${_formatEur(myPaidCents)} • $otherName ${_formatEur(otherPaidCents)}',
+                                                          balanceBreakdownText ??
+                                                              ' ',
                                                           maxLines: 1,
                                                           overflow: TextOverflow
                                                               .ellipsis,
@@ -4071,7 +4954,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           height: 8,
                                                         ),
                                                         Text(
-                                                          statusText,
+                                                          visibleStatusText ??
+                                                              ' ',
                                                           style: Theme.of(context)
                                                               .textTheme
                                                               .bodySmall
@@ -4115,15 +4999,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         ),
                                                   ),
                                                   const SizedBox(height: 10),
-                                                  effectiveSnap == null
-                                                      ? const SizedBox(
-                                                          height: 48,
-                                                          child: Center(
-                                                            child:
-                                                                CircularProgressIndicator(),
-                                                          ),
-                                                        )
-                                                      : docs.isEmpty
+                                                  docs.isEmpty
                                                       ? Align(
                                                           alignment:
                                                               Alignment.topLeft,
@@ -4151,9 +5027,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           physics:
                                                               const NeverScrollableScrollPhysics(),
                                                           itemCount:
-                                                              docs.length > 6
-                                                              ? 6
-                                                              : docs.length,
+                                                              visibleDocs.length,
                                                           separatorBuilder:
                                                               (
                                                                 context,
@@ -4167,7 +5041,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                               ),
                                                           itemBuilder: (context, index) {
                                                             final d =
-                                                                docs[index];
+                                                                visibleDocs[index];
                                                             final e = d.data();
                                                             final title =
                                                                 (e['title']
@@ -4197,6 +5071,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                             final isPending = d
                                                                 .metadata
                                                                 .hasPendingWrites;
+                                                            final rowFallback =
+                                                                createdBy ==
+                                                                        user.uid &&
+                                                                    _pendingExpenseRowFallback
+                                                                            ?.expenseId ==
+                                                                        d.id
+                                                                ? _pendingExpenseRowFallback
+                                                                : null;
                                                             final createdAtRaw =
                                                                 e['createdAt'];
                                                             DateTime?
@@ -4213,38 +5095,45 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   createdAtRaw
                                                                       .toLocal();
                                                             }
+                                                            createdAtDateTime ??=
+                                                                rowFallback
+                                                                    ?.savedAt
+                                                                    .toLocal();
+                                                            final dateLabel =
+                                                                _formatDashboardExpenseDate(
+                                                                  createdAtDateTime,
+                                                                );
+                                                            final actorLabel =
+                                                                (createdBy ==
+                                                                        user.uid)
+                                                                ? myName
+                                                                : (otherUid !=
+                                                                          null &&
+                                                                      createdBy ==
+                                                                          otherUid)
+                                                                ? visibleOtherName
+                                                                : null;
+                                                            final baseSubtitleText =
+                                                                actorLabel ==
+                                                                        null ||
+                                                                    actorLabel
+                                                                        .isEmpty
+                                                                ? dateLabel
+                                                                : dateLabel
+                                                                      .isEmpty
+                                                                ? actorLabel
+                                                                : '$actorLabel • $dateLabel';
+                                                            final note =
+                                                                visibleNotes[d.id] ??
+                                                                rowFallback?.note;
                                                             final subtitleText =
-                                                                createdAtDateTime ==
-                                                                    null
-                                                                ? who
-                                                                : (() {
-                                                                    final dt =
-                                                                        createdAtDateTime;
-                                                                    if (dt ==
-                                                                        null) {
-                                                                      return who;
-                                                                    }
-                                                                    const nlMonths =
-                                                                        <
-                                                                          String
-                                                                        >[
-                                                                          'jan',
-                                                                          'feb',
-                                                                          'mrt',
-                                                                          'apr',
-                                                                          'mei',
-                                                                          'jun',
-                                                                          'jul',
-                                                                          'aug',
-                                                                          'sep',
-                                                                          'okt',
-                                                                          'nov',
-                                                                          'dec',
-                                                                        ];
-                                                                    final shortDateTime =
-                                                                        '${dt.day} ${nlMonths[dt.month - 1]}';
-                                                                    return '$who • $shortDateTime';
-                                                                  })();
+                                                                note != null &&
+                                                                        note.isNotEmpty
+                                                                ? baseSubtitleText
+                                                                          .isEmpty
+                                                                    ? note
+                                                                    : '$baseSubtitleText · $note'
+                                                                : baseSubtitleText;
                                                             final expChildIds =
                                                                 (e['childIds']
                                                                         as List?)
@@ -4256,337 +5145,178 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   String
                                                                 >[];
 
-                                                            if (createdBy !=
-                                                                user.uid) {
-                                                              return Material(
-                                                                type: MaterialType
-                                                                    .transparency,
+                                                            Future<void>
+                                                            openNoteFlow() async {
+                                                              final hasNote =
+                                                                  (visibleNotes[d.id] ??
+                                                                          '')
+                                                                      .isNotEmpty;
+                                                              if (!await _checkCanWriteNow()) {
+                                                                if (mounted) {
+                                                                  _showSnackBar(
+                                                                    hasNote
+                                                                        ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                        : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
+                                                                  );
+                                                                }
+                                                                return;
+                                                              }
+                                                              await _openEditPrivateNoteDialog(
+                                                                householdId:
+                                                                    householdIdStr,
+                                                                expenseId:
+                                                                    d.id,
+                                                                uid: user.uid,
+                                                              );
+                                                            }
+
+                                                            return Material(
+                                                              type: MaterialType
+                                                                  .transparency,
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    8,
+                                                                  ),
+                                                              child: InkWell(
                                                                 borderRadius:
                                                                     BorderRadius.circular(
                                                                       8,
                                                                     ),
-                                                                child: InkWell(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        8,
-                                                                      ),
-                                                                  highlightColor:
-                                                                      Theme.of(
-                                                                        context,
-                                                                      ).colorScheme.primary.withValues(
-                                                                        alpha:
-                                                                            0.10,
-                                                                      ),
-                                                                  splashColor:
-                                                                      Theme.of(
-                                                                        context,
-                                                                      ).colorScheme.primary.withValues(
-                                                                        alpha:
-                                                                            0.08,
-                                                                      ),
-                                                                  onTap: () {
-                                                                    Navigator.of(
+                                                                highlightColor:
+                                                                    Theme.of(
                                                                       context,
-                                                                    ).push(
-                                                                      MaterialPageRoute<
-                                                                        void
-                                                                      >(
-                                                                        builder:
-                                                                            (
-                                                                              context,
-                                                                            ) => _ExpenseDetailPage(
-                                                                              householdId: householdIdStr,
-                                                                              expenseId: d.id,
-                                                                              uid: user.uid,
-                                                                              createdByUid: createdBy ?? '',
-                                                                              title: title,
-                                                                              amountCents: amountCents,
-                                                                              paidByName: who,
-                                                                              createdAt: createdAtDateTime,
-                                                                              isPending: isPending,
-                                                                              onManageNote: null,
-                                                                              otherParentName: otherName,
-                                                                              childIds: expChildIds,
-                                                                              childNames: _dashChildren.isNotEmpty
-                                                                                  ? expChildIds
-                                                                                        .map(
-                                                                                          (
-                                                                                            id,
-                                                                                          ) =>
-                                                                                              _dashChildren
-                                                                                                  .where(
-                                                                                                    (
-                                                                                                      c,
-                                                                                                    ) =>
-                                                                                                        c.id ==
-                                                                                                        id,
-                                                                                                  )
-                                                                                                  .map(
-                                                                                                    (
-                                                                                                      c,
-                                                                                                    ) => c.name,
-                                                                                                  )
-                                                                                                  .firstOrNull ??
-                                                                                              'Verwijderd kind',
-                                                                                        )
-                                                                                        .toList()
-                                                                                  : null,
-                                                                            ),
-                                                                      ),
-                                                                    );
-                                                                  },
-                                                                  child: ListTile(
-                                                                    contentPadding:
-                                                                        const EdgeInsets.symmetric(
-                                                                          horizontal:
-                                                                              5,
-                                                                        ),
-                                                                    dense: true,
-                                                                    visualDensity:
-                                                                        VisualDensity
-                                                                            .compact,
-                                                                    title: Text(
-                                                                      title,
-                                                                      maxLines:
-                                                                          1,
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
+                                                                    ).colorScheme.primary.withValues(
+                                                                      alpha:
+                                                                          0.10,
                                                                     ),
-                                                                    subtitle: Text(
-                                                                      subtitleText,
-                                                                      maxLines:
-                                                                          1,
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
+                                                                splashColor:
+                                                                    Theme.of(
+                                                                      context,
+                                                                    ).colorScheme.primary.withValues(
+                                                                      alpha:
+                                                                          0.08,
                                                                     ),
-                                                                    trailing: Row(
-                                                                      mainAxisSize:
-                                                                          MainAxisSize
-                                                                              .min,
-                                                                      children: [
-                                                                        if (isPending)
-                                                                          Tooltip(
-                                                                            message:
-                                                                                'Nog niet gesynchroniseerd',
-                                                                            child: Icon(
-                                                                              Icons.cloud_off,
-                                                                              size: 16,
-                                                                              color: onSurface(
-                                                                                context,
-                                                                                a50,
-                                                                              ),
-                                                                            ),
+                                                                onTap: () {
+                                                                  Navigator.of(
+                                                                    context,
+                                                                  ).push(
+                                                                    MaterialPageRoute<
+                                                                      void
+                                                                    >(
+                                                                      builder:
+                                                                          (
+                                                                            context,
+                                                                          ) => _ExpenseDetailPage(
+                                                                            householdId: householdIdStr,
+                                                                            expenseId: d.id,
+                                                                            uid: user.uid,
+                                                                            createdByUid:
+                                                                                createdBy ??
+                                                                                '',
+                                                                            title: title,
+                                                                            amountCents: amountCents,
+                                                                            paidByName: who,
+                                                                            createdAt: createdAtDateTime,
+                                                                            isPending: isPending,
+                                                                            onManageNote: createdBy == user.uid
+                                                                                ? openNoteFlow
+                                                                                : null,
+                                                                            otherParentName: otherName,
+                                                                            childIds: expChildIds,
+                                                                            childNames: _dashChildren.isNotEmpty
+                                                                                ? expChildIds
+                                                                                      .map(
+                                                                                        (
+                                                                                          id,
+                                                                                        ) =>
+                                                                                            _dashChildren
+                                                                                                .where(
+                                                                                                  (
+                                                                                                    c,
+                                                                                                  ) =>
+                                                                                                      c.id ==
+                                                                                                      id,
+                                                                                                )
+                                                                                                .map(
+                                                                                                  (
+                                                                                                    c,
+                                                                                                  ) => c.name,
+                                                                                                )
+                                                                                                .firstOrNull ??
+                                                                                            'Verwijderd kind',
+                                                                                      )
+                                                                                      .toList()
+                                                                                : null,
                                                                           ),
-                                                                        if (isPending)
-                                                                          const SizedBox(
-                                                                            width:
-                                                                                4,
-                                                                          ),
-                                                                        Text(
-                                                                          _formatEur(
-                                                                            amountCents,
-                                                                          ),
-                                                                          style:
-                                                                              Theme.of(
-                                                                                context,
-                                                                              ).textTheme.bodyMedium?.copyWith(
-                                                                                fontWeight: FontWeight.w600,
-                                                                              ),
-                                                                        ),
-                                                                      ],
                                                                     ),
-                                                                  ),
-                                                                ),
-                                                              );
-                                                            }
-
-                                                            return FutureBuilder<
-                                                              String?
-                                                            >(
-                                                              key: ValueKey(
-                                                                'note_${d.id}_$_notesRefreshTick',
-                                                              ),
-                                                              future:
-                                                                  _getNoteFuture(
-                                                                    householdIdStr,
-                                                                    d.id,
-                                                                  ),
-                                                              builder: (context, noteSnap) {
-                                                                final note =
-                                                                    noteSnap
-                                                                        .data;
-                                                                final hasNote =
-                                                                    note !=
-                                                                        null &&
-                                                                    note.isNotEmpty;
-
-                                                                Future<void>
-                                                                openNoteFlow() async {
-                                                                  if (!await _checkCanWriteNow()) {
-                                                                    if (mounted) {
-                                                                      _showSnackBar(
-                                                                        hasNote
-                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
-                                                                      );
-                                                                    }
-                                                                    return;
-                                                                  }
-                                                                  await _openEditPrivateNoteDialog(
-                                                                    householdId:
-                                                                        householdIdStr,
-                                                                    expenseId:
-                                                                        d.id,
-                                                                    uid: user
-                                                                        .uid,
                                                                   );
-                                                                }
-
-                                                                return Material(
-                                                                  type: MaterialType
-                                                                      .transparency,
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        8,
+                                                                },
+                                                                child: ListTile(
+                                                                  contentPadding:
+                                                                      const EdgeInsets.symmetric(
+                                                                        horizontal:
+                                                                            5,
                                                                       ),
-                                                                  child: InkWell(
-                                                                    borderRadius:
-                                                                        BorderRadius.circular(
-                                                                          8,
-                                                                        ),
-                                                                    highlightColor: Theme.of(context)
-                                                                        .colorScheme
-                                                                        .primary
-                                                                        .withValues(
-                                                                          alpha:
-                                                                              0.10,
-                                                                        ),
-                                                                    splashColor: Theme.of(context)
-                                                                        .colorScheme
-                                                                        .primary
-                                                                        .withValues(
-                                                                          alpha:
-                                                                              0.08,
-                                                                        ),
-                                                                    onTap: () {
-                                                                      Navigator.of(
-                                                                        context,
-                                                                      ).push(
-                                                                        MaterialPageRoute<
-                                                                          void
-                                                                        >(
-                                                                          builder:
-                                                                              (
-                                                                                context,
-                                                                              ) => _ExpenseDetailPage(
-                                                                                householdId: householdIdStr,
-                                                                                expenseId: d.id,
-                                                                                uid: user.uid,
-                                                                                createdByUid: createdBy ?? '',
-                                                                                title: title,
-                                                                                amountCents: amountCents,
-                                                                                paidByName: who,
-                                                                                createdAt: createdAtDateTime,
-                                                                                isPending: isPending,
-                                                                                onManageNote: openNoteFlow,
-                                                                                otherParentName: otherName,
-                                                                                childIds: expChildIds,
-                                                                                childNames: _dashChildren.isNotEmpty
-                                                                                    ? expChildIds
-                                                                                          .map(
-                                                                                            (
-                                                                                              id,
-                                                                                            ) =>
-                                                                                                _dashChildren
-                                                                                                    .where(
-                                                                                                      (
-                                                                                                        c,
-                                                                                                      ) =>
-                                                                                                          c.id ==
-                                                                                                          id,
-                                                                                                    )
-                                                                                                    .map(
-                                                                                                      (
-                                                                                                        c,
-                                                                                                      ) => c.name,
-                                                                                                    )
-                                                                                                    .firstOrNull ??
-                                                                                                'Verwijderd kind',
-                                                                                          )
-                                                                                          .toList()
-                                                                                    : null,
-                                                                              ),
-                                                                        ),
-                                                                      );
-                                                                    },
-                                                                    child: ListTile(
-                                                                      contentPadding:
-                                                                          const EdgeInsets.symmetric(
-                                                                            horizontal:
-                                                                                5,
-                                                                          ),
-                                                                      dense:
-                                                                          true,
-                                                                      visualDensity:
-                                                                          VisualDensity
-                                                                              .compact,
-                                                                      title: Text(
-                                                                        title,
-                                                                        maxLines:
-                                                                            1,
-                                                                        overflow:
-                                                                            TextOverflow.ellipsis,
-                                                                      ),
-                                                                      subtitle: Text(
-                                                                        hasNote
-                                                                            ? '$subtitleText · $note'
-                                                                            : subtitleText,
-                                                                        maxLines:
-                                                                            1,
-                                                                        overflow:
-                                                                            TextOverflow.ellipsis,
-                                                                      ),
-                                                                      trailing: Row(
-                                                                        mainAxisSize:
-                                                                            MainAxisSize.min,
-                                                                        mainAxisAlignment:
-                                                                            MainAxisAlignment.end,
-                                                                        children: [
-                                                                          if (isPending)
-                                                                            Tooltip(
-                                                                              message: 'Nog niet gesynchroniseerd',
-                                                                              child: Icon(
-                                                                                Icons.cloud_off,
-                                                                                size: 16,
-                                                                                color: onSurface(
+                                                                  dense: true,
+                                                                  visualDensity:
+                                                                      VisualDensity
+                                                                          .compact,
+                                                                  title: Text(
+                                                                    title,
+                                                                    maxLines: 1,
+                                                                    overflow:
+                                                                        TextOverflow
+                                                                            .ellipsis,
+                                                                  ),
+                                                                  subtitle:
+                                                                      subtitleText
+                                                                              .isEmpty
+                                                                          ? null
+                                                                          : Text(
+                                                                              subtitleText,
+                                                                              maxLines: 1,
+                                                                              overflow: TextOverflow.ellipsis,
+                                                                            ),
+                                                                  trailing: Row(
+                                                                    mainAxisSize:
+                                                                        MainAxisSize
+                                                                            .min,
+                                                                    children: [
+                                                                      if (isPending)
+                                                                        Tooltip(
+                                                                          message:
+                                                                              'Nog niet gesynchroniseerd',
+                                                                          child: Icon(
+                                                                            Icons.cloud_off,
+                                                                            size:
+                                                                                16,
+                                                                            color:
+                                                                                onSurface(
                                                                                   context,
                                                                                   a50,
                                                                                 ),
-                                                                              ),
-                                                                            ),
-                                                                          if (isPending)
-                                                                            const SizedBox(
-                                                                              width: 4,
-                                                                            ),
-                                                                          Text(
-                                                                            _formatEur(
-                                                                              amountCents,
-                                                                            ),
-                                                                            style:
-                                                                                Theme.of(
-                                                                                  context,
-                                                                                ).textTheme.bodyMedium?.copyWith(
-                                                                                  fontWeight: FontWeight.w600,
-                                                                                ),
                                                                           ),
-                                                                        ],
+                                                                        ),
+                                                                      if (isPending)
+                                                                        const SizedBox(
+                                                                          width:
+                                                                              4,
+                                                                        ),
+                                                                      Text(
+                                                                        _formatEur(
+                                                                          amountCents,
+                                                                        ),
+                                                                        style: Theme.of(
+                                                                          context,
+                                                                        ).textTheme.bodyMedium?.copyWith(
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                        ),
                                                                       ),
-                                                                    ),
+                                                                    ],
                                                                   ),
-                                                                );
-                                                              },
+                                                                ),
+                                                              ),
                                                             );
                                                           },
                                                         ),
@@ -4598,10 +5328,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                       },
                                     );
                                   },
-                                ),
-                              ),
-                            );
-                          },
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
                         ),
                       ),
                     ),
@@ -4624,6 +5356,329 @@ Widget _balanceRow({required String label, required String value}) {
       const SizedBox(width: 12),
       Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
     ],
+  );
+}
+
+Future<List<_ChildItem>> _loadExpenseEditChildren(String householdId) async {
+  final snap = await FirebaseFirestore.instance
+      .collection('households/$householdId/children')
+      .get();
+  final docs = snap.docs.toList()
+    ..sort((a, b) {
+      final aTs = a.data()['createdAt'];
+      final bTs = b.data()['createdAt'];
+      if (aTs is Timestamp && bTs is Timestamp) {
+        return aTs.compareTo(bTs);
+      }
+      return 0;
+    });
+  return docs
+      .map(
+        (d) => _ChildItem(
+          id: d.id,
+          name: (d.data()['name'] as String?)?.trim() ?? '?',
+        ),
+      )
+      .toList();
+}
+
+Future<List<String>?> _showExpenseEditChildSelectionDialog(
+  BuildContext context, {
+  required List<_ChildItem> children,
+  List<String> initialSelectedChildIds = const [],
+}) async {
+  final allChildIds = children.map((c) => c.id).toList(growable: false);
+  return showDialog<List<String>>(
+    context: context,
+    useSafeArea: true,
+    barrierDismissible: true,
+    builder: (context) {
+      var selectedChildIds = initialSelectedChildIds
+          .where(allChildIds.contains)
+          .toSet();
+      return StatefulBuilder(
+        builder: (context, setLocalState) {
+          final selectedCount = selectedChildIds.length;
+          final allSelected = selectedCount == allChildIds.length;
+          final cs = Theme.of(context).colorScheme;
+          final dialogBackground = cs.surfaceContainerHigh;
+          final screenW = MediaQuery.sizeOf(context).width;
+          final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+          final modalHeight = min(
+            520.0,
+            MediaQuery.of(context).size.height - 36,
+          );
+          void dismissSelectionDialog() => Navigator.of(context).pop();
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            child: SafeArea(
+              child: Align(
+                alignment: const Alignment(0, -0.08),
+                child: SizedBox(
+                  width: dialogW,
+                  child: SizedBox(
+                    height: modalHeight,
+                    child: Material(
+                      color: dialogBackground,
+                      elevation: 3,
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(
+                        _DashboardPageState._cardRadius,
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            _DashboardPageState._cardRadius,
+                          ),
+                          border: Border.all(color: outlineV(context, a40)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                              child: Center(
+                                child: Container(
+                                  width: 36,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: cs.outlineVariant.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                              child: Text(
+                                'Selectie',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w400,
+                                      color: onSurface(context, a84),
+                                    ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => setLocalState(() {
+                                        selectedChildIds = allSelected
+                                            ? <String>{}
+                                            : allChildIds.toSet();
+                                      }),
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        allSelected
+                                            ? 'Alles deselecteren'
+                                            : 'Alles selecteren',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      height: 28,
+                                      child: Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Opacity(
+                                          opacity: selectedCount == 0 ? 1 : 0,
+                                          child: Text(
+                                            'Selecteer minimaal 1 kind om verder te gaan',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodySmall?.copyWith(
+                                              color: onSurface(context, a68),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: ListView.separated(
+                                        padding: const EdgeInsets.only(
+                                          top: 2,
+                                          bottom: 4,
+                                        ),
+                                        itemCount: children.length,
+                                        separatorBuilder: (_, _) => Divider(
+                                          height: 1,
+                                          thickness: 0.4,
+                                          color: cs.outlineVariant.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                        ),
+                                        itemBuilder: (context, index) {
+                                          final child = children[index];
+                                          final selected = selectedChildIds
+                                              .contains(child.id);
+                                          return Material(
+                                            type: MaterialType.transparency,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              onTap: () {
+                                                setLocalState(() {
+                                                  if (selected) {
+                                                    selectedChildIds =
+                                                        selectedChildIds
+                                                            .where(
+                                                              (id) =>
+                                                                  id != child.id,
+                                                            )
+                                                            .toSet();
+                                                  } else {
+                                                    selectedChildIds = {
+                                                      ...selectedChildIds,
+                                                      child.id,
+                                                    };
+                                                  }
+                                                });
+                                              },
+                                              child: ListTile(
+                                                dense: true,
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                minLeadingWidth: 32,
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 2,
+                                                      vertical: 0,
+                                                    ),
+                                                leading: Checkbox(
+                                                  value: selected,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                  activeColor: cs.primary
+                                                      .withValues(alpha: a84),
+                                                  checkColor: cs.surface,
+                                                  side: BorderSide(
+                                                    color: cs.outlineVariant
+                                                        .withValues(
+                                                          alpha: 0.85,
+                                                        ),
+                                                  ),
+                                                  onChanged: (value) {
+                                                    setLocalState(() {
+                                                      if (value ?? false) {
+                                                        selectedChildIds = {
+                                                          ...selectedChildIds,
+                                                          child.id,
+                                                        };
+                                                      } else {
+                                                        selectedChildIds =
+                                                            selectedChildIds
+                                                                .where(
+                                                                  (id) =>
+                                                                      id !=
+                                                                      child.id,
+                                                                )
+                                                                .toSet();
+                                                      }
+                                                    });
+                                                  },
+                                                ),
+                                                title: Text(
+                                                  child.name,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a84,
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: dialogBackground,
+                                border: Border(
+                                  top: BorderSide(
+                                    color: outlineV(context, a32),
+                                  ),
+                                ),
+                              ),
+                              child: SafeArea(
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      TextButton(
+                                        onPressed: dismissSelectionDialog,
+                                        child: const Text('Annuleren'),
+                                      ),
+                                      const Spacer(),
+                                      ElevatedButton(
+                                        onPressed: selectedCount == 0
+                                            ? null
+                                            : () => Navigator.of(context).pop(
+                                                children
+                                                    .where(
+                                                      (child) =>
+                                                          selectedChildIds
+                                                              .contains(
+                                                                child.id,
+                                                              ),
+                                                    )
+                                                    .map((child) => child.id)
+                                                    .toList(),
+                                              ),
+                                        child: const Text('Gereed'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
   );
 }
 
@@ -4760,11 +5815,17 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     required this.householdId,
     required this.expenseId,
     required this.currentAmountCents,
+    required this.currentTitle,
+    required this.currentChildIds,
+    required this.childrenFuture,
   });
 
   final String householdId;
   final String expenseId;
   final int currentAmountCents;
+  final String currentTitle;
+  final List<String> currentChildIds;
+  final Future<List<_ChildItem>> childrenFuture;
 
   @override
   State<_EditExpenseAmountDialog> createState() =>
@@ -4772,29 +5833,116 @@ class _EditExpenseAmountDialog extends StatefulWidget {
 }
 
 class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
+  late final TextEditingController _titleController;
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
+  late final Future<List<_ChildItem>> _childrenFuture;
+  bool _didChangeChildSelection = false;
+  bool _hasCustomChildSelection = false;
+  List<String> _customSelectedChildIds = const <String>[];
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    _titleController = TextEditingController(text: widget.currentTitle);
     _amountController = TextEditingController(
       text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
     );
     _reasonController = TextEditingController();
+    _childrenFuture = widget.childrenFuture;
   }
 
   @override
   void dispose() {
+    _titleController.dispose();
     _amountController.dispose();
     _reasonController.dispose();
     super.dispose();
   }
 
+  List<String> _allChildIds(List<_ChildItem> children) =>
+      children.map((c) => c.id).toList(growable: false);
+
+  bool _isAllChildrenSelection(List<_ChildItem> children, List<String> childIds) {
+    final allChildIds = _allChildIds(children);
+    return allChildIds.isNotEmpty &&
+        childIds.length == allChildIds.length &&
+        childIds.toSet().containsAll(allChildIds);
+  }
+
+  List<String> _currentKnownChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
+    return widget.currentChildIds.where(allChildIds.contains).toList();
+  }
+
+  List<String> _effectiveSelectedChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
+    if (!_didChangeChildSelection) {
+      return _isAllChildrenSelection(children, widget.currentChildIds)
+          ? allChildIds
+          : _currentKnownChildIds(children);
+    }
+    return _hasCustomChildSelection ? _customSelectedChildIds : allChildIds;
+  }
+
+  List<String> _dialogInitialSelectedChildIds(List<_ChildItem> children) {
+    if (_didChangeChildSelection) {
+      return _hasCustomChildSelection ? _customSelectedChildIds : const [];
+    }
+    return _isAllChildrenSelection(children, widget.currentChildIds)
+        ? const []
+        : _currentKnownChildIds(children);
+  }
+
+  bool _sameChildIds(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    return a.toSet().containsAll(b);
+  }
+
+  Future<void> _openChildSelectionDialog(List<_ChildItem> children) async {
+    final pickedChildIds = await _showExpenseEditChildSelectionDialog(
+      context,
+      children: children,
+      initialSelectedChildIds: _dialogInitialSelectedChildIds(children),
+    );
+    if (pickedChildIds == null || !mounted) return;
+    setState(() {
+      _didChangeChildSelection = true;
+      if (pickedChildIds.length == children.length) {
+        _hasCustomChildSelection = false;
+        _customSelectedChildIds = const <String>[];
+      } else {
+        _hasCustomChildSelection = true;
+        _customSelectedChildIds = pickedChildIds;
+      }
+    });
+  }
+
   Future<void> _submit() async {
+    final title = _titleController.text.trim();
     final reasonTrimmed = _reasonController.text.trim();
     final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    final children = await _childrenFuture;
+    final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
+    if (title.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vul een titel in.')));
+      return;
+    }
+    if (title.length > _kAddExpenseTitleMaxLength) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.',
+          ),
+        ),
+      );
+      return;
+    }
     if (parsed == null || parsed < 0) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -4802,10 +5950,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       );
       return;
     }
-    if (reasonTrimmed.isEmpty) {
+    if (children.length > 1 && effectiveSelectedChildIds.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vul een reden in.')),
+        const SnackBar(content: Text('Selecteer minimaal één kind.')),
       );
       return;
     }
@@ -4830,30 +5978,56 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         'households/${widget.householdId}/expenses/${widget.expenseId}',
       );
       final fresh = await expRef.get(const GetOptions(source: Source.server));
+      final currentTitle =
+          ((fresh.data()?['title'] as String?) ?? widget.currentTitle).trim();
+      final currentChildIds =
+          (fresh.data()?['childIds'] as List?)?.whereType<String>().toList() ??
+          widget.currentChildIds;
       final fromCents =
           (fresh.data()?['amountCents'] as num?)?.toInt() ??
           widget.currentAmountCents;
-      if (parsed == fromCents) {
+      final titleChanged = title != currentTitle;
+      final amountChanged = parsed != fromCents;
+      final childIdsChanged =
+          !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
+      if (!amountChanged && !titleChanged && !childIdsChanged) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Het bedrag is niet gewijzigd.'),
-          ),
+          const SnackBar(content: Text('Er zijn geen wijzigingen.')),
         );
         setState(() => _saving = false);
         return;
       }
-      final batch = FirebaseFirestore.instance.batch();
-      final editRef = expRef.collection('amountEdits').doc();
-      batch.set(editRef, {
-        'fromAmountCents': fromCents,
-        'toAmountCents': parsed,
-        'reason': reasonTrimmed,
-        'editedBy': uid,
-        'editedAt': FieldValue.serverTimestamp(),
-      });
-      batch.update(expRef, {'amountCents': parsed});
-      await batch.commit();
+      if (amountChanged) {
+        if (reasonTrimmed.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Vul een reden in.')));
+          setState(() => _saving = false);
+          return;
+        }
+        final batch = FirebaseFirestore.instance.batch();
+        final editRef = expRef.collection('amountEdits').doc();
+        batch.set(editRef, {
+          'fromAmountCents': fromCents,
+          'toAmountCents': parsed,
+          'reason': reasonTrimmed,
+          'editedBy': uid,
+          'editedAt': FieldValue.serverTimestamp(),
+        });
+        batch.update(expRef, {
+          'amountCents': parsed,
+          if (titleChanged) 'title': title,
+          if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+        });
+        await batch.commit();
+      } else {
+        await expRef.update({
+          'title': title,
+          if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+        });
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -4877,70 +6051,167 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Bedrag aanpassen'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Nieuw bedrag (€)',
-              ),
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    return Align(
+      alignment: const Alignment(0, -0.15),
+      child: SizedBox(
+        width: dialogW,
+        child: AlertDialog(
+          title: const Text('Uitgave bewerken'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _titleController,
+                  textInputAction: TextInputAction.next,
+                  maxLength: _kAddExpenseTitleMaxLength,
+                  buildCounter:
+                      (
+                        context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) => null,
+                  decoration: const InputDecoration(
+                    labelText: 'Titel',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Nieuw bedrag (€)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reasonController,
+                  minLines: 2,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Reden',
+                    alignLabelWithHint: true,
+                    isDense: true,
+                  ),
+                ),
+                FutureBuilder<List<_ChildItem>>(
+                  future: _childrenFuture,
+                  builder: (context, snap) {
+                    final children = snap.data ?? const <_ChildItem>[];
+                    if (children.length <= 1) return const SizedBox.shrink();
+                    final effectiveSelectedChildIds =
+                        _effectiveSelectedChildIds(children);
+                    final childSelectionSummary =
+                        _isAllChildrenSelection(
+                              children,
+                              effectiveSelectedChildIds,
+                            )
+                            ? 'Alle kinderen'
+                            : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Voor:',
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  childSelectionSummary,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _saving || !snap.hasData
+                                    ? null
+                                    : () async {
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+                                        await _openChildSelectionDialog(
+                                          children,
+                                        );
+                                      },
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text('Selectie'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _reasonController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Reden',
-                alignLabelWithHint: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : () => Navigator.of(context).pop(),
+              child: const Text('Annuleren'),
+            ),
+            ElevatedButton(
+              onPressed: _saving ? null : () => _submit(),
+              child: SizedBox(
+                width: 82,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Text('Opslaan'),
+                    if (_saving)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Annuleren'),
-        ),
-        ElevatedButton(
-          onPressed: _saving ? null : () => _submit(),
-          child: SizedBox(
-            width: 82,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Text('Opslaan'),
-                if (_saving)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
 
 class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   bool _noteActionBusy = false;
+  List<String>? _resolvedChildNamesIds;
+  Future<List<String>>? _resolvedChildNamesFuture;
+  late final Future<List<_ChildItem>> _expenseEditChildrenFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _expenseEditChildrenFuture = _loadExpenseEditChildren(widget.householdId);
+  }
 
   void _handleBack() {
     Navigator.of(context).pop();
@@ -4953,12 +6224,79 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _openEditAmountDialog(int currentAmountCents) async {
+  bool _sameChildIds(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  List<String>? _initialChildNamesFor(List<String> currentChildIds) {
+    final childNames = widget.childNames;
+    if (childNames == null || childNames.length != currentChildIds.length) {
+      return null;
+    }
+    return _sameChildIds(currentChildIds, widget.childIds) ? childNames : null;
+  }
+
+  Future<List<String>> _childNamesFutureFor(List<String> currentChildIds) {
+    if (_resolvedChildNamesIds != null &&
+        _resolvedChildNamesFuture != null &&
+        _sameChildIds(_resolvedChildNamesIds!, currentChildIds)) {
+      return _resolvedChildNamesFuture!;
+    }
+    _resolvedChildNamesIds = List<String>.from(
+      currentChildIds,
+      growable: false,
+    );
+    _resolvedChildNamesFuture = _ExpenseDetailPage._resolveChildNames(
+      widget.householdId,
+      currentChildIds,
+    );
+    return _resolvedChildNamesFuture!;
+  }
+
+  Widget _buildChildTile(List<String> childNames) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        'Voor',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: onSurface(context, a70)),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: childNames
+              .map(
+                (n) => Chip(
+                  label: Text(n),
+                  labelStyle: Theme.of(context).textTheme.bodySmall,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              )
+              .toList(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openEditAmountDialog({
+    required int currentAmountCents,
+    required String currentTitle,
+    required List<String> currentChildIds,
+  }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
-        _showExpenseSnackBar(
-          'Je bent offline, probeer het later opnieuw',
-        );
+        _showExpenseSnackBar('Je bent offline, probeer het later opnieuw');
       }
       return;
     }
@@ -4971,12 +6309,15 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
         householdId: widget.householdId,
         expenseId: widget.expenseId,
         currentAmountCents: currentAmountCents,
+        currentTitle: currentTitle,
+        currentChildIds: currentChildIds,
+        childrenFuture: _expenseEditChildrenFuture,
       ),
     );
     if (saved == true && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _showExpenseSnackBar('Bedrag bijgewerkt.');
+        _showExpenseSnackBar('Uitgave bijgewerkt.');
       });
     }
   }
@@ -5008,15 +6349,29 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Titel',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: Text(widget.title),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}',
+                        )
+                        .snapshots(),
+                    builder: (context, expSnap) {
+                      final ed = expSnap.data?.data();
+                      final currentTitle =
+                          ((ed?['title'] as String?) ?? widget.title).trim();
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Titel',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: onSurface(context, a70),
+                          ),
+                        ),
+                        subtitle: Text(
+                          currentTitle.isEmpty ? widget.title : currentTitle,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   ListTile(
@@ -5029,83 +6384,35 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     ),
                     subtitle: Text(widget.paidByName),
                   ),
-                  if (widget.childIds.isNotEmpty)
-                    widget.childNames != null
-                        ? ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              'Voor',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: widget.childNames!
-                                    .map(
-                                      (n) => Chip(
-                                        label: Text(n),
-                                        labelStyle: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                        backgroundColor: Theme.of(
-                                          context,
-                                        ).colorScheme.surfaceContainerHighest,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          )
-                        : FutureBuilder<List<String>>(
-                            future: _ExpenseDetailPage._resolveChildNames(
-                              widget.householdId,
-                              widget.childIds,
-                            ),
-                            builder: (context, snap) {
-                              if (!snap.hasData) return const SizedBox.shrink();
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  'Voor',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: onSurface(context, a70),
-                                      ),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: snap.data!
-                                        .map(
-                                          (n) => Chip(
-                                            label: Text(n),
-                                            labelStyle: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                            backgroundColor: Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest,
-                                            materialTapTargetSize:
-                                                MaterialTapTargetSize
-                                                    .shrinkWrap,
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}',
+                        )
+                        .snapshots(),
+                    builder: (context, expSnap) {
+                      final ed = expSnap.data?.data();
+                      final currentChildIds =
+                          (ed?['childIds'] as List?)?.whereType<String>().toList() ??
+                          widget.childIds;
+                      if (currentChildIds.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      final initialChildNames = _initialChildNamesFor(
+                        currentChildIds,
+                      );
+                      if (initialChildNames != null) {
+                        return _buildChildTile(initialChildNames);
+                      }
+                      return FutureBuilder<List<String>>(
+                        future: _childNamesFutureFor(currentChildIds),
+                        builder: (context, snap) {
+                          if (!snap.hasData) return const SizedBox.shrink();
+                          return _buildChildTile(snap.data!);
+                        },
+                      );
+                    },
+                  ),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
@@ -5117,8 +6424,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final currentCents =
                           (ed?['amountCents'] as num?)?.toInt() ??
                           widget.amountCents;
-                      final isCreator =
-                          widget.uid == widget.createdByUid.trim();
                       return Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Column(
@@ -5128,39 +6433,15 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               contentPadding: EdgeInsets.zero,
                               title: Text(
                                 'Bedrag',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: onSurface(context, a70)),
                               ),
                               subtitle: Text(
                                 _ExpenseDetailPage._formatEur(currentCents),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                             ),
-                            if (isCreator)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () =>
-                                      _openEditAmountDialog(currentCents),
-                                  icon: Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                    color: onSurface(context, a70),
-                                  ),
-                                  label: Text(
-                                    'Bedrag aanpassen',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(color: onSurface(context, a70)),
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       );
@@ -5212,8 +6493,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   (h['toAmountCents'] as num?)?.toInt() ?? 0;
                               final reason =
                                   (h['reason'] as String?)?.trim() ?? '';
-                              final editedBy =
-                                  (h['editedBy'] as String?)?.trim();
+                              final editedBy = (h['editedBy'] as String?)
+                                  ?.trim();
                               final editedAtRaw = h['editedAt'];
                               DateTime? editedAtDt;
                               if (editedAtRaw is Timestamp) {
@@ -5308,6 +6589,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final data = snap.data?.data();
                       final note = (data?['note'] as String?)?.trim() ?? '';
                       final hasNoteLive = note.isNotEmpty;
+                      final isCreator = widget.uid == widget.createdByUid.trim();
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5355,6 +6637,52 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                 ),
                               ),
                             ),
+                          if (isCreator)
+                            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                              stream: FirebaseFirestore.instance
+                                  .doc(
+                                    'households/${widget.householdId}/expenses/${widget.expenseId}',
+                                  )
+                                  .snapshots(),
+                              builder: (context, expSnap) {
+                                final ed = expSnap.data?.data();
+                                final currentTitle =
+                                    ((ed?['title'] as String?) ?? widget.title)
+                                        .trim();
+                                final currentCents =
+                                    (ed?['amountCents'] as num?)?.toInt() ??
+                                    widget.amountCents;
+                                final currentChildIds =
+                                    (ed?['childIds'] as List?)
+                                        ?.whereType<String>()
+                                        .toList() ??
+                                    widget.childIds;
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    top: widget.onManageNote != null ? 8 : 16,
+                                  ),
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: () => _openEditAmountDialog(
+                                      currentAmountCents: currentCents,
+                                      currentTitle: currentTitle.isEmpty
+                                          ? widget.title
+                                          : currentTitle,
+                                      currentChildIds: currentChildIds,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Uitgave bewerken',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                         ],
                       );
                     },
@@ -5397,9 +6725,7 @@ class _PaymentDetailPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
-          leading: BackButton(
-            onPressed: () => Navigator.of(context).pop(),
-          ),
+          leading: BackButton(onPressed: () => Navigator.of(context).pop()),
           title: Text(
             'Betaling',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -5438,10 +6764,9 @@ class _PaymentDetailPage extends StatelessWidget {
                       ),
                       subtitle: Text(
                         _ExpenseDetailPage._formatEur(amountCents),
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -5579,6 +6904,8 @@ class _LogboekPage extends StatefulWidget {
 
 class _LogboekPageState extends State<_LogboekPage>
     with SingleTickerProviderStateMixin {
+  static const Duration _logboekHoldMinDuration = Duration(milliseconds: 120);
+  static const Duration _logboekHoldFadeDuration = Duration(milliseconds: 180);
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -5593,12 +6920,16 @@ class _LogboekPageState extends State<_LogboekPage>
   late Stream<QuerySnapshot<Map<String, dynamic>>> _countsStream;
   _LogboekMode _logboekMode = _LogboekMode.uitgaven;
   _PaymentDirection _paymentDirection = _PaymentDirection.alle;
+
   /// null = Alle; otherwise filter amount edits by [editedBy] uid.
   String? _wijzigFilterEditedByUid;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
   late final TabController _modeTabController;
   bool _initialDataReady = false;
+  bool _showInitialHoldOverlay = true;
+  bool _initialHoldDismissScheduled = false;
   bool _isOffline = false;
+  late final DateTime _initialHoldStartedAt;
 
   Query<Map<String, dynamic>> _basePeriodQuery() {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
@@ -5653,6 +6984,7 @@ class _LogboekPageState extends State<_LogboekPage>
   @override
   void initState() {
     super.initState();
+    _initialHoldStartedAt = DateTime.now();
     _modeTabController = TabController(length: 3, vsync: this);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
@@ -5661,7 +6993,9 @@ class _LogboekPageState extends State<_LogboekPage>
       _loadParents(),
       _expensesStream.first.then((_) {}).catchError((_) {}),
     ]).then((_) {
-      if (mounted) setState(() => _initialDataReady = true);
+      if (!mounted) return;
+      setState(() => _initialDataReady = true);
+      _dismissInitialHoldOverlayWhenReady();
     });
     _checkOffline();
   }
@@ -5670,6 +7004,19 @@ class _LogboekPageState extends State<_LogboekPage>
   void dispose() {
     _modeTabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _dismissInitialHoldOverlayWhenReady() async {
+    if (_initialHoldDismissScheduled || !_showInitialHoldOverlay) return;
+    _initialHoldDismissScheduled = true;
+    await WidgetsBinding.instance.endOfFrame;
+    final elapsed = DateTime.now().difference(_initialHoldStartedAt);
+    final remaining = _logboekHoldMinDuration - elapsed;
+    if (remaining > Duration.zero) {
+      await Future.delayed(remaining);
+    }
+    if (!mounted) return;
+    setState(() => _showInitialHoldOverlay = false);
   }
 
   Future<void> _checkOffline() async {
@@ -5965,6 +7312,42 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   Widget build(BuildContext context) {
+    final activeTabIndex = _logboekMode.index;
+    final logboekContent = !_initialDataReady
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_isOffline)
+                Container(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  child: Text(
+                    'Offline — je ziet de laatst geladen gegevens.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a62),
+                    ),
+                  ),
+                ),
+              if (_logboekMode == _LogboekMode.uitgaven)
+                _buildPerspectiveToggle(context),
+              if (_logboekMode == _LogboekMode.wijzigingen)
+                _buildWijzigingenEditorFilterRow(context),
+              Expanded(
+                child: IndexedStack(
+                  index: activeTabIndex,
+                  children: [
+                    _buildExpenseList(context),
+                    _buildPaymentList(context),
+                    _buildWijzigingenList(context),
+                  ],
+                ),
+              ),
+            ],
+          );
     final appBar = AppBar(
       centerTitle: true,
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
@@ -6007,40 +7390,21 @@ class _LogboekPageState extends State<_LogboekPage>
       },
       child: Scaffold(
         appBar: appBar,
-        body: !_initialDataReady
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_isOffline)
-                    Container(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        'Offline — je ziet de laatst geladen gegevens.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a62),
-                        ),
-                      ),
-                    ),
-                  if (_logboekMode == _LogboekMode.uitgaven)
-                    _buildPerspectiveToggle(context),
-                  if (_logboekMode == _LogboekMode.wijzigingen)
-                    _buildWijzigingenEditorFilterRow(context),
-                  Expanded(
-                    child: _logboekMode == _LogboekMode.uitgaven
-                        ? _buildExpenseList(context)
-                        : _logboekMode == _LogboekMode.betalingen
-                        ? _buildPaymentList(context)
-                        : _buildWijzigingenList(context),
-                  ),
-                ],
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            logboekContent,
+            IgnorePointer(
+              ignoring: !_showInitialHoldOverlay,
+              child: AnimatedOpacity(
+                opacity: _showInitialHoldOverlay ? 1 : 0,
+                duration: _logboekHoldFadeDuration,
+                curve: Curves.easeOut,
+                child: const ColoredBox(color: Color(0xFFF7F6F4)),
               ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6587,8 +7951,9 @@ class _LogboekPageState extends State<_LogboekPage>
               selected: _paymentDirection == _PaymentDirection.verzonden,
               showCheckmark: false,
               onSelected: (v) => setState(() {
-                _paymentDirection =
-                    v ? _PaymentDirection.verzonden : _PaymentDirection.alle;
+                _paymentDirection = v
+                    ? _PaymentDirection.verzonden
+                    : _PaymentDirection.alle;
               }),
             ),
             const SizedBox(width: 8),
@@ -6597,8 +7962,9 @@ class _LogboekPageState extends State<_LogboekPage>
               selected: _paymentDirection == _PaymentDirection.ontvangen,
               showCheckmark: false,
               onSelected: (v) => setState(() {
-                _paymentDirection =
-                    v ? _PaymentDirection.ontvangen : _PaymentDirection.alle;
+                _paymentDirection = v
+                    ? _PaymentDirection.ontvangen
+                    : _PaymentDirection.alle;
               }),
             ),
           ],
@@ -6634,31 +8000,31 @@ class _LogboekPageState extends State<_LogboekPage>
 
         final sentCount = allDocs
             .where(
-              (d) =>
-                  (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+              (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
             )
             .length;
         final receivedCount = allDocs
             .where(
-              (d) =>
-                  (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+              (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
             )
             .length;
 
         final docs = switch (_paymentDirection) {
           _PaymentDirection.alle => allDocs,
-          _PaymentDirection.verzonden => allDocs
-              .where(
-                (d) =>
-                    (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
-              )
-              .toList(),
-          _PaymentDirection.ontvangen => allDocs
-              .where(
-                (d) =>
-                    (d.data()['toUserId'] as String?)?.trim() == widget.uid,
-              )
-              .toList(),
+          _PaymentDirection.verzonden =>
+            allDocs
+                .where(
+                  (d) =>
+                      (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+                )
+                .toList(),
+          _PaymentDirection.ontvangen =>
+            allDocs
+                .where(
+                  (d) =>
+                      (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+                )
+                .toList(),
         };
 
         final Widget listWidget;
@@ -6699,8 +8065,9 @@ class _LogboekPageState extends State<_LogboekPage>
               final String title = isSender
                   ? 'Betaling aan $otherName'
                   : 'Betaling van $otherName';
-              final String statusStr =
-                  status == 'confirmed' ? 'Bevestigd' : 'In afwachting';
+              final String statusStr = status == 'confirmed'
+                  ? 'Bevestigd'
+                  : 'In afwachting';
               final String dateStr = _fmtDate(createdAt);
               final String subtitleStr = '$dateStr · $statusStr';
               final bool isPending = status != 'confirmed';
@@ -6715,8 +8082,8 @@ class _LogboekPageState extends State<_LogboekPage>
 
               final String? statusExplanation = isPending
                   ? (isSender
-                      ? 'Wacht op bevestiging door $otherName'
-                      : 'Wacht op jouw bevestiging')
+                        ? 'Wacht op bevestiging door $otherName'
+                        : 'Wacht op jouw bevestiging')
                   : null;
 
               return Material(
@@ -7662,123 +9029,192 @@ class _SetupPageState extends State<SetupPage> {
     super.dispose();
   }
 
+  /// Unfocus first (esp. IME) so back-gesture and AppBar back match smoother pops.
+  void _popSetupPage([Object? result]) {
+    FocusScope.of(context).unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop(result);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'Koppelen',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _popSetupPage(result);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          leading: BackButton(onPressed: _popSetupPage),
+          title: Text(
+            'Koppelen',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: uid == null
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Niet ingelogd.', textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Terug'),
-                  ),
-                ],
-              )
-            : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .doc('users/$uid')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final data = snapshot.data?.data();
-                  final householdId = (data?['householdId'] as String?)?.trim();
-                  final hasHousehold =
-                      householdId != null && householdId.isNotEmpty;
-
-                  if (snapshot.hasError) {
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Kon status niet laden.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Terug'),
-                        ),
-                      ],
-                    );
-                  }
-
-                  if (!snapshot.hasData) {
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Terug'),
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: uid == null
+              ? KiduCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'Voer een invite-code in om te koppelen aan het household van je co-parent.',
+                      Text(
+                        'Niet ingelogd.',
                         textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _inviteController,
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) =>
-                            setState(() => _joinInlineHint = null),
-                        decoration: const InputDecoration(
-                          labelText: 'Koppelcode',
-                          border: OutlineInputBorder(),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a68),
+                          height: 1.35,
                         ),
                       ),
-                      if (_joinInlineHint != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          _joinInlineHint!,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a62),
-                                height: 1.35,
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _joinBusy ? null : _joinHousehold,
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: _popSetupPage,
                         child: Text(
-                          _joinBusy
-                              ? 'Bezig...'
-                              : (hasHousehold ? 'Verbinden' : 'Koppelen'),
+                          'Terug',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: onSurface(context, a70)),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Terug'),
                       ),
                     ],
-                  );
-                },
-              ),
+                  ),
+                )
+              : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .doc('users/$uid')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final data = snapshot.data?.data();
+                    final householdId = (data?['householdId'] as String?)
+                        ?.trim();
+                    final hasHousehold =
+                        householdId != null && householdId.isNotEmpty;
+
+                    if (snapshot.hasError) {
+                      return KiduCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Kon status niet laden.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: onSurface(context, a68),
+                                    height: 1.35,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: _popSetupPage,
+                              child: Text(
+                                'Terug',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    if (!snapshot.hasData) {
+                      return KiduCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _popSetupPage,
+                              child: Text(
+                                'Terug',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return KiduCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Voer een invite-code in om te koppelen aan het household van je co-parent.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: onSurface(context, a62),
+                                  height: 1.35,
+                                ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _inviteController,
+                            textCapitalization: TextCapitalization.characters,
+                            onChanged: (_) =>
+                                setState(() => _joinInlineHint = null),
+                            decoration: const InputDecoration(
+                              labelText: 'Koppelcode',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          if (_joinInlineHint != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _joinInlineHint!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: onSurface(context, a62),
+                                    height: 1.35,
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          FilledButton.tonalIcon(
+                            onPressed: _joinBusy ? null : _joinHousehold,
+                            icon: Icon(
+                              hasHousehold ? Icons.link : Icons.group_add,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _joinBusy
+                                  ? 'Bezig...'
+                                  : (hasHousehold ? 'Verbinden' : 'Koppelen'),
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextButton(
+                            onPressed: _popSetupPage,
+                            child: Text(
+                              'Terug',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
