@@ -5817,6 +5817,7 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     required this.currentAmountCents,
     required this.currentTitle,
     required this.currentChildIds,
+    required this.childrenFuture,
   });
 
   final String householdId;
@@ -5824,6 +5825,7 @@ class _EditExpenseAmountDialog extends StatefulWidget {
   final int currentAmountCents;
   final String currentTitle;
   final List<String> currentChildIds;
+  final Future<List<_ChildItem>> childrenFuture;
 
   @override
   State<_EditExpenseAmountDialog> createState() =>
@@ -5848,7 +5850,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
     );
     _reasonController = TextEditingController();
-    _childrenFuture = _loadExpenseEditChildren(widget.householdId);
+    _childrenFuture = widget.childrenFuture;
   }
 
   @override
@@ -6049,133 +6051,152 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Uitgave bewerken'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _titleController,
-              textInputAction: TextInputAction.next,
-              maxLength: _kAddExpenseTitleMaxLength,
-              buildCounter:
-                  (
-                    context, {
-                    required int currentLength,
-                    required bool isFocused,
-                    required int? maxLength,
-                  }) => null,
-              decoration: const InputDecoration(
-                labelText: 'Titel',
-                floatingLabelBehavior: FloatingLabelBehavior.always,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Nieuw bedrag (€)',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _reasonController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Reden',
-                alignLabelWithHint: true,
-              ),
-            ),
-            FutureBuilder<List<_ChildItem>>(
-              future: _childrenFuture,
-              builder: (context, snap) {
-                final children = snap.data ?? const <_ChildItem>[];
-                if (children.length <= 1) return const SizedBox.shrink();
-                final effectiveSelectedChildIds =
-                    _effectiveSelectedChildIds(children);
-                final childSelectionSummary =
-                    _isAllChildrenSelection(children, effectiveSelectedChildIds)
-                    ? 'Alle kinderen'
-                    : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
-                return Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Voor:',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    return Align(
+      alignment: const Alignment(0, -0.15),
+      child: SizedBox(
+        width: dialogW,
+        child: AlertDialog(
+          title: const Text('Uitgave bewerken'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _titleController,
+                  textInputAction: TextInputAction.next,
+                  maxLength: _kAddExpenseTitleMaxLength,
+                  buildCounter:
+                      (
+                        context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) => null,
+                  decoration: const InputDecoration(
+                    labelText: 'Titel',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Nieuw bedrag (€)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reasonController,
+                  minLines: 2,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Reden',
+                    alignLabelWithHint: true,
+                    isDense: true,
+                  ),
+                ),
+                FutureBuilder<List<_ChildItem>>(
+                  future: _childrenFuture,
+                  builder: (context, snap) {
+                    final children = snap.data ?? const <_ChildItem>[];
+                    if (children.length <= 1) return const SizedBox.shrink();
+                    final effectiveSelectedChildIds =
+                        _effectiveSelectedChildIds(children);
+                    final childSelectionSummary =
+                        _isAllChildrenSelection(
+                              children,
+                              effectiveSelectedChildIds,
+                            )
+                            ? 'Alle kinderen'
+                            : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              childSelectionSummary,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
+                          Text(
+                            'Voor:',
+                            style: Theme.of(context).textTheme.labelMedium,
                           ),
-                          TextButton(
-                            onPressed: _saving || !snap.hasData
-                                ? null
-                                : () async {
-                                    FocusManager.instance.primaryFocus
-                                        ?.unfocus();
-                                    await _openChildSelectionDialog(children);
-                                  },
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Selectie'),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  childSelectionSummary,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _saving || !snap.hasData
+                                    ? null
+                                    : () async {
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+                                        await _openChildSelectionDialog(
+                                          children,
+                                        );
+                                      },
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text('Selectie'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : () => Navigator.of(context).pop(),
+              child: const Text('Annuleren'),
+            ),
+            ElevatedButton(
+              onPressed: _saving ? null : () => _submit(),
+              child: SizedBox(
+                width: 82,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Text('Opslaan'),
+                    if (_saving)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Annuleren'),
-        ),
-        ElevatedButton(
-          onPressed: _saving ? null : () => _submit(),
-          child: SizedBox(
-            width: 82,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Text('Opslaan'),
-                if (_saving)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -6184,6 +6205,13 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   bool _noteActionBusy = false;
   List<String>? _resolvedChildNamesIds;
   Future<List<String>>? _resolvedChildNamesFuture;
+  late final Future<List<_ChildItem>> _expenseEditChildrenFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _expenseEditChildrenFuture = _loadExpenseEditChildren(widget.householdId);
+  }
 
   void _handleBack() {
     Navigator.of(context).pop();
@@ -6283,6 +6311,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
         currentAmountCents: currentAmountCents,
         currentTitle: currentTitle,
         currentChildIds: currentChildIds,
+        childrenFuture: _expenseEditChildrenFuture,
       ),
     );
     if (saved == true && mounted) {
