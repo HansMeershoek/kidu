@@ -7297,6 +7297,18 @@ class _LogboekPageState extends State<_LogboekPage>
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
+  String _paymentExportDirectionLabel() => switch (_paymentDirection) {
+    _PaymentDirection.alle => 'Alle',
+    _PaymentDirection.verzonden => 'Verzonden',
+    _PaymentDirection.ontvangen => 'Ontvangen',
+  };
+
+  List<({String label, String value})> _paymentExportSummaryRows() => [
+    (label: 'Tab', value: 'Betalingen'),
+    (label: 'Richting', value: _paymentExportDirectionLabel()),
+    (label: 'Periode', value: _expenseExportPeriodLabel()),
+  ];
+
   static String _csvEscape(String value) =>
       '"${value.replaceAll('"', '""')}"';
 
@@ -7341,6 +7353,27 @@ class _LogboekPageState extends State<_LogboekPage>
     return q.orderBy('createdAt', descending: true);
   }
 
+  Query<Map<String, dynamic>> _buildFrozenPaymentExportQuery({
+    required _PeriodFilter periodFilter,
+    required DateTime? filterStart,
+    required DateTime? filterEnd,
+  }) {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/payments',
+    );
+    if (periodFilter != _PeriodFilter.all &&
+        filterStart != null &&
+        filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(filterStart),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(filterEnd));
+    }
+    return q.orderBy('createdAt', descending: true);
+  }
+
   String _expenseExportPaidByName(
     String createdBy,
     Map<String, String> parentNamesByUid,
@@ -7374,6 +7407,24 @@ class _LogboekPageState extends State<_LogboekPage>
     final now = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
     return 'uitgaven-export-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}.csv';
+  }
+
+  String _paymentExportFilename() {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'betalingen-export-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}.csv';
+  }
+
+  String _paymentPartyName(String uid) {
+    final trimmedUid = uid.trim();
+    if (trimmedUid == widget.uid) {
+      final mine = widget.myName?.trim();
+      if (mine != null && mine.isNotEmpty) return mine;
+      return 'Jij';
+    }
+    final other = widget.otherName?.trim();
+    if (other != null && other.isNotEmpty) return other;
+    return 'Co-parent';
   }
 
   Future<void> _exportExpensesCsv() async {
@@ -7474,6 +7525,106 @@ class _LogboekPageState extends State<_LogboekPage>
     }
   }
 
+  Future<void> _exportPaymentsCsv() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final paymentDirection = _paymentDirection;
+    final periodFilter = _periodFilter;
+    final filterStart = _filterStart;
+    final filterEnd = _filterEnd;
+
+    try {
+      final query = _buildFrozenPaymentExportQuery(
+        periodFilter: periodFilter,
+        filterStart: filterStart,
+        filterEnd: filterEnd,
+      );
+      final snap = await query.get();
+      final allDocs = snap.docs;
+      final docs = switch (paymentDirection) {
+        _PaymentDirection.alle => allDocs,
+        _PaymentDirection.verzonden =>
+          allDocs
+              .where(
+                (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+              )
+              .toList(),
+        _PaymentDirection.ontvangen =>
+          allDocs
+              .where(
+                (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+              )
+              .toList(),
+      };
+
+      if (docs.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Geen betalingen gevonden voor deze selectie.'),
+          ),
+        );
+        return;
+      }
+
+      final csv = StringBuffer()
+        ..writeln(
+          _csvLine(const ['Datum', 'Bedrag', 'Van', 'Naar', 'Status']),
+        );
+
+      for (final doc in docs) {
+        final data = doc.data();
+        final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
+        final fromUserId = (data['fromUserId'] as String?)?.trim() ?? '';
+        final toUserId = (data['toUserId'] as String?)?.trim() ?? '';
+        final status = (data['status'] as String?)?.trim() ?? '';
+        final createdAtRaw = data['createdAt'];
+        DateTime? createdAt;
+        if (createdAtRaw is Timestamp) {
+          createdAt = createdAtRaw.toDate().toLocal();
+        } else if (createdAtRaw is DateTime) {
+          createdAt = createdAtRaw.toLocal();
+        }
+        final statusLabel = status == 'confirmed'
+            ? 'Bevestigd'
+            : 'In afwachting';
+
+        csv.writeln(
+          _csvLine([
+            _fmtDateWithYear(createdAt),
+            _fmtCsvAmount(amountCents),
+            _paymentPartyName(fromUserId),
+            _paymentPartyName(toUserId),
+            statusLabel,
+          ]),
+        );
+      }
+
+      final tempDir = await Directory.systemTemp.createTemp('kidu-export-');
+      final file = File(
+        '${tempDir.path}${Platform.pathSeparator}${_paymentExportFilename()}',
+      );
+      await file.writeAsString(csv.toString(), flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Betalingen export',
+        text: 'Betalingen uit Logboek',
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildExportSummaryRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -7554,6 +7705,56 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  void _showPaymentExportConfirmSheet() {
+    final summaryRows = _paymentExportSummaryRows();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 8,
+            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exporteer selectie',
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Je exporteert de huidige selectie uit Betalingen als CSV.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                  color: onSurface(sheetContext, a68),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 20),
+              for (final row in summaryRows)
+                _buildExportSummaryRow(row.label, row.value),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _exportPaymentsCsv();
+                },
+                child: const Text('Exporteer CSV'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showLogboekMoreSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -7572,9 +7773,17 @@ class _LogboekPageState extends State<_LogboekPage>
                   color: onSurface(sheetContext, a68),
                 ),
                 title: const Text('Exporteer selectie'),
-                subtitle: const Text('CSV voor de huidige Uitgaven-selectie'),
+                subtitle: Text(
+                  _logboekMode == _LogboekMode.betalingen
+                      ? 'CSV voor de huidige Betalingen-selectie'
+                      : 'CSV voor de huidige Uitgaven-selectie',
+                ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
+                  if (_logboekMode == _LogboekMode.betalingen) {
+                    _showPaymentExportConfirmSheet();
+                    return;
+                  }
                   _showExpenseExportConfirmSheet();
                 },
               ),
@@ -7711,7 +7920,8 @@ class _LogboekPageState extends State<_LogboekPage>
           onPressed: _showPeriodFilterSheet,
           tooltip: 'Filter',
         ),
-        if (_logboekMode == _LogboekMode.uitgaven)
+        if (_logboekMode == _LogboekMode.uitgaven ||
+            _logboekMode == _LogboekMode.betalingen)
           IconButton(
             icon: const Icon(Icons.more_horiz),
             onPressed: _showLogboekMoreSheet,
