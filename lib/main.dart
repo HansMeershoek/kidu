@@ -5492,11 +5492,13 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     required this.householdId,
     required this.expenseId,
     required this.currentAmountCents,
+    required this.currentTitle,
   });
 
   final String householdId;
   final String expenseId;
   final int currentAmountCents;
+  final String currentTitle;
 
   @override
   State<_EditExpenseAmountDialog> createState() =>
@@ -5504,6 +5506,7 @@ class _EditExpenseAmountDialog extends StatefulWidget {
 }
 
 class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
+  late final TextEditingController _titleController;
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
   bool _saving = false;
@@ -5511,6 +5514,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   @override
   void initState() {
     super.initState();
+    _titleController = TextEditingController(text: widget.currentTitle);
     _amountController = TextEditingController(
       text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
     );
@@ -5519,26 +5523,39 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
 
   @override
   void dispose() {
+    _titleController.dispose();
     _amountController.dispose();
     _reasonController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final title = _titleController.text.trim();
     final reasonTrimmed = _reasonController.text.trim();
     final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    if (title.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Vul een titel in.')));
+      return;
+    }
+    if (title.length > _kAddExpenseTitleMaxLength) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.',
+          ),
+        ),
+      );
+      return;
+    }
     if (parsed == null || parsed < 0) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vul een geldig bedrag in.')),
       );
-      return;
-    }
-    if (reasonTrimmed.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Vul een reden in.')));
       return;
     }
     setState(() => _saving = true);
@@ -5562,28 +5579,47 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         'households/${widget.householdId}/expenses/${widget.expenseId}',
       );
       final fresh = await expRef.get(const GetOptions(source: Source.server));
+      final currentTitle =
+          ((fresh.data()?['title'] as String?) ?? widget.currentTitle).trim();
       final fromCents =
           (fresh.data()?['amountCents'] as num?)?.toInt() ??
           widget.currentAmountCents;
-      if (parsed == fromCents) {
+      final titleChanged = title != currentTitle;
+      final amountChanged = parsed != fromCents;
+      if (!amountChanged && !titleChanged) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Het bedrag is niet gewijzigd.')),
+          const SnackBar(content: Text('Er zijn geen wijzigingen.')),
         );
         setState(() => _saving = false);
         return;
       }
-      final batch = FirebaseFirestore.instance.batch();
-      final editRef = expRef.collection('amountEdits').doc();
-      batch.set(editRef, {
-        'fromAmountCents': fromCents,
-        'toAmountCents': parsed,
-        'reason': reasonTrimmed,
-        'editedBy': uid,
-        'editedAt': FieldValue.serverTimestamp(),
-      });
-      batch.update(expRef, {'amountCents': parsed});
-      await batch.commit();
+      if (amountChanged) {
+        if (reasonTrimmed.isEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Vul een reden in.')));
+          setState(() => _saving = false);
+          return;
+        }
+        final batch = FirebaseFirestore.instance.batch();
+        final editRef = expRef.collection('amountEdits').doc();
+        batch.set(editRef, {
+          'fromAmountCents': fromCents,
+          'toAmountCents': parsed,
+          'reason': reasonTrimmed,
+          'editedBy': uid,
+          'editedAt': FieldValue.serverTimestamp(),
+        });
+        batch.update(expRef, {
+          'amountCents': parsed,
+          if (titleChanged) 'title': title,
+        });
+        await batch.commit();
+      } else {
+        await expRef.update({'title': title});
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -5608,18 +5644,38 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Bedrag aanpassen'),
+      title: const Text('Uitgave bewerken'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
+              controller: _titleController,
+              textInputAction: TextInputAction.next,
+              maxLength: _kAddExpenseTitleMaxLength,
+              buildCounter:
+                  (
+                    context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) => null,
+              decoration: const InputDecoration(
+                labelText: 'Titel',
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Nieuw bedrag (€)'),
+              decoration: const InputDecoration(
+                labelText: 'Nieuw bedrag (€)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -5681,7 +5737,10 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _openEditAmountDialog(int currentAmountCents) async {
+  Future<void> _openEditAmountDialog({
+    required int currentAmountCents,
+    required String currentTitle,
+  }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
         _showExpenseSnackBar('Je bent offline, probeer het later opnieuw');
@@ -5697,12 +5756,13 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
         householdId: widget.householdId,
         expenseId: widget.expenseId,
         currentAmountCents: currentAmountCents,
+        currentTitle: currentTitle,
       ),
     );
     if (saved == true && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _showExpenseSnackBar('Bedrag bijgewerkt.');
+        _showExpenseSnackBar('Uitgave bijgewerkt.');
       });
     }
   }
@@ -5734,15 +5794,29 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Titel',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: Text(widget.title),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/expenses/${widget.expenseId}',
+                        )
+                        .snapshots(),
+                    builder: (context, expSnap) {
+                      final ed = expSnap.data?.data();
+                      final currentTitle =
+                          ((ed?['title'] as String?) ?? widget.title).trim();
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Titel',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: onSurface(context, a70),
+                          ),
+                        ),
+                        subtitle: Text(
+                          currentTitle.isEmpty ? widget.title : currentTitle,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 4),
                   ListTile(
@@ -5843,8 +5917,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final currentCents =
                           (ed?['amountCents'] as num?)?.toInt() ??
                           widget.amountCents;
-                      final isCreator =
-                          widget.uid == widget.createdByUid.trim();
                       return Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Column(
@@ -5863,28 +5935,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                             ),
-                            if (isCreator)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () =>
-                                      _openEditAmountDialog(currentCents),
-                                  icon: Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                    color: onSurface(context, a70),
-                                  ),
-                                  label: Text(
-                                    'Bedrag aanpassen',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: onSurface(context, a70),
-                                        ),
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       );
@@ -6032,6 +6082,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final data = snap.data?.data();
                       final note = (data?['note'] as String?)?.trim() ?? '';
                       final hasNoteLive = note.isNotEmpty;
+                      final isCreator = widget.uid == widget.createdByUid.trim();
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -6078,6 +6129,46 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ),
+                            ),
+                          if (isCreator)
+                            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                              stream: FirebaseFirestore.instance
+                                  .doc(
+                                    'households/${widget.householdId}/expenses/${widget.expenseId}',
+                                  )
+                                  .snapshots(),
+                              builder: (context, expSnap) {
+                                final ed = expSnap.data?.data();
+                                final currentTitle =
+                                    ((ed?['title'] as String?) ?? widget.title)
+                                        .trim();
+                                final currentCents =
+                                    (ed?['amountCents'] as num?)?.toInt() ??
+                                    widget.amountCents;
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    top: widget.onManageNote != null ? 8 : 16,
+                                  ),
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: () => _openEditAmountDialog(
+                                      currentAmountCents: currentCents,
+                                      currentTitle: currentTitle.isEmpty
+                                          ? widget.title
+                                          : currentTitle,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Uitgave bewerken',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                         ],
                       );
