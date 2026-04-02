@@ -7443,6 +7443,12 @@ class _LogboekPageState extends State<_LogboekPage>
     return 'betalingen-export-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}.csv';
   }
 
+  String _paymentExportPdfFilename() {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'betalingen-export-${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}.pdf';
+  }
+
   String _paymentPartyName(String uid) {
     final trimmedUid = uid.trim();
     if (trimmedUid == widget.uid) {
@@ -7798,36 +7804,9 @@ class _LogboekPageState extends State<_LogboekPage>
 
   Future<void> _exportPaymentsCsv() async {
     final messenger = ScaffoldMessenger.of(context);
-    final paymentDirection = _paymentDirection;
-    final periodFilter = _periodFilter;
-    final filterStart = _filterStart;
-    final filterEnd = _filterEnd;
-
     try {
-      final query = _buildFrozenPaymentExportQuery(
-        periodFilter: periodFilter,
-        filterStart: filterStart,
-        filterEnd: filterEnd,
-      );
-      final snap = await query.get();
-      final allDocs = snap.docs;
-      final docs = switch (paymentDirection) {
-        _PaymentDirection.alle => allDocs,
-        _PaymentDirection.verzonden =>
-          allDocs
-              .where(
-                (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
-              )
-              .toList(),
-        _PaymentDirection.ontvangen =>
-          allDocs
-              .where(
-                (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
-              )
-              .toList(),
-      };
-
-      if (docs.isEmpty) {
+      final rows = await _loadPaymentExportRows();
+      if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
           const SnackBar(
@@ -7842,30 +7821,14 @@ class _LogboekPageState extends State<_LogboekPage>
           _csvLine(const ['Datum', 'Bedrag', 'Van', 'Naar', 'Status']),
         );
 
-      for (final doc in docs) {
-        final data = doc.data();
-        final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
-        final fromUserId = (data['fromUserId'] as String?)?.trim() ?? '';
-        final toUserId = (data['toUserId'] as String?)?.trim() ?? '';
-        final status = (data['status'] as String?)?.trim() ?? '';
-        final createdAtRaw = data['createdAt'];
-        DateTime? createdAt;
-        if (createdAtRaw is Timestamp) {
-          createdAt = createdAtRaw.toDate().toLocal();
-        } else if (createdAtRaw is DateTime) {
-          createdAt = createdAtRaw.toLocal();
-        }
-        final statusLabel = status == 'confirmed'
-            ? 'Bevestigd'
-            : 'In afwachting';
-
+      for (final row in rows) {
         csv.writeln(
           _csvLine([
-            _fmtDateWithYear(createdAt),
-            _fmtCsvAmount(amountCents),
-            _paymentPartyName(fromUserId),
-            _paymentPartyName(toUserId),
-            statusLabel,
+            _fmtDateWithYear(row.createdAt),
+            _fmtCsvAmount(row.amountCents),
+            row.fromName,
+            row.toName,
+            row.statusLabel,
           ]),
         );
       }
@@ -7875,6 +7838,275 @@ class _LogboekPageState extends State<_LogboekPage>
         '${tempDir.path}${Platform.pathSeparator}${_paymentExportFilename()}',
       );
       await file.writeAsString(csv.toString(), flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Betalingen export',
+        text: 'Betalingen uit Logboek',
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<List<({
+    DateTime? createdAt,
+    int amountCents,
+    String fromName,
+    String toName,
+    String statusLabel,
+  })>> _loadPaymentExportRows() async {
+    final paymentDirection = _paymentDirection;
+    final periodFilter = _periodFilter;
+    final filterStart = _filterStart;
+    final filterEnd = _filterEnd;
+
+    final query = _buildFrozenPaymentExportQuery(
+      periodFilter: periodFilter,
+      filterStart: filterStart,
+      filterEnd: filterEnd,
+    );
+    final snap = await query.get();
+    final allDocs = snap.docs;
+    final docs = switch (paymentDirection) {
+      _PaymentDirection.alle => allDocs,
+      _PaymentDirection.verzonden =>
+        allDocs
+            .where(
+              (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+            )
+            .toList(),
+      _PaymentDirection.ontvangen =>
+        allDocs
+            .where(
+              (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
+            )
+            .toList(),
+    };
+
+    return docs.map((doc) {
+      final data = doc.data();
+      final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
+      final fromUserId = (data['fromUserId'] as String?)?.trim() ?? '';
+      final toUserId = (data['toUserId'] as String?)?.trim() ?? '';
+      final status = (data['status'] as String?)?.trim() ?? '';
+      final createdAtRaw = data['createdAt'];
+      DateTime? createdAt;
+      if (createdAtRaw is Timestamp) {
+        createdAt = createdAtRaw.toDate().toLocal();
+      } else if (createdAtRaw is DateTime) {
+        createdAt = createdAtRaw.toLocal();
+      }
+      return (
+        createdAt: createdAt,
+        amountCents: amountCents,
+        fromName: _paymentPartyName(fromUserId),
+        toName: _paymentPartyName(toUserId),
+        statusLabel: status == 'confirmed' ? 'Bevestigd' : 'In afwachting',
+      );
+    }).toList(growable: false);
+  }
+
+  Future<void> _exportPaymentsPdf() async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final rows = await _loadPaymentExportRows();
+      if (rows.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Geen betalingen gevonden voor deze selectie.'),
+          ),
+        );
+        return;
+      }
+
+      String pdfExportedAtLabel(DateTime dt) {
+        final hh = dt.hour.toString().padLeft(2, '0');
+        final mm = dt.minute.toString().padLeft(2, '0');
+        return '${_fmtDateWithYear(dt)} - $hh:$mm';
+      }
+
+      String pdfPeriodLabel() {
+        final dates = rows
+            .map((row) => row.createdAt)
+            .whereType<DateTime>()
+            .toList(growable: false);
+        if (dates.isEmpty) return '-';
+        dates.sort();
+        final start = _fmtDateWithYear(dates.first);
+        final end = _fmtDateWithYear(dates.last);
+        return start == end ? start : '$start - $end';
+      }
+
+      pw.MemoryImage? logoImage;
+      try {
+        final logoBytes = await rootBundle.load('assets/images/kidu_icon.png');
+        logoImage = pw.MemoryImage(logoBytes.buffer.asUint8List());
+      } catch (_) {
+        logoImage = null;
+      }
+
+      final doc = pw.Document();
+      final exportedAt = pdfExportedAtLabel(DateTime.now());
+      final summaryRows = [
+        (label: 'Tab', value: 'Betalingen'),
+        (label: 'Richting', value: _paymentExportDirectionLabel()),
+        (label: 'Periode', value: pdfPeriodLabel()),
+      ];
+
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) => [
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logoImage != null) ...[
+                  pw.Container(
+                    width: 24,
+                    height: 24,
+                    margin: const pw.EdgeInsets.only(right: 10),
+                    child: pw.Image(logoImage),
+                  ),
+                ],
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'KiDu',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColors.grey700,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      'Betalingen',
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 10),
+            pw.Text(
+              'Exportdatum: $exportedAt',
+              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+            ),
+            pw.SizedBox(height: 14),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                border: pw.Border.all(color: PdfColors.grey300),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    children: [
+                      for (final row in summaryRows)
+                        pw.Container(
+                          width: 235,
+                          padding: const pw.EdgeInsets.all(8),
+                          decoration: pw.BoxDecoration(
+                            color: PdfColors.white,
+                            border: pw.Border.all(color: PdfColors.grey300),
+                            borderRadius: pw.BorderRadius.circular(4),
+                          ),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                row.label,
+                                style: pw.TextStyle(
+                                  fontSize: 9,
+                                  color: PdfColors.grey700,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 3),
+                              pw.Text(
+                                row.value,
+                                style: const pw.TextStyle(fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 16),
+            pw.TableHelper.fromTextArray(
+              headerStyle: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+              headerDecoration: const pw.BoxDecoration(
+                color: PdfColors.grey200,
+              ),
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              cellAlignment: pw.Alignment.centerLeft,
+              cellAlignments: {
+                1: pw.Alignment.centerRight,
+              },
+              columnWidths: {
+                0: const pw.FixedColumnWidth(64),
+                1: const pw.FixedColumnWidth(64),
+                2: const pw.FixedColumnWidth(92),
+                3: const pw.FixedColumnWidth(92),
+                4: const pw.FlexColumnWidth(1.2),
+              },
+              headers: const [
+                'Datum',
+                'Bedrag',
+                'Van',
+                'Naar',
+                'Status',
+              ],
+              data: rows
+                  .map(
+                    (row) => [
+                      _fmtDateWithYear(row.createdAt),
+                      _fmtCsvAmount(row.amountCents),
+                      row.fromName,
+                      row.toName,
+                      row.statusLabel,
+                    ],
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+        ),
+      );
+
+      final tempDir = await Directory.systemTemp.createTemp('kidu-export-');
+      final file = File(
+        '${tempDir.path}${Platform.pathSeparator}${_paymentExportPdfFilename()}',
+      );
+      await file.writeAsBytes(await doc.save(), flush: true);
 
       await Share.shareXFiles(
         [XFile(file.path)],
@@ -8099,48 +8331,88 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showPaymentExportConfirmSheet() {
     final summaryRows = _paymentExportSummaryRows();
+    var selectedFormat = _ExpenseExportFormat.csv;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 8,
-            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Exporteer selectie',
-                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setModalState) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 8,
+              bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Exporteer selectie',
+                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Je exporteert de huidige selectie uit Betalingen als CSV.',
-                style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                  color: onSurface(sheetContext, a68),
-                  height: 1.35,
+                const SizedBox(height: 8),
+                Text(
+                  'Je exporteert de huidige selectie uit Betalingen.',
+                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                    color: onSurface(sheetContext, a68),
+                    height: 1.35,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              for (final row in summaryRows)
-                _buildExportSummaryRow(row.label, row.value),
-              const SizedBox(height: 8),
-              FilledButton(
-                onPressed: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _exportPaymentsCsv();
-                },
-                child: const Text('Exporteer CSV'),
-              ),
-            ],
+                const SizedBox(height: 20),
+                for (final row in summaryRows)
+                  _buildExportSummaryRow(row.label, row.value),
+                const SizedBox(height: 4),
+                Text(
+                  'Formaat',
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: onSurface(sheetContext, a60),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    FilterChip(
+                      label: const Text('CSV'),
+                      selected: selectedFormat == _ExpenseExportFormat.csv,
+                      showCheckmark: false,
+                      onSelected: (_) => setModalState(
+                        () => selectedFormat = _ExpenseExportFormat.csv,
+                      ),
+                    ),
+                    FilterChip(
+                      label: const Text('PDF'),
+                      selected: selectedFormat == _ExpenseExportFormat.pdf,
+                      showCheckmark: false,
+                      onSelected: (_) => setModalState(
+                        () => selectedFormat = _ExpenseExportFormat.pdf,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.of(sheetContext).pop();
+                    if (selectedFormat == _ExpenseExportFormat.pdf) {
+                      await _exportPaymentsPdf();
+                      return;
+                    }
+                    await _exportPaymentsCsv();
+                  },
+                  child: Text(
+                    selectedFormat == _ExpenseExportFormat.pdf
+                        ? 'Exporteer PDF'
+                        : 'Exporteer CSV',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
