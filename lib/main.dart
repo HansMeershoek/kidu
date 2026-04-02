@@ -6996,11 +6996,13 @@ class _LogboekPageState extends State<_LogboekPage>
     Future.wait([
       _loadChildren(),
       _loadParents(),
-      _expensesStream.first.then((_) {}).catchError((_) {}),
+      _expensesStream.first,
     ]).then((_) {
       if (!mounted) return;
       setState(() => _initialDataReady = true);
       _dismissInitialHoldOverlayWhenReady();
+    }).catchError((error, stackTrace) {
+      debugPrint('Logboek initial expenses load error: $error');
     });
     _checkOffline();
   }
