@@ -5919,8 +5919,14 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
+  late final FocusNode _titleFocusNode;
+  late final FocusNode _amountFocusNode;
+  late final FocusNode _reasonFocusNode;
   late final Future<List<_ChildItem>> _childrenFuture;
   bool _showReasonField = false;
+  bool _titleHasError = false;
+  bool _amountHasError = false;
+  bool _reasonHasError = false;
   bool _didChangeChildSelection = false;
   bool _hasCustomChildSelection = false;
   List<String> _customSelectedChildIds = const <String>[];
@@ -5934,6 +5940,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
     );
     _reasonController = TextEditingController();
+    _titleFocusNode = FocusNode();
+    _amountFocusNode = FocusNode();
+    _reasonFocusNode = FocusNode();
     _childrenFuture = widget.childrenFuture;
   }
 
@@ -5942,6 +5951,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     _titleController.dispose();
     _amountController.dispose();
     _reasonController.dispose();
+    _titleFocusNode.dispose();
+    _amountFocusNode.dispose();
+    _reasonFocusNode.dispose();
     super.dispose();
   }
 
@@ -6010,28 +6022,24 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     final children = await _childrenFuture;
     final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
     if (title.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Vul een titel in.')));
+      if (mounted) {
+        setState(() => _titleHasError = true);
+        _titleFocusNode.requestFocus();
+      }
       return;
     }
     if (title.length > _kAddExpenseTitleMaxLength) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.',
-          ),
-        ),
-      );
+      if (mounted) {
+        setState(() => _titleHasError = true);
+        _titleFocusNode.requestFocus();
+      }
       return;
     }
     if (parsed == null || parsed < 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vul een geldig bedrag in.')),
-      );
+      if (mounted) {
+        setState(() => _amountHasError = true);
+        _amountFocusNode.requestFocus();
+      }
       return;
     }
     if (children.length > 1 && effectiveSelectedChildIds.isEmpty) {
@@ -6084,10 +6092,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       }
       if (amountChanged) {
         if (reasonTrimmed.isEmpty) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Vul een reden in.')));
+          if (mounted) {
+            setState(() => _reasonHasError = true);
+            _reasonFocusNode.requestFocus();
+          }
           setState(() => _saving = false);
           return;
         }
@@ -6137,6 +6145,19 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   Widget build(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
     final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+    );
+    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
+      fontWeight: FontWeight.w400,
+    );
+    final titleTrimmed = _titleController.text.trim();
+    final titleErrorHint = titleTrimmed.isEmpty
+        ? 'Vul een titel in'
+        : 'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.';
     return Align(
       alignment: const Alignment(0, -0.15),
       child: SizedBox(
@@ -6151,8 +6172,19 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                 const SizedBox(height: 4),
                 TextField(
                   controller: _titleController,
+                  focusNode: _titleFocusNode,
                   textInputAction: TextInputAction.next,
                   maxLength: _kAddExpenseTitleMaxLength,
+                  onTap: () {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  onChanged: (_) {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
                   buildCounter:
                       (
                         context, {
@@ -6160,35 +6192,56 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                         required bool isFocused,
                         required int? maxLength,
                       }) => null,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Titel',
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    hintText: _titleHasError ? titleErrorHint : null,
+                    hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _amountController,
+                  focusNode: _amountFocusNode,
+                  style: _amountHasError ? subtleErrorInputStyle : null,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  onChanged: (_) {
+                  onTap: () {
+                    if (_amountHasError) {
+                      setState(() => _amountHasError = false);
+                    }
+                  },
+                  onChanged: (value) {
                     final parsed = _ExpenseDetailPage._parseEurToCents(
                       _amountController.text,
                     );
                     final backToOriginal =
                         parsed != null && parsed == widget.currentAmountCents;
-                    if (backToOriginal) {
-                      if (!_showReasonField &&
-                          _reasonController.text.isEmpty) {
-                        return;
-                      }
-                      _reasonController.clear();
-                      setState(() => _showReasonField = false);
-                      return;
+                    final validAndChanged =
+                        parsed != null && parsed != widget.currentAmountCents;
+                    final trimmed = value.trim();
+                    final nextAmountHasError =
+                        trimmed.isNotEmpty && (parsed == null || parsed < 0);
+                    var shouldSetState = false;
+                    final nextShowReasonField = validAndChanged;
+                    if (nextShowReasonField != _showReasonField) {
+                      shouldSetState = true;
                     }
-                    if (!_showReasonField) {
-                      setState(() => _showReasonField = true);
+                    if (nextAmountHasError != _amountHasError) {
+                      shouldSetState = true;
+                    }
+                    if (backToOriginal &&
+                        _showReasonField &&
+                        _reasonController.text.isNotEmpty) {
+                      _reasonController.clear();
+                    }
+                    if (shouldSetState) {
+                      setState(() {
+                        _showReasonField = nextShowReasonField;
+                        _amountHasError = nextAmountHasError;
+                      });
                     }
                   },
                   decoration: const InputDecoration(
@@ -6199,12 +6252,25 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _reasonController,
+                    focusNode: _reasonFocusNode,
+                    onTap: () {
+                      if (_reasonHasError) {
+                        setState(() => _reasonHasError = false);
+                      }
+                    },
+                    onChanged: (_) {
+                      if (_reasonHasError) {
+                        setState(() => _reasonHasError = false);
+                      }
+                    },
                     minLines: 2,
                     maxLines: 2,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Reden',
                       alignLabelWithHint: true,
                       isDense: true,
+                      hintText: _reasonHasError ? 'Vul een reden in' : null,
+                      hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
                     ),
                   ),
                 ],
