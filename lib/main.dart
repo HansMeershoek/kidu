@@ -3463,27 +3463,9 @@ class _DashboardPageState extends State<DashboardPage> {
               });
             }
 
-            // Solo/invite UI uses !canAddExpenses; that is also true while members
-            // have not emitted yet — show loading instead of a false "not linked" state.
-            if (hasHousehold && membersAwaitingFirstSnapshot) {
-              _reportPreviewReady(false);
-              return Scaffold(
-                resizeToAvoidBottomInset: false,
-                appBar: AppBar(
-                  centerTitle: true,
-                  title: Text(
-                    'KiDu',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                body: const SafeArea(
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              );
-            }
+            // While the first members snapshot is pending, keep the same ungekoppeld
+            // subtree as when docs=1 (avoids a full-screen spinner flash when
+            // householdId first appears, e.g. behind the invite bottom sheet).
 
             if (!canAddExpenses) {
               _reportPreviewReady(true);
