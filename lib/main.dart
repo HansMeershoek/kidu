@@ -5924,6 +5924,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   late final FocusNode _reasonFocusNode;
   late final Future<List<_ChildItem>> _childrenFuture;
   bool _showReasonField = false;
+  bool _showNoChangesMessage = false;
   bool _titleHasError = false;
   bool _amountHasError = false;
   bool _reasonHasError = false;
@@ -6004,6 +6005,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     );
     if (pickedChildIds == null || !mounted) return;
     setState(() {
+      _showNoChangesMessage = false;
       _didChangeChildSelection = true;
       if (pickedChildIds.length == children.length) {
         _hasCustomChildSelection = false;
@@ -6084,10 +6086,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
           !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
       if (!amountChanged && !titleChanged && !childIdsChanged) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Er zijn geen wijzigingen.')),
-        );
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+          _showNoChangesMessage = true;
+        });
         return;
       }
       if (amountChanged) {
@@ -6181,6 +6183,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     }
                   },
                   onChanged: (_) {
+                    if (_showNoChangesMessage) {
+                      setState(() => _showNoChangesMessage = false);
+                    }
                     if (_titleHasError) {
                       setState(() => _titleHasError = false);
                     }
@@ -6214,6 +6219,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     }
                   },
                   onChanged: (value) {
+                    if (_showNoChangesMessage) {
+                      setState(() => _showNoChangesMessage = false);
+                    }
                     final parsed = _ExpenseDetailPage._parseEurToCents(
                       _amountController.text,
                     );
@@ -6259,6 +6267,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                       }
                     },
                     onChanged: (_) {
+                      if (_showNoChangesMessage) {
+                        setState(() => _showNoChangesMessage = false);
+                      }
                       if (_reasonHasError) {
                         setState(() => _reasonHasError = false);
                       }
@@ -6333,6 +6344,18 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     );
                   },
                 ),
+                if (_showNoChangesMessage)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'Er zijn geen wijzigingen.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
