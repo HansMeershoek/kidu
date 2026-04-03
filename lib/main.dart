@@ -2551,12 +2551,16 @@ class _DashboardPageState extends State<DashboardPage> {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final noteController = TextEditingController();
+    final titleFocusNode = FocusNode();
+    final amountFocusNode = FocusNode();
     final allChildIds = children.map((c) => c.id).toList(growable: false);
     var saving = false;
     var didShow = false;
     String? pendingSuccessSnackBarMessage;
     var hasCustomChildSelection = false;
     var customSelectedChildIds = <String>[];
+    var titleHasError = false;
+    var amountHasError = false;
     _freezeExpensesVN.value = true;
 
     try {
@@ -2564,6 +2568,7 @@ class _DashboardPageState extends State<DashboardPage> {
       await showDialog<void>(
         context: context,
         useSafeArea: true,
+        barrierDismissible: false,
         builder: (context) {
           return StatefulBuilder(
             builder: (context, setLocalState) {
@@ -2572,16 +2577,55 @@ class _DashboardPageState extends State<DashboardPage> {
                   : allChildIds;
               final screenW = MediaQuery.sizeOf(context).width;
               final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+              final subtleErrorHintStyle = Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.85),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  );
+              final subtleErrorInputStyle = Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.error.withValues(alpha: 0.88),
+                    fontWeight: FontWeight.w400,
+                  );
               final childSelectionSummary =
                   !hasCustomChildSelection ||
                       effectiveSelectedChildIds.length == children.length
                   ? 'Alle kinderen'
                   : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
-              return Align(
-                alignment: const Alignment(0, -0.15),
-                child: SizedBox(
-                  width: dialogW,
-                  child: AlertDialog(
+              return Material(
+                color: Colors.transparent,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          final keyboardVisible =
+                              MediaQuery.of(context).viewInsets.bottom > 0;
+                          if (keyboardVisible) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            return;
+                          }
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                        },
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                    Align(
+                      alignment: const Alignment(0, -0.15),
+                      child: SizedBox(
+                        width: dialogW,
+                        child: AlertDialog(
                     title: const Text('Nieuwe uitgave'),
                     content: ConstrainedBox(
                       constraints: BoxConstraints(
@@ -2593,8 +2637,20 @@ class _DashboardPageState extends State<DashboardPage> {
                           children: [
                             TextField(
                               controller: titleController,
+                              focusNode: titleFocusNode,
+                              autofocus: true,
                               textInputAction: TextInputAction.next,
                               maxLength: _kAddExpenseTitleMaxLength,
+                              onTap: () {
+                                if (titleHasError) {
+                                  setLocalState(() => titleHasError = false);
+                                }
+                              },
+                              onChanged: (_) {
+                                if (titleHasError) {
+                                  setLocalState(() => titleHasError = false);
+                                }
+                              },
                               buildCounter:
                                   (
                                     context, {
@@ -2602,26 +2658,56 @@ class _DashboardPageState extends State<DashboardPage> {
                                     required bool isFocused,
                                     required int? maxLength,
                                   }) => null,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Titel',
                                 floatingLabelBehavior:
                                     FloatingLabelBehavior.always,
                                 border: OutlineInputBorder(),
+                                hintText: titleHasError ? 'Vul een titel in' : null,
+                                hintStyle: titleHasError
+                                    ? subtleErrorHintStyle
+                                    : null,
                               ),
                             ),
                             const SizedBox(height: 12),
                             TextField(
                               controller: amountController,
+                              focusNode: amountFocusNode,
+                              style: amountHasError
+                                  ? subtleErrorInputStyle
+                                  : null,
                               keyboardType:
                                   const TextInputType.numberWithOptions(
                                     decimal: true,
                                   ),
-                              decoration: const InputDecoration(
+                              onTap: () {
+                                if (amountHasError) {
+                                  setLocalState(() => amountHasError = false);
+                                }
+                              },
+                              onChanged: (value) {
+                                final trimmed = value.trim();
+                                final parsed = _tryParseEurToCents(value);
+                                final nextHasError =
+                                    trimmed.isNotEmpty &&
+                                    (parsed == null || parsed <= 0);
+                                if (amountHasError != nextHasError) {
+                                  setLocalState(
+                                    () => amountHasError = nextHasError,
+                                  );
+                                }
+                              },
+                              decoration: InputDecoration(
                                 labelText: 'Bedrag (EUR)',
                                 floatingLabelBehavior:
                                     FloatingLabelBehavior.always,
                                 border: OutlineInputBorder(),
-                                hintText: '12,34',
+                                hintText: amountHasError
+                                    ? 'Vul een geldig bedrag in'
+                                    : 'Bijv. 12,34',
+                                hintStyle: amountHasError
+                                    ? subtleErrorHintStyle
+                                    : null,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -2726,12 +2812,19 @@ class _DashboardPageState extends State<DashboardPage> {
                                 final amountCents = _tryParseEurToCents(
                                   amountController.text,
                                 );
-                                if (title.isEmpty) {
-                                  _showSnackBar('Vul een titel in.');
-                                  return;
-                                }
-                                if (amountCents == null || amountCents <= 0) {
-                                  _showSnackBar('Vul een geldig bedrag in.');
+                                final titleInvalid = title.isEmpty;
+                                final amountInvalid =
+                                    amountCents == null || amountCents <= 0;
+                                if (titleInvalid || amountInvalid) {
+                                  setLocalState(() {
+                                    titleHasError = titleInvalid;
+                                    amountHasError = amountInvalid;
+                                  });
+                                  if (titleInvalid) {
+                                    titleFocusNode.requestFocus();
+                                  } else if (amountInvalid) {
+                                    amountFocusNode.requestFocus();
+                                  }
                                   return;
                                 }
                                 if (effectiveSelectedChildIds.isEmpty) {
@@ -2824,7 +2917,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                       ),
                     ],
-                  ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -2853,6 +2949,8 @@ class _DashboardPageState extends State<DashboardPage> {
       titleController.dispose();
       amountController.dispose();
       noteController.dispose();
+      titleFocusNode.dispose();
+      amountFocusNode.dispose();
     }
   }
 
