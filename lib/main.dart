@@ -5920,6 +5920,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
   late final Future<List<_ChildItem>> _childrenFuture;
+  bool _showReasonField = false;
   bool _didChangeChildSelection = false;
   bool _hasCustomChildSelection = false;
   List<String> _customSelectedChildIds = const <String>[];
@@ -6171,21 +6172,42 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  onChanged: (_) {
+                    final parsed = _ExpenseDetailPage._parseEurToCents(
+                      _amountController.text,
+                    );
+                    final backToOriginal =
+                        parsed != null && parsed == widget.currentAmountCents;
+                    if (backToOriginal) {
+                      if (!_showReasonField &&
+                          _reasonController.text.isEmpty) {
+                        return;
+                      }
+                      _reasonController.clear();
+                      setState(() => _showReasonField = false);
+                      return;
+                    }
+                    if (!_showReasonField) {
+                      setState(() => _showReasonField = true);
+                    }
+                  },
                   decoration: const InputDecoration(
                     labelText: 'Nieuw bedrag (€)',
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _reasonController,
-                  minLines: 2,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Reden',
-                    alignLabelWithHint: true,
-                    isDense: true,
+                if (_showReasonField) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _reasonController,
+                    minLines: 2,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Reden',
+                      alignLabelWithHint: true,
+                      isDense: true,
+                    ),
                   ),
-                ),
+                ],
                 FutureBuilder<List<_ChildItem>>(
                   future: _childrenFuture,
                   builder: (context, snap) {
