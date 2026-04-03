@@ -3546,6 +3546,10 @@ class _DashboardPageState extends State<DashboardPage> {
             final canInvite = membersAwaitingFirstSnapshot || memberCount == 1;
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
+            final showsPendingSoloPreview =
+                !canAddExpenses && membersAwaitingFirstSnapshot;
+            final showsStableSoloDashboard =
+                !canAddExpenses && !membersAwaitingFirstSnapshot;
             final myDashboardName =
                 (myProfileName != null && myProfileName.isNotEmpty)
                 ? myProfileName
@@ -3565,8 +3569,8 @@ class _DashboardPageState extends State<DashboardPage> {
             // subtree as when docs=1 (avoids a full-screen spinner flash when
             // householdId first appears, e.g. behind the invite bottom sheet).
 
-            if (!canAddExpenses) {
-              _reportPreviewReady(true);
+            if (showsPendingSoloPreview || showsStableSoloDashboard) {
+              _reportPreviewReady(showsStableSoloDashboard);
               return PopScope(
                 canPop: !_showWaiting,
                 onPopInvokedWithResult: (didPop, _) {
