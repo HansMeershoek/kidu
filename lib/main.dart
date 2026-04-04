@@ -6463,7 +6463,13 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     if (childNames == null || childNames.length != currentChildIds.length) {
       return null;
     }
-    return _sameChildIds(currentChildIds, widget.childIds) ? childNames : null;
+    if (!_sameChildIds(currentChildIds, widget.childIds)) {
+      return null;
+    }
+    if (childNames.contains('Verwijderd kind')) {
+      return null;
+    }
+    return childNames;
   }
 
   Future<List<String>> _childNamesFutureFor(List<String> currentChildIds) {
