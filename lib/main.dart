@@ -217,6 +217,7 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                       child: SingleChildScrollView(
                         child: TextFormField(
                           initialValue: widget.initialNote,
+                          autofocus: true,
                           maxLength: 180,
                           minLines: 3,
                           maxLines: 8,
