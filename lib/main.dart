@@ -2639,6 +2639,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               controller: titleController,
                               focusNode: titleFocusNode,
                               autofocus: true,
+                              textCapitalization: TextCapitalization.sentences,
                               textInputAction: TextInputAction.next,
                               maxLength: _kAddExpenseTitleMaxLength,
                               onTap: () {
@@ -2713,6 +2714,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             const SizedBox(height: 12),
                             TextField(
                               controller: noteController,
+                              textCapitalization: TextCapitalization.sentences,
                               maxLength: 180,
                               textInputAction: TextInputAction.done,
                               decoration: const InputDecoration(
@@ -6179,6 +6181,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                 TextField(
                   controller: _titleController,
                   focusNode: _titleFocusNode,
+                  textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.next,
                   maxLength: _kAddExpenseTitleMaxLength,
                   onTap: () {
