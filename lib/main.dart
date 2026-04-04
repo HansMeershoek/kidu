@@ -306,10 +306,32 @@ Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
     context: context,
     useRootNavigator: false,
     useSafeArea: true,
-    barrierDismissible: true,
-    builder: (dialogContext) => _PrivateNoteDialogContent(
-      initialNote: initialNote,
-      hasInitialNote: hasInitialNote,
+    barrierDismissible: false,
+    builder: (dialogContext) => Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                final keyboardVisible =
+                    MediaQuery.of(dialogContext).viewInsets.bottom > 0;
+                if (keyboardVisible) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  return;
+                }
+                Navigator.of(dialogContext, rootNavigator: false).pop();
+              },
+              child: const SizedBox.expand(),
+            ),
+          ),
+          _PrivateNoteDialogContent(
+            initialNote: initialNote,
+            hasInitialNote: hasInitialNote,
+          ),
+        ],
+      ),
     ),
   );
   return result ?? PrivateNoteDialogCancelled();
@@ -6508,14 +6530,40 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     final saved = await showDialog<bool>(
       context: context,
       useSafeArea: true,
-      barrierDismissible: true,
-      builder: (context) => _EditExpenseAmountDialog(
-        householdId: widget.householdId,
-        expenseId: widget.expenseId,
-        currentAmountCents: currentAmountCents,
-        currentTitle: currentTitle,
-        currentChildIds: currentChildIds,
-        childrenFuture: _expenseEditChildrenFuture,
+      barrierDismissible: false,
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  final keyboardVisible =
+                      MediaQuery.of(context).viewInsets.bottom > 0;
+                  if (keyboardVisible) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    return;
+                  }
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                },
+                child: const SizedBox.expand(),
+              ),
+            ),
+            GestureDetector(
+              onTap: () {},
+              child: _EditExpenseAmountDialog(
+                householdId: widget.householdId,
+                expenseId: widget.expenseId,
+                currentAmountCents: currentAmountCents,
+                currentTitle: currentTitle,
+                currentChildIds: currentChildIds,
+                childrenFuture: _expenseEditChildrenFuture,
+              ),
+            ),
+          ],
+        ),
       ),
     );
     if (saved == true && mounted) {
