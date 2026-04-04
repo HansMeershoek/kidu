@@ -220,6 +220,7 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                           maxLength: 180,
                           minLines: 3,
                           maxLines: 8,
+                          textCapitalization: TextCapitalization.sentences,
                           textInputAction: TextInputAction.done,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
@@ -998,6 +999,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                         child: TextField(
                           controller: _controller,
                           focusNode: _nameFocus,
+                          textCapitalization: TextCapitalization.sentences,
                           maxLength: 20,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) => _busy ? null : _save(),
