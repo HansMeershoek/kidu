@@ -3207,10 +3207,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
     var started = false;
     var loading = true;
+    var waiting = false;
     String? code;
     String? error;
 
-    final didConfirm = await showModalBottomSheet<bool>(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -3282,6 +3283,121 @@ class _DashboardPageState extends State<DashboardPage> {
               });
             }
 
+            Widget buildInviteCodeContent() {
+              if (loading || code != null) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Uitnodigingscode',
+                      style: Theme.of(sheetContext).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    KiduCodePill(
+                      code: code ?? '',
+                      loading: loading,
+                      codeFontWeight: FontWeight.w600,
+                      onCopy: () async {
+                        await Clipboard.setData(ClipboardData(text: code!));
+                        _showSnackBar('Invite code gekopieerd.');
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.tonalIcon(
+                      onPressed: () {
+                        if (loading) return;
+                        _shareInviteCode(code!);
+                      },
+                      icon: const Icon(Icons.share_outlined, size: 18),
+                      label: Text(
+                        'Delen',
+                        style: Theme.of(sheetContext).textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton.tonalIcon(
+                      onPressed: () {
+                        if (loading) return;
+                        setModalState(() => waiting = true);
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: Text(
+                        'Code gedeeld',
+                        style: Theme.of(sheetContext).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Uitnodigingscode',
+                    style: Theme.of(sheetContext).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error ?? 'Kon geen code maken. Probeer opnieuw.',
+                    style: Theme.of(sheetContext).textTheme.bodyMedium
+                        ?.copyWith(color: onSurface(sheetContext, a68)),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      setModalState(() {
+                        started = false;
+                        loading = true;
+                        code = null;
+                        error = null;
+                      });
+                    },
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: Text(
+                      'Opnieuw',
+                      style: Theme.of(sheetContext).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            Widget buildWaitingContent() {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Wachten op co-parent',
+                    style: Theme.of(sheetContext).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
+                    style: Theme.of(sheetContext).textTheme.bodyMedium
+                        ?.copyWith(color: onSurface(sheetContext, a68)),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                    },
+                    icon: const Icon(Icons.dashboard_outlined, size: 18),
+                    label: Text(
+                      'Terug naar dashboard',
+                      style: Theme.of(sheetContext).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              );
+            }
+
             return SafeArea(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -3295,83 +3411,28 @@ class _DashboardPageState extends State<DashboardPage> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
                   child: KiduCard(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Uitnodigingscode',
-                          style: Theme.of(sheetContext).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        if (loading || code != null) ...[
-                          KiduCodePill(
-                            code: code ?? '',
-                            loading: loading,
-                            codeFontWeight: FontWeight.w600,
-                            onCopy: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: code!),
-                              );
-                              _showSnackBar('Invite code gekopieerd.');
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton.tonalIcon(
-                            onPressed: () {
-                              if (loading) return;
-                              _shareInviteCode(code!);
-                            },
-                            icon: const Icon(Icons.share_outlined, size: 18),
-                            label: Text(
-                              'Delen',
-                              style: Theme.of(
-                                sheetContext,
-                              ).textTheme.bodyMedium,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          FilledButton.tonalIcon(
-                            onPressed: () {
-                              if (loading) return;
-                              Navigator.of(sheetContext).pop(true);
-                            },
-                            icon: const Icon(Icons.check, size: 18),
-                            label: Text(
-                              'Klaar',
-                              style: Theme.of(
-                                sheetContext,
-                              ).textTheme.bodyMedium,
-                            ),
-                          ),
-                        ] else ...[
-                          Text(
-                            error ?? 'Kon geen code maken. Probeer opnieuw.',
-                            style: Theme.of(sheetContext).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(sheetContext, a68)),
-                          ),
-                          const SizedBox(height: 16),
-                          FilledButton.tonalIcon(
-                            onPressed: () {
-                              setModalState(() {
-                                started = false;
-                                loading = true;
-                                code = null;
-                                error = null;
-                              });
-                            },
-                            icon: const Icon(Icons.refresh, size: 18),
-                            label: Text(
-                              'Opnieuw',
-                              style: Theme.of(
-                                sheetContext,
-                              ).textTheme.bodyMedium,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                    child: waiting
+                        ? Stack(
+                            children: [
+                              IgnorePointer(
+                                child: Visibility(
+                                  visible: false,
+                                  maintainState: true,
+                                  maintainAnimation: true,
+                                  maintainSize: true,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: buildInviteCodeContent(),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: double.infinity,
+                                child: buildWaitingContent(),
+                              ),
+                            ],
+                          )
+                        : buildInviteCodeContent(),
                   ),
                 ),
               ),
@@ -3380,11 +3441,6 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       },
     );
-
-    if (!mounted) return;
-    if (didConfirm == true) {
-      setState(() => _showWaiting = true);
-    }
   }
 
   Future<void> _signOut(BuildContext context) async {
