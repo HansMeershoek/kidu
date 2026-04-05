@@ -3216,7 +3216,7 @@ class _DashboardPageState extends State<DashboardPage> {
       showDragHandle: true,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setModalState) {
@@ -3309,6 +3309,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           KiduCodePill(
                             code: code ?? '',
                             loading: loading,
+                            codeFontWeight: FontWeight.w600,
                             onCopy: () async {
                               await Clipboard.setData(
                                 ClipboardData(text: code!),
@@ -10601,9 +10602,12 @@ class KiduCard extends StatelessWidget {
 }
 
 /// Width of eight characters in the same style as [KiduCodePill] code text.
-double _kiduCodeEightCharWidth(TextTheme textTheme) {
+double _kiduCodeEightCharWidth(
+  TextTheme textTheme, {
+  FontWeight fontWeight = FontWeight.w800,
+}) {
   final style = textTheme.titleMedium?.copyWith(
-    fontWeight: FontWeight.w800,
+    fontWeight: fontWeight,
     letterSpacing: 1.2,
   );
   final tp = TextPainter(
@@ -10620,11 +10624,13 @@ class KiduCodePill extends StatelessWidget {
     required this.code,
     required this.onCopy,
     this.loading = false,
+    this.codeFontWeight = FontWeight.w800,
   });
 
   final String code;
   final VoidCallback onCopy;
   final bool loading;
+  final FontWeight codeFontWeight;
 
   @override
   Widget build(BuildContext context) {
@@ -10645,7 +10651,10 @@ class KiduCodePill extends StatelessWidget {
                 ? Align(
                     alignment: Alignment.centerLeft,
                     child: SizedBox(
-                      width: _kiduCodeEightCharWidth(textTheme),
+                      width: _kiduCodeEightCharWidth(
+                        textTheme,
+                        fontWeight: codeFontWeight,
+                      ),
                       height: 36,
                       child: Center(
                         child: SizedBox(
@@ -10662,7 +10671,7 @@ class KiduCodePill extends StatelessWidget {
                 : SelectableText(
                     code,
                     style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: codeFontWeight,
                       letterSpacing: 1.2,
                     ),
                   ),
