@@ -1830,7 +1830,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         if (isPaired)
                           Text(
                             trimmedOther == 'Co-parent'
-                                ? 'Verbinden met Co-parent'
+                                ? 'Je bent nog niet gekoppeld'
                                 : 'Verbonden met $effectiveOtherName',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
