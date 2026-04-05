@@ -1796,7 +1796,7 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -1927,12 +1927,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         const SizedBox(height: 8),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
+                          visualDensity: VisualDensity.standard,
                           leading: Icon(
                             Icons.edit_outlined,
-                            size: 20,
-                            color: onSurface(context, a58),
+                            size: 18,
+                            color: onSurface(context, a50),
                           ),
                           title: Text(
                             'Naam',
@@ -1964,12 +1963,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         if (hasHousehold)
                           ListTile(
                             contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
+                            visualDensity: VisualDensity.standard,
                             leading: Icon(
                               Icons.child_care_outlined,
-                              size: 20,
-                              color: onSurface(context, a58),
+                              size: 18,
+                              color: onSurface(context, a50),
                             ),
                             title: Text(
                               'Kinderen',
@@ -1989,12 +1987,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         if (hasHousehold)
                           ListTile(
                             contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
+                            visualDensity: VisualDensity.standard,
                             leading: Icon(
                               Icons.menu_book_outlined,
-                              size: 20,
-                              color: onSurface(context, a58),
+                              size: 18,
+                              color: onSurface(context, a50),
                             ),
                             title: Text(
                               'Logboek',
@@ -2027,12 +2024,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         const SizedBox(height: 8),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
+                          visualDensity: VisualDensity.standard,
                           leading: Icon(
                             Icons.privacy_tip_outlined,
-                            size: 20,
-                            color: onSurface(context, a58),
+                            size: 18,
+                            color: onSurface(context, a50),
                           ),
                           title: Text(
                             'Privacy',
@@ -2095,12 +2091,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
+                          visualDensity: VisualDensity.standard,
                           leading: Icon(
                             Icons.info_outline,
-                            size: 20,
-                            color: onSurface(context, a58),
+                            size: 18,
+                            color: onSurface(context, a50),
                           ),
                           title: Text(
                             'Over KiDu',
@@ -2130,12 +2125,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         Divider(height: 32, color: outlineV(context, a40)),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          visualDensity: VisualDensity.compact,
+                          visualDensity: VisualDensity.standard,
                           leading: Icon(
                             Icons.logout,
-                            size: 20,
-                            color: onSurface(context, a58),
+                            size: 18,
+                            color: onSurface(context, a50),
                           ),
                           title: Text(
                             'Uitloggen',
