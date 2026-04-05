@@ -5310,7 +5310,52 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       alpha:
                                                                           0.08,
                                                                     ),
-                                                                onTap: () {
+                                                                onTap: () async {
+                                                                  final preloadedChildNames =
+                                                                      expChildIds.isEmpty
+                                                                      ? const <String>[]
+                                                                      : (_dashChildren
+                                                                                .isNotEmpty &&
+                                                                            expChildIds.every(
+                                                                              (
+                                                                                id,
+                                                                              ) => _dashChildren.any(
+                                                                                (
+                                                                                  c,
+                                                                                ) =>
+                                                                                    c.id ==
+                                                                                    id,
+                                                                              ),
+                                                                            ))
+                                                                      ? expChildIds
+                                                                            .map(
+                                                                              (
+                                                                                id,
+                                                                              ) =>
+                                                                                  _dashChildren
+                                                                                      .where(
+                                                                                        (
+                                                                                          c,
+                                                                                        ) =>
+                                                                                            c.id ==
+                                                                                            id,
+                                                                                      )
+                                                                                      .map(
+                                                                                        (
+                                                                                          c,
+                                                                                        ) => c.name,
+                                                                                      )
+                                                                                      .firstOrNull ??
+                                                                                  'Verwijderd kind',
+                                                                            )
+                                                                            .toList()
+                                                                      : await _ExpenseDetailPage._resolveChildNames(
+                                                                          householdIdStr,
+                                                                          expChildIds,
+                                                                        );
+                                                                  if (!context.mounted) {
+                                                                    return;
+                                                                  }
                                                                   Navigator.of(
                                                                     context,
                                                                   ).push(
@@ -5337,30 +5382,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 : null,
                                                                             otherParentName: otherName,
                                                                             childIds: expChildIds,
-                                                                            childNames: _dashChildren.isNotEmpty
-                                                                                ? expChildIds
-                                                                                      .map(
-                                                                                        (
-                                                                                          id,
-                                                                                        ) =>
-                                                                                            _dashChildren
-                                                                                                .where(
-                                                                                                  (
-                                                                                                    c,
-                                                                                                  ) =>
-                                                                                                      c.id ==
-                                                                                                      id,
-                                                                                                )
-                                                                                                .map(
-                                                                                                  (
-                                                                                                    c,
-                                                                                                  ) => c.name,
-                                                                                                )
-                                                                                                .firstOrNull ??
-                                                                                            'Verwijderd kind',
-                                                                                      )
-                                                                                      .toList()
-                                                                                : null,
+                                                                            childNames:
+                                                                                preloadedChildNames,
                                                                           ),
                                                                     ),
                                                                   );
