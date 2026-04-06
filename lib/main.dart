@@ -7626,7 +7626,6 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   List<({String label, String value})> _expenseExportSummaryRows() => [
-    (label: 'Tab', value: 'Uitgaven'),
     (label: 'Modus', value: _expenseExportModeLabel()),
     (label: 'Filter', value: _expenseExportFilterLabel()),
     (label: 'Periode', value: _expenseExportPeriodLabel()),
@@ -7639,7 +7638,6 @@ class _LogboekPageState extends State<_LogboekPage>
   };
 
   List<({String label, String value})> _paymentExportSummaryRows() => [
-    (label: 'Tab', value: 'Betalingen'),
     (label: 'Richting', value: _paymentExportDirectionLabel()),
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
@@ -7657,7 +7655,6 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   List<({String label, String value})> _wijzigExportSummaryRows() => [
-    (label: 'Tab', value: 'Wijzigingen'),
     (label: 'Gewijzigd door', value: _wijzigExportEditedByLabel()),
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
@@ -8796,7 +8793,7 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showExpenseExportConfirmSheet() {
     final summaryRows = _expenseExportSummaryRows();
-    var selectedFormat = _ExpenseExportFormat.csv;
+    var selectedFormat = _ExpenseExportFormat.pdf;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -8822,7 +8819,7 @@ class _LogboekPageState extends State<_LogboekPage>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Je exporteert de huidige selectie uit Uitgaven.',
+                  'Kies een formaat voor de huidige selectie.',
                   style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
                     color: onSurface(sheetContext, a68),
                     height: 1.35,
@@ -8843,19 +8840,19 @@ class _LogboekPageState extends State<_LogboekPage>
                   spacing: 8,
                   children: [
                     FilterChip(
-                      label: const Text('CSV'),
-                      selected: selectedFormat == _ExpenseExportFormat.csv,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.csv,
-                      ),
-                    ),
-                    FilterChip(
                       label: const Text('PDF'),
                       selected: selectedFormat == _ExpenseExportFormat.pdf,
                       showCheckmark: false,
                       onSelected: (_) => setModalState(
                         () => selectedFormat = _ExpenseExportFormat.pdf,
+                      ),
+                    ),
+                    FilterChip(
+                      label: const Text('CSV'),
+                      selected: selectedFormat == _ExpenseExportFormat.csv,
+                      showCheckmark: false,
+                      onSelected: (_) => setModalState(
+                        () => selectedFormat = _ExpenseExportFormat.csv,
                       ),
                     ),
                   ],
@@ -8886,7 +8883,7 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showPaymentExportConfirmSheet() {
     final summaryRows = _paymentExportSummaryRows();
-    var selectedFormat = _ExpenseExportFormat.csv;
+    var selectedFormat = _ExpenseExportFormat.pdf;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -8912,7 +8909,7 @@ class _LogboekPageState extends State<_LogboekPage>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Je exporteert de huidige selectie uit Betalingen.',
+                  'Kies een formaat voor de huidige selectie.',
                   style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
                     color: onSurface(sheetContext, a68),
                     height: 1.35,
@@ -8933,19 +8930,19 @@ class _LogboekPageState extends State<_LogboekPage>
                   spacing: 8,
                   children: [
                     FilterChip(
-                      label: const Text('CSV'),
-                      selected: selectedFormat == _ExpenseExportFormat.csv,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.csv,
-                      ),
-                    ),
-                    FilterChip(
                       label: const Text('PDF'),
                       selected: selectedFormat == _ExpenseExportFormat.pdf,
                       showCheckmark: false,
                       onSelected: (_) => setModalState(
                         () => selectedFormat = _ExpenseExportFormat.pdf,
+                      ),
+                    ),
+                    FilterChip(
+                      label: const Text('CSV'),
+                      selected: selectedFormat == _ExpenseExportFormat.csv,
+                      showCheckmark: false,
+                      onSelected: (_) => setModalState(
+                        () => selectedFormat = _ExpenseExportFormat.csv,
                       ),
                     ),
                   ],
@@ -8976,7 +8973,7 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showWijzigingenExportConfirmSheet() {
     final summaryRows = _wijzigExportSummaryRows();
-    var selectedFormat = _ExpenseExportFormat.csv;
+    var selectedFormat = _ExpenseExportFormat.pdf;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -9002,7 +8999,7 @@ class _LogboekPageState extends State<_LogboekPage>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Je exporteert de huidige selectie uit Wijzigingen.',
+                  'Kies een formaat voor de huidige selectie.',
                   style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
                     color: onSurface(sheetContext, a68),
                     height: 1.35,
@@ -9023,19 +9020,19 @@ class _LogboekPageState extends State<_LogboekPage>
                   spacing: 8,
                   children: [
                     FilterChip(
-                      label: const Text('CSV'),
-                      selected: selectedFormat == _ExpenseExportFormat.csv,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.csv,
-                      ),
-                    ),
-                    FilterChip(
                       label: const Text('PDF'),
                       selected: selectedFormat == _ExpenseExportFormat.pdf,
                       showCheckmark: false,
                       onSelected: (_) => setModalState(
                         () => selectedFormat = _ExpenseExportFormat.pdf,
+                      ),
+                    ),
+                    FilterChip(
+                      label: const Text('CSV'),
+                      selected: selectedFormat == _ExpenseExportFormat.csv,
+                      showCheckmark: false,
+                      onSelected: (_) => setModalState(
+                        () => selectedFormat = _ExpenseExportFormat.csv,
                       ),
                     ),
                   ],
@@ -9058,51 +9055,6 @@ class _LogboekPageState extends State<_LogboekPage>
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showLogboekMoreSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  Icons.download_outlined,
-                  color: onSurface(sheetContext, a68),
-                ),
-                title: const Text('Exporteer selectie'),
-                subtitle: Text(
-                  _logboekMode == _LogboekMode.betalingen
-                      ? 'CSV voor de huidige Betalingen-selectie'
-                      : _logboekMode == _LogboekMode.wijzigingen
-                      ? 'CSV voor de huidige Wijzigingen-selectie'
-                      : 'CSV voor de huidige Uitgaven-selectie',
-                ),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  if (_logboekMode == _LogboekMode.betalingen) {
-                    _showPaymentExportConfirmSheet();
-                    return;
-                  }
-                  if (_logboekMode == _LogboekMode.wijzigingen) {
-                    _showWijzigingenExportConfirmSheet();
-                    return;
-                  }
-                  _showExpenseExportConfirmSheet();
-                },
-              ),
-            ],
           ),
         ),
       ),
@@ -9250,9 +9202,19 @@ class _LogboekPageState extends State<_LogboekPage>
             _logboekMode == _LogboekMode.betalingen ||
             _logboekMode == _LogboekMode.wijzigingen)
           IconButton(
-            icon: const Icon(Icons.more_horiz),
-            onPressed: _showLogboekMoreSheet,
-            tooltip: 'Meer',
+            icon: const Icon(Icons.file_download_outlined),
+            onPressed: () {
+              if (_logboekMode == _LogboekMode.betalingen) {
+                _showPaymentExportConfirmSheet();
+                return;
+              }
+              if (_logboekMode == _LogboekMode.wijzigingen) {
+                _showWijzigingenExportConfirmSheet();
+                return;
+              }
+              _showExpenseExportConfirmSheet();
+            },
+            tooltip: 'Exporteer selectie',
           ),
       ],
       bottom: TabBar(
