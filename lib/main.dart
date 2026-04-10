@@ -8008,12 +8008,6 @@ class _LogboekPageState extends State<_LogboekPage>
     return childIds.map((id) => childNamesById[id] ?? 'Verwijderd kind').toList();
   }
 
-  int _expenseExportDisplayCents(int amountCents, List<String> childIds) {
-    final nKids = childIds.length;
-    final isFiltered = _filterChildId != null && nKids > 0;
-    return isFiltered ? (amountCents / nKids).round() : amountCents;
-  }
-
   String _expenseExportFilename() {
     final now = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
@@ -8071,8 +8065,13 @@ class _LogboekPageState extends State<_LogboekPage>
   Future<List<({
     DateTime? createdAt,
     String title,
-    int displayCents,
     String paidByName,
+    int totalAmountCents,
+    int childAmountCents,
+    String divisionLabel,
+    String selectedChildLabel,
+    String allChildrenLabel,
+    int displayCents,
     String childrenLabel,
   })>> _loadExpenseExportRows() async {
     final filterChildId = _filterChildId;
@@ -8111,22 +8110,38 @@ class _LogboekPageState extends State<_LogboekPage>
         createdAt = createdAtRaw.toLocal();
       }
 
-      final displayCents = _expenseExportDisplayCents(amountCents, childIds);
+      final totalAmountCents = amountCents;
+      final childAmountCents = filterChildId != null && childIds.isNotEmpty
+          ? (amountCents / childIds.length).round()
+          : amountCents;
       final paidByName = _expenseExportPaidByName(createdBy, parentNamesByUid);
       final childNames = _expenseExportChildNames(childIds, childNamesById);
+      final nKids = childIds.length;
+      final divisionLabel = nKids > 0 ? '1/$nKids' : '';
+      final selectedChildLabel = filterChildId == null
+          ? ''
+          : (childNamesById[filterChildId] ?? 'Verwijderd kind');
+      final allChildrenLabel = childNames.join(' | ');
 
       return (
         createdAt: createdAt,
         title: title,
-        displayCents: displayCents,
         paidByName: paidByName,
-        childrenLabel: childNames.join(' | '),
+        totalAmountCents: totalAmountCents,
+        childAmountCents: childAmountCents,
+        divisionLabel: divisionLabel,
+        selectedChildLabel: selectedChildLabel,
+        allChildrenLabel: allChildrenLabel,
+        displayCents: childAmountCents,
+        childrenLabel: allChildrenLabel,
       );
     }).toList(growable: false);
   }
 
   Future<void> _exportExpensesCsv() async {
     final messenger = ScaffoldMessenger.of(context);
+    final frozenFilterChildId = _filterChildId;
+    final hasSelectedChild = frozenFilterChildId != null;
 
     try {
       final rows = await _loadExpenseExportRows();
@@ -8140,20 +8155,62 @@ class _LogboekPageState extends State<_LogboekPage>
         return;
       }
 
+      int csvChildCount(String allChildrenLabel) {
+        final trimmed = allChildrenLabel.trim();
+        if (trimmed.isEmpty) return 0;
+        return trimmed.split(' | ').length;
+      }
+      final selectedChildLabel = rows
+          .map((row) => row.selectedChildLabel.trim())
+          .firstWhere(
+            (label) => label.isNotEmpty,
+            orElse: () => '',
+          );
+      final selectedChildAmountHeader = selectedChildLabel.isNotEmpty
+          ? 'Bedrag voor $selectedChildLabel'
+          : 'Bedrag voor kind';
       final csv = StringBuffer()
         ..writeln(
-          _csvLine(const ['Datum', 'Titel', 'Bedrag', 'Betaald door', 'Kinderen']),
+          _csvLine(
+            hasSelectedChild
+                ? [
+                    'Datum',
+                    'Titel',
+                    'Betaald door',
+                    'Volledige uitgave',
+                    'Aantal kinderen',
+                    selectedChildAmountHeader,
+                  ]
+                : [
+                    'Datum',
+                    'Titel',
+                    'Betaald door',
+                    'Volledige uitgave',
+                    'Kinderen',
+                  ],
+          ),
         );
 
       for (final row in rows) {
         csv.writeln(
-          _csvLine([
-            _fmtDateWithYear(row.createdAt),
-            row.title,
-            _fmtCsvAmount(row.displayCents),
-            row.paidByName,
-            row.childrenLabel,
-          ]),
+          _csvLine(
+            hasSelectedChild
+                ? [
+                    _fmtDateWithYear(row.createdAt),
+                    row.title,
+                    row.paidByName,
+                    _fmtCsvAmount(row.totalAmountCents),
+                    csvChildCount(row.allChildrenLabel).toString(),
+                    _fmtCsvAmount(row.childAmountCents),
+                  ]
+                : [
+                    _fmtDateWithYear(row.createdAt),
+                    row.title,
+                    row.paidByName,
+                    _fmtCsvAmount(row.totalAmountCents),
+                    row.allChildrenLabel,
+                  ],
+          ),
         );
       }
 
@@ -8185,6 +8242,11 @@ class _LogboekPageState extends State<_LogboekPage>
 
   Future<void> _exportExpensesPdf() async {
     final messenger = ScaffoldMessenger.of(context);
+    final frozenFilterChildId = _filterChildId;
+    final frozenFilterParentUid = _filterParentUid;
+    final frozenPeriodFilter = _periodFilter;
+    final frozenFilterStart = _filterStart;
+    final frozenFilterEnd = _filterEnd;
 
     try {
       final rows = await _loadExpenseExportRows();
@@ -8204,6 +8266,52 @@ class _LogboekPageState extends State<_LogboekPage>
         return '${_fmtDateWithYear(dt)} - $hh:$mm';
       }
 
+      int pdfChildCount(String allChildrenLabel) {
+        final trimmed = allChildrenLabel.trim();
+        if (trimmed.isEmpty) return 0;
+        return trimmed.split(' | ').length;
+      }
+
+      String pdfParentLabel() {
+        if (frozenFilterParentUid == null) return 'Beide';
+        for (final parent in _parentItems) {
+          if (parent.uid == frozenFilterParentUid) return parent.name;
+        }
+        return 'Beide';
+      }
+
+      String pdfPeriodValue(DateTime start, DateTime end) {
+        final startLabel = _fmtDateWithYear(start);
+        final endLabel = _fmtDateWithYear(end);
+        return startLabel == endLabel ? startLabel : '$startLabel t/m $endLabel';
+      }
+
+      ({String label, String value}) pdfPeriodSummaryRow() {
+        if (frozenPeriodFilter != _PeriodFilter.all &&
+            frozenFilterStart != null &&
+            frozenFilterEnd != null) {
+          final inclusiveEnd = frozenFilterEnd.subtract(const Duration(days: 1));
+          return (
+            label: 'Periode',
+            value: pdfPeriodValue(frozenFilterStart, inclusiveEnd),
+          );
+        }
+
+        final exportedDates = rows
+            .map((row) => row.createdAt)
+            .whereType<DateTime>()
+            .toList(growable: false);
+        if (exportedDates.isEmpty) {
+          return (label: 'Volledige periode', value: '-');
+        }
+
+        exportedDates.sort();
+        return (
+          label: 'Volledige periode',
+          value: pdfPeriodValue(exportedDates.first, exportedDates.last),
+        );
+      }
+
       pw.MemoryImage? logoImage;
       try {
         final logoBytes = await rootBundle.load('assets/images/kidu_icon.png');
@@ -8214,12 +8322,61 @@ class _LogboekPageState extends State<_LogboekPage>
 
       final doc = pw.Document();
       final exportedAt = pdfExportedAtLabel(DateTime.now());
+      final hasSelectedChild = frozenFilterChildId != null;
+      final selectedChildLabel = rows
+          .map((row) => row.selectedChildLabel.trim())
+          .firstWhere((label) => label.isNotEmpty, orElse: () => '');
+      final selectedChildAmountHeader = selectedChildLabel.isNotEmpty
+          ? 'Bedrag voor $selectedChildLabel'
+          : 'Bedrag voor kind';
+      final fullExpensesTotalCents = rows.fold<int>(
+        0,
+        (totalCents, row) => totalCents + row.totalAmountCents,
+      );
+      final selectedChildTotalCents = rows.fold<int>(
+        0,
+        (totalCents, row) => totalCents + row.childAmountCents,
+      );
       final summaryRows = [
         (label: 'Tab', value: 'Uitgaven'),
-        (label: 'Ouder', value: _expenseExportParentLabel()),
-        (label: 'Kind', value: _expenseExportChildLabel()),
-        (label: 'Periode', value: _expenseExportPeriodLabel()),
+        (label: 'Ouder', value: pdfParentLabel()),
+        if (hasSelectedChild)
+          (
+            label: 'Kind',
+            value: selectedChildLabel.isNotEmpty ? selectedChildLabel : 'Kind',
+          ),
+        pdfPeriodSummaryRow(),
       ];
+      final pdfHeaders = hasSelectedChild
+          ? [
+              'Datum',
+              'Titel',
+              'Betaald door',
+              'Volledige uitgave',
+              'Aantal kinderen',
+              selectedChildAmountHeader,
+            ]
+          : ['Datum', 'Titel', 'Betaald door', 'Volledige uitgave', 'Kinderen'];
+      final pdfData = rows
+          .map(
+            (row) => hasSelectedChild
+                ? [
+                    _fmtDateWithYear(row.createdAt),
+                    row.title,
+                    row.paidByName,
+                    _fmtCsvAmount(row.totalAmountCents),
+                    pdfChildCount(row.allChildrenLabel).toString(),
+                    _fmtCsvAmount(row.childAmountCents),
+                  ]
+                : [
+                    _fmtDateWithYear(row.createdAt),
+                    row.title,
+                    row.paidByName,
+                    _fmtCsvAmount(row.totalAmountCents),
+                    row.allChildrenLabel,
+                  ],
+          )
+          .toList(growable: false);
 
       doc.addPage(
         pw.MultiPage(
@@ -8324,34 +8481,94 @@ class _LogboekPageState extends State<_LogboekPage>
               ),
               cellStyle: const pw.TextStyle(fontSize: 9),
               cellAlignment: pw.Alignment.centerLeft,
-              cellAlignments: {
-                2: pw.Alignment.centerRight,
-              },
-              columnWidths: {
-                0: const pw.FixedColumnWidth(64),
-                1: const pw.FlexColumnWidth(2.2),
-                2: const pw.FixedColumnWidth(64),
-                3: const pw.FixedColumnWidth(86),
-                4: const pw.FlexColumnWidth(1.8),
-              },
-              headers: const [
-                'Datum',
-                'Titel',
-                'Bedrag',
-                'Betaald door',
-                'Kinderen',
-              ],
-              data: rows
-                  .map(
-                    (row) => [
-                      _fmtDateWithYear(row.createdAt),
-                      row.title,
-                      _fmtCsvAmount(row.displayCents),
-                      row.paidByName,
-                      row.childrenLabel,
+              cellAlignments: hasSelectedChild
+                  ? {
+                      3: pw.Alignment.centerRight,
+                      4: pw.Alignment.centerRight,
+                      5: pw.Alignment.centerRight,
+                    }
+                  : {
+                      3: pw.Alignment.centerRight,
+                    },
+              columnWidths: hasSelectedChild
+                  ? {
+                      0: const pw.FixedColumnWidth(64),
+                      1: const pw.FlexColumnWidth(2.0),
+                      2: const pw.FlexColumnWidth(1.5),
+                      3: const pw.FixedColumnWidth(76),
+                      4: const pw.FixedColumnWidth(56),
+                      5: const pw.FixedColumnWidth(86),
+                    }
+                  : {
+                      0: const pw.FixedColumnWidth(64),
+                      1: const pw.FlexColumnWidth(2.1),
+                      2: const pw.FlexColumnWidth(1.5),
+                      3: const pw.FixedColumnWidth(86),
+                      4: const pw.FlexColumnWidth(1.7),
+                    },
+              headers: pdfHeaders,
+              data: pdfData,
+            ),
+            pw.SizedBox(height: 12),
+            pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Container(
+                width: hasSelectedChild ? 280 : 220,
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey100,
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                  children: [
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text(
+                            'Totaal volledige uitgaven',
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        pw.SizedBox(width: 12),
+                        pw.Text(
+                          _fmtCsvAmount(fullExpensesTotalCents),
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (hasSelectedChild) ...[
+                      pw.SizedBox(height: 8),
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              selectedChildLabel.isNotEmpty
+                                  ? 'Totaal voor $selectedChildLabel'
+                                  : 'Totaal voor kind',
+                              style: const pw.TextStyle(fontSize: 10),
+                            ),
+                          ),
+                          pw.SizedBox(width: 12),
+                          pw.Text(
+                            _fmtCsvAmount(selectedChildTotalCents),
+                            style: const pw.TextStyle(fontSize: 10),
+                          ),
+                        ],
+                      ),
                     ],
-                  )
-                  .toList(growable: false),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
