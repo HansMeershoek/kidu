@@ -7187,8 +7187,6 @@ enum _PeriodFilter { all, custom }
 
 enum _LogboekMode { uitgaven, betalingen, wijzigingen }
 
-enum _PaymentDirection { alle, verzonden, ontvangen }
-
 enum _ExpenseExportFormat { csv, pdf }
 
 class _WijzigRow {
@@ -7251,7 +7249,7 @@ class _LogboekPageState extends State<_LogboekPage>
   DateTime? _filterEnd;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
   _LogboekMode _logboekMode = _LogboekMode.uitgaven;
-  _PaymentDirection _paymentDirection = _PaymentDirection.alle;
+  String? _paymentFilterParentUid; // null = beide ouders
 
   /// null = Alle; otherwise filter amount edits by [editedBy] uid.
   String? _wijzigFilterEditedByUid;
@@ -7304,6 +7302,10 @@ class _LogboekPageState extends State<_LogboekPage>
   bool get _logboekFilterIconActive {
     if (_logboekMode == _LogboekMode.uitgaven) {
       return _uitgavenFiltersActive;
+    }
+    if (_logboekMode == _LogboekMode.betalingen) {
+      if (_paymentFilterParentUid != null) return true;
+      return _periodFilter != _PeriodFilter.all;
     }
     return _periodFilter != _PeriodFilter.all;
   }
@@ -7797,6 +7799,179 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  void _showPaymentFilterSheet() {
+    final pageContext = context;
+    final now = DateTime.now();
+
+    Future<void> pickCustomPeriod(StateSetter setModalState) async {
+      final initialRange =
+          (_periodFilter == _PeriodFilter.custom &&
+              _filterStart != null &&
+              _filterEnd != null)
+          ? DateTimeRange(
+              start: _filterStart!,
+              end: _filterEnd!.subtract(const Duration(days: 1)),
+            )
+          : DateTimeRange(
+              start: now.subtract(const Duration(days: 29)),
+              end: now,
+            );
+      final range = await showDateRangePicker(
+        context: pageContext,
+        initialDateRange: initialRange,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(now.year, now.month, now.day),
+      );
+      if (range == null || !mounted) return;
+      setState(() {
+        _periodFilter = _PeriodFilter.custom;
+        _filterStart = DateTime(
+          range.start.year,
+          range.start.month,
+          range.start.day,
+        );
+        _filterEnd = DateTime(
+          range.end.year,
+          range.end.month,
+          range.end.day + 1,
+        );
+        _rebuildExpensesStream();
+        _rebuildPaymentsStream();
+      });
+      setModalState(() {});
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final maxH = min(
+          480.0,
+          MediaQuery.of(sheetContext).size.height * 0.65,
+        );
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: 16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                return ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxH),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Filter',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _paymentFilterParentUid = null;
+                                  _periodFilter = _PeriodFilter.all;
+                                  _filterStart = null;
+                                  _filterEnd = null;
+                                  _rebuildExpensesStream();
+                                  _rebuildPaymentsStream();
+                                });
+                                setModalState(() {});
+                              },
+                              child: const Text('Alle filters wissen'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_parentsLoaded && _parentItems.isNotEmpty) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Ouder',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(color: onSurface(context, a60)),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              FilterChip(
+                                label: const Text('Beide'),
+                                selected: _paymentFilterParentUid == null,
+                                showCheckmark: false,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _paymentFilterParentUid = null;
+                                  });
+                                  setModalState(() {});
+                                },
+                              ),
+                              for (final p in _parentItems)
+                                FilterChip(
+                                  label: Text(
+                                    p.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  selected: _paymentFilterParentUid == p.uid,
+                                  showCheckmark: false,
+                                  onSelected: (v) {
+                                    setState(() {
+                                      _paymentFilterParentUid = v ? p.uid : null;
+                                    });
+                                    setModalState(() {});
+                                  },
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Periode',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(color: onSurface(context, a60)),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_expenseExportPeriodLabel()),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => pickCustomPeriod(setModalState),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   static String _fmtDateWithYear(DateTime? dt) {
     if (dt == null) return '—';
     const mo = [
@@ -7893,14 +8068,21 @@ class _LogboekPageState extends State<_LogboekPage>
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
-  String _paymentExportDirectionLabel() => switch (_paymentDirection) {
-    _PaymentDirection.alle => 'Alle',
-    _PaymentDirection.verzonden => 'Verzonden',
-    _PaymentDirection.ontvangen => 'Ontvangen',
-  };
+  String _paymentExportParentLabelFor(String? filterParentUid) {
+    if (filterParentUid == null) return 'Beide';
+    for (final parent in _parentItems) {
+      if (parent.uid == filterParentUid) return parent.name;
+    }
+    return 'Beide';
+  }
+
+  String _paymentExportTotalLabelFor(String? filterParentUid) {
+    if (filterParentUid == null) return 'Totaal betaald';
+    return 'Totaal betaald door ${_paymentExportParentLabelFor(filterParentUid)}';
+  }
 
   List<({String label, String value})> _paymentExportSummaryRows() => [
-    (label: 'Richting', value: _paymentExportDirectionLabel()),
+    (label: 'Ouder', value: _paymentExportParentLabelFor(_paymentFilterParentUid)),
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
@@ -8040,6 +8222,12 @@ class _LogboekPageState extends State<_LogboekPage>
 
   String _paymentPartyName(String uid) {
     final trimmedUid = uid.trim();
+    for (final parent in _parentItems) {
+      if (parent.uid == trimmedUid) {
+        final name = parent.name.trim();
+        if (name.isNotEmpty) return name;
+      }
+    }
     if (trimmedUid == widget.uid) {
       final mine = widget.myName?.trim();
       if (mine != null && mine.isNotEmpty) return mine;
@@ -8048,6 +8236,14 @@ class _LogboekPageState extends State<_LogboekPage>
     final other = widget.otherName?.trim();
     if (other != null && other.isNotEmpty) return other;
     return 'Co-parent';
+  }
+
+  bool _matchesPaymentParentFilter(
+    Map<String, dynamic> paymentData,
+    String? filterParentUid,
+  ) {
+    if (filterParentUid == null) return true;
+    return (paymentData['fromUserId'] as String?)?.trim() == filterParentUid;
   }
 
   String _wijzigEditedByName(String uid) {
@@ -8065,6 +8261,7 @@ class _LogboekPageState extends State<_LogboekPage>
   Future<List<({
     DateTime? createdAt,
     String title,
+    String paidByUserId,
     String paidByName,
     int totalAmountCents,
     int childAmountCents,
@@ -8126,6 +8323,7 @@ class _LogboekPageState extends State<_LogboekPage>
       return (
         createdAt: createdAt,
         title: title,
+        paidByUserId: createdBy,
         paidByName: paidByName,
         totalAmountCents: totalAmountCents,
         childAmountCents: childAmountCents,
@@ -8337,6 +8535,33 @@ class _LogboekPageState extends State<_LogboekPage>
         0,
         (totalCents, row) => totalCents + row.childAmountCents,
       );
+      final expenseTotalRows = <({String label, int amountCents, bool emphasize})>[
+        (
+          label: 'Totaal volledige uitgaven',
+          amountCents: fullExpensesTotalCents,
+          emphasize: true,
+        ),
+        if (hasSelectedChild)
+          (
+            label: selectedChildLabel.isNotEmpty
+                ? 'Totaal voor $selectedChildLabel'
+                : 'Totaal voor kind',
+            amountCents: selectedChildTotalCents,
+            emphasize: false,
+          ),
+        if (frozenFilterParentUid == null)
+          for (final parent in _parentItems)
+            (
+              label: 'Totaal uitgaven door ${parent.name}',
+              amountCents: rows
+                  .where((row) => row.paidByUserId == parent.uid)
+                  .fold<int>(
+                    0,
+                    (totalCents, row) => totalCents + row.totalAmountCents,
+                  ),
+              emphasize: false,
+            ),
+      ];
       final summaryRows = [
         (label: 'Tab', value: 'Uitgaven'),
         (label: 'Ouder', value: pdfParentLabel()),
@@ -8513,7 +8738,7 @@ class _LogboekPageState extends State<_LogboekPage>
             pw.Align(
               alignment: pw.Alignment.centerRight,
               child: pw.Container(
-                width: hasSelectedChild ? 280 : 220,
+                width: 280,
                 padding: const pw.EdgeInsets.all(12),
                 decoration: pw.BoxDecoration(
                   color: PdfColors.grey100,
@@ -8523,45 +8748,31 @@ class _LogboekPageState extends State<_LogboekPage>
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
-                    pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Expanded(
-                          child: pw.Text(
-                            'Totaal volledige uitgaven',
-                            style: pw.TextStyle(
-                              fontSize: 10,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        pw.SizedBox(width: 12),
-                        pw.Text(
-                          _fmtCsvAmount(fullExpensesTotalCents),
-                          style: pw.TextStyle(
-                            fontSize: 10,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (hasSelectedChild) ...[
-                      pw.SizedBox(height: 8),
+                    for (var i = 0; i < expenseTotalRows.length; i++) ...[
+                      if (i > 0) pw.SizedBox(height: 8),
                       pw.Row(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Expanded(
                             child: pw.Text(
-                              selectedChildLabel.isNotEmpty
-                                  ? 'Totaal voor $selectedChildLabel'
-                                  : 'Totaal voor kind',
-                              style: const pw.TextStyle(fontSize: 10),
+                              expenseTotalRows[i].label,
+                              style: pw.TextStyle(
+                                fontSize: 10,
+                                fontWeight: expenseTotalRows[i].emphasize
+                                    ? pw.FontWeight.bold
+                                    : pw.FontWeight.normal,
+                              ),
                             ),
                           ),
                           pw.SizedBox(width: 12),
                           pw.Text(
-                            _fmtCsvAmount(selectedChildTotalCents),
-                            style: const pw.TextStyle(fontSize: 10),
+                            _fmtCsvAmount(expenseTotalRows[i].amountCents),
+                            style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: expenseTotalRows[i].emphasize
+                                  ? pw.FontWeight.bold
+                                  : pw.FontWeight.normal,
+                            ),
                           ),
                         ],
                       ),
@@ -8616,7 +8827,15 @@ class _LogboekPageState extends State<_LogboekPage>
 
       final csv = StringBuffer()
         ..writeln(
-          _csvLine(const ['Datum', 'Bedrag', 'Van', 'Naar', 'Status']),
+          _csvLine(
+            const [
+              'Datum',
+              'Bedrag',
+              'Betaald door',
+              'Ontvangen door',
+              'Status',
+            ],
+          ),
         );
 
       for (final row in rows) {
@@ -8660,11 +8879,12 @@ class _LogboekPageState extends State<_LogboekPage>
   Future<List<({
     DateTime? createdAt,
     int amountCents,
+    String fromUserId,
     String fromName,
     String toName,
     String statusLabel,
   })>> _loadPaymentExportRows() async {
-    final paymentDirection = _paymentDirection;
+    final paymentFilterParentUid = _paymentFilterParentUid;
     final periodFilter = _periodFilter;
     final filterStart = _filterStart;
     final filterEnd = _filterEnd;
@@ -8676,21 +8896,11 @@ class _LogboekPageState extends State<_LogboekPage>
     );
     final snap = await query.get();
     final allDocs = snap.docs;
-    final docs = switch (paymentDirection) {
-      _PaymentDirection.alle => allDocs,
-      _PaymentDirection.verzonden =>
-        allDocs
-            .where(
-              (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
-            )
-            .toList(),
-      _PaymentDirection.ontvangen =>
-        allDocs
-            .where(
-              (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
-            )
-            .toList(),
-    };
+    final docs = allDocs
+        .where(
+          (d) => _matchesPaymentParentFilter(d.data(), paymentFilterParentUid),
+        )
+        .toList(growable: false);
 
     return docs.map((doc) {
       final data = doc.data();
@@ -8708,6 +8918,7 @@ class _LogboekPageState extends State<_LogboekPage>
       return (
         createdAt: createdAt,
         amountCents: amountCents,
+        fromUserId: fromUserId,
         fromName: _paymentPartyName(fromUserId),
         toName: _paymentPartyName(toUserId),
         statusLabel: status == 'confirmed' ? 'Bevestigd' : 'In afwachting',
@@ -8719,6 +8930,10 @@ class _LogboekPageState extends State<_LogboekPage>
     final messenger = ScaffoldMessenger.of(context);
 
     try {
+      final paymentFilterParentUid = _paymentFilterParentUid;
+      final periodFilter = _periodFilter;
+      final filterStart = _filterStart;
+      final filterEnd = _filterEnd;
       final rows = await _loadPaymentExportRows();
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
@@ -8736,16 +8951,36 @@ class _LogboekPageState extends State<_LogboekPage>
         return '${_fmtDateWithYear(dt)} - $hh:$mm';
       }
 
-      String pdfPeriodLabel() {
-        final dates = rows
+      String pdfPeriodValue(DateTime start, DateTime end) {
+        final startLabel = _fmtDateWithYear(start);
+        final endLabel = _fmtDateWithYear(end);
+        return startLabel == endLabel ? startLabel : '$startLabel t/m $endLabel';
+      }
+
+      ({String label, String value}) pdfPeriodSummaryRow() {
+        if (periodFilter == _PeriodFilter.custom &&
+            filterStart != null &&
+            filterEnd != null) {
+          final inclusiveEnd = filterEnd.subtract(const Duration(days: 1));
+          return (
+            label: 'Periode',
+            value: pdfPeriodValue(filterStart, inclusiveEnd),
+          );
+        }
+
+        final exportedDates = rows
             .map((row) => row.createdAt)
             .whereType<DateTime>()
             .toList(growable: false);
-        if (dates.isEmpty) return '-';
-        dates.sort();
-        final start = _fmtDateWithYear(dates.first);
-        final end = _fmtDateWithYear(dates.last);
-        return start == end ? start : '$start - $end';
+        if (exportedDates.isEmpty) {
+          return (label: 'Volledige periode', value: '-');
+        }
+
+        exportedDates.sort();
+        return (
+          label: 'Volledige periode',
+          value: pdfPeriodValue(exportedDates.first, exportedDates.last),
+        );
       }
 
       pw.MemoryImage? logoImage;
@@ -8758,10 +8993,40 @@ class _LogboekPageState extends State<_LogboekPage>
 
       final doc = pw.Document();
       final exportedAt = pdfExportedAtLabel(DateTime.now());
+      final totalPaidCents = rows.fold<int>(
+        0,
+        (total, row) => total + row.amountCents,
+      );
+      final paymentTotalRows = paymentFilterParentUid == null
+          ? <({String label, int amountCents, bool emphasize})>[
+              (
+                label: 'Totaal betaald',
+                amountCents: totalPaidCents,
+                emphasize: true,
+              ),
+              for (final parent in _parentItems)
+                (
+                  label: 'Totaal betaald door ${parent.name}',
+                  amountCents: rows
+                      .where((row) => row.fromUserId == parent.uid)
+                      .fold<int>(0, (total, row) => total + row.amountCents),
+                  emphasize: false,
+                ),
+            ]
+          : <({String label, int amountCents, bool emphasize})>[
+              (
+                label: _paymentExportTotalLabelFor(paymentFilterParentUid),
+                amountCents: totalPaidCents,
+                emphasize: true,
+              ),
+            ];
       final summaryRows = [
         (label: 'Tab', value: 'Betalingen'),
-        (label: 'Richting', value: _paymentExportDirectionLabel()),
-        (label: 'Periode', value: pdfPeriodLabel()),
+        (
+          label: 'Ouder',
+          value: _paymentExportParentLabelFor(paymentFilterParentUid),
+        ),
+        pdfPeriodSummaryRow(),
       ];
 
       doc.addPage(
@@ -8880,8 +9145,8 @@ class _LogboekPageState extends State<_LogboekPage>
               headers: const [
                 'Datum',
                 'Bedrag',
-                'Van',
-                'Naar',
+                'Betaald door',
+                'Ontvangen door',
                 'Status',
               ],
               data: rows
@@ -8895,6 +9160,54 @@ class _LogboekPageState extends State<_LogboekPage>
                     ],
                   )
                   .toList(growable: false),
+            ),
+            pw.SizedBox(height: 12),
+            pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Container(
+                width: 240,
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey100,
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < paymentTotalRows.length; i++) ...[
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              paymentTotalRows[i].label,
+                              style: pw.TextStyle(
+                                fontSize: paymentTotalRows[i].emphasize ? 10 : 9,
+                                fontWeight: paymentTotalRows[i].emphasize
+                                    ? pw.FontWeight.bold
+                                    : pw.FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                          pw.SizedBox(width: 12),
+                          pw.Text(
+                            _fmtCsvAmount(paymentTotalRows[i].amountCents),
+                            style: pw.TextStyle(
+                              fontSize: paymentTotalRows[i].emphasize ? 10 : 9,
+                              fontWeight: paymentTotalRows[i].emphasize
+                                  ? pw.FontWeight.bold
+                                  : pw.FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (i != paymentTotalRows.length - 1)
+                        pw.SizedBox(height: 6),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -8918,7 +9231,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+              fallback: 'PDF-export mislukt. Probeer opnieuw.',
             ),
           ),
         ),
@@ -9669,6 +9982,10 @@ class _LogboekPageState extends State<_LogboekPage>
               _showUitgavenFilterSheet();
               return;
             }
+            if (_logboekMode == _LogboekMode.betalingen) {
+              _showPaymentFilterSheet();
+              return;
+            }
             _showPeriodFilterSheet();
           },
           tooltip: 'Filter',
@@ -10103,56 +10420,6 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
-  Widget _buildPaymentFilterRow(
-    BuildContext context,
-    int allCount,
-    int sentCount,
-    int receivedCount,
-  ) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.only(left: 21, right: 16, top: 8, bottom: 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FilterChip(
-              label: Text('Alle ($allCount)'),
-              selected: _paymentDirection == _PaymentDirection.alle,
-              showCheckmark: false,
-              onSelected: (_) => setState(() {
-                _paymentDirection = _PaymentDirection.alle;
-              }),
-            ),
-            const SizedBox(width: 8),
-            FilterChip(
-              label: Text('Verzonden ($sentCount)'),
-              selected: _paymentDirection == _PaymentDirection.verzonden,
-              showCheckmark: false,
-              onSelected: (v) => setState(() {
-                _paymentDirection = v
-                    ? _PaymentDirection.verzonden
-                    : _PaymentDirection.alle;
-              }),
-            ),
-            const SizedBox(width: 8),
-            FilterChip(
-              label: Text('Ontvangen ($receivedCount)'),
-              selected: _paymentDirection == _PaymentDirection.ontvangen,
-              showCheckmark: false,
-              onSelected: (v) => setState(() {
-                _paymentDirection = v
-                    ? _PaymentDirection.ontvangen
-                    : _PaymentDirection.alle;
-              }),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildPaymentList(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _paymentsStream,
@@ -10178,166 +10445,129 @@ class _LogboekPageState extends State<_LogboekPage>
           );
         }
 
-        final sentCount = allDocs
+        final docs = allDocs
             .where(
-              (d) => (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
+              (d) => _matchesPaymentParentFilter(d.data(), _paymentFilterParentUid),
             )
-            .length;
-        final receivedCount = allDocs
-            .where(
-              (d) => (d.data()['toUserId'] as String?)?.trim() == widget.uid,
-            )
-            .length;
+            .toList(growable: false);
 
-        final docs = switch (_paymentDirection) {
-          _PaymentDirection.alle => allDocs,
-          _PaymentDirection.verzonden =>
-            allDocs
-                .where(
-                  (d) =>
-                      (d.data()['fromUserId'] as String?)?.trim() == widget.uid,
-                )
-                .toList(),
-          _PaymentDirection.ontvangen =>
-            allDocs
-                .where(
-                  (d) =>
-                      (d.data()['toUserId'] as String?)?.trim() == widget.uid,
-                )
-                .toList(),
-        };
-
-        final Widget listWidget;
         if (docs.isEmpty) {
-          listWidget = const Center(
+          return const Center(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text('Geen betalingen gevonden.'),
             ),
           );
-        } else {
-          listWidget = ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: docs.length,
-            separatorBuilder: (context, _) => Divider(
-              height: 1,
-              thickness: 0.4,
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: 0.6),
-            ),
-            itemBuilder: (context, i) {
-              final d = docs[i];
-              final p = d.data();
-              final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
-              final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
-              final status = (p['status'] as String?)?.trim() ?? '';
-              final createdAtRaw = p['createdAt'];
-              DateTime? createdAt;
-              if (createdAtRaw is Timestamp) {
-                createdAt = createdAtRaw.toDate().toLocal();
-              } else if (createdAtRaw is DateTime) {
-                createdAt = createdAtRaw.toLocal();
-              }
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: docs.length,
+          separatorBuilder: (context, _) => Divider(
+            height: 1,
+            thickness: 0.4,
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+          itemBuilder: (context, i) {
+            final d = docs[i];
+            final p = d.data();
+            final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
+            final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
+            final toUserId = (p['toUserId'] as String?)?.trim() ?? '';
+            final status = (p['status'] as String?)?.trim() ?? '';
+            final createdAtRaw = p['createdAt'];
+            DateTime? createdAt;
+            if (createdAtRaw is Timestamp) {
+              createdAt = createdAtRaw.toDate().toLocal();
+            } else if (createdAtRaw is DateTime) {
+              createdAt = createdAtRaw.toLocal();
+            }
 
-              final bool isSender = fromUserId == widget.uid;
-              final String otherName = widget.otherName ?? 'Co-parent';
-              final String title = isSender
-                  ? 'Betaling aan $otherName'
-                  : 'Betaling van $otherName';
-              final String statusStr = status == 'confirmed'
-                  ? 'Bevestigd'
-                  : 'In afwachting';
-              final String dateStr = _fmtDate(createdAt);
-              final String subtitleStr = '$dateStr · $statusStr';
-              final bool isPending = status != 'confirmed';
+            final bool isSender = fromUserId == widget.uid;
+            final fromName = _paymentPartyName(fromUserId);
+            final toName = _paymentPartyName(toUserId);
+            final String title = 'Betaald door $fromName';
+            final String statusStr = status == 'confirmed'
+                ? 'Bevestigd'
+                : 'In afwachting';
+            final String dateStr = _fmtDate(createdAt);
+            final String subtitleStr = '$dateStr · Ontvangen door $toName · $statusStr';
+            final bool isPending = status != 'confirmed';
 
-              final confirmedAtRaw = p['confirmedAt'];
-              DateTime? confirmedAt;
-              if (confirmedAtRaw is Timestamp) {
-                confirmedAt = confirmedAtRaw.toDate().toLocal();
-              } else if (confirmedAtRaw is DateTime) {
-                confirmedAt = confirmedAtRaw.toLocal();
-              }
+            final confirmedAtRaw = p['confirmedAt'];
+            DateTime? confirmedAt;
+            if (confirmedAtRaw is Timestamp) {
+              confirmedAt = confirmedAtRaw.toDate().toLocal();
+            } else if (confirmedAtRaw is DateTime) {
+              confirmedAt = confirmedAtRaw.toLocal();
+            }
 
-              final String? statusExplanation = isPending
-                  ? (isSender
-                        ? 'Wacht op bevestiging door $otherName'
-                        : 'Wacht op jouw bevestiging')
-                  : null;
+            final String? statusExplanation = isPending
+                ? (isSender
+                      ? 'Wacht op bevestiging door $toName'
+                      : 'Wacht op jouw bevestiging')
+                : null;
 
-              return Material(
-                type: MaterialType.transparency,
+            return Material(
+              type: MaterialType.transparency,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  highlightColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.10),
-                  splashColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.08),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => _PaymentDetailPage(
-                        title: title,
-                        amountCents: amountCents,
-                        status: status,
-                        createdAt: createdAt,
-                        confirmedAt: confirmedAt,
-                        statusExplanation: statusExplanation,
-                      ),
-                    ),
-                  ),
-                  child: ListTile(
-                    key: ValueKey(d.id),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: isPending ? onSurface(context, a55) : null,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        subtitleStr,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, isPending ? a40 : a55),
-                        ),
-                      ),
-                    ),
-                    trailing: Text(
-                      _fmtEur(amountCents),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: isPending ? onSurface(context, a55) : null,
-                      ),
+                highlightColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.10),
+                splashColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.08),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _PaymentDetailPage(
+                      title: title,
+                      amountCents: amountCents,
+                      status: status,
+                      createdAt: createdAt,
+                      confirmedAt: confirmedAt,
+                      statusExplanation: statusExplanation,
                     ),
                   ),
                 ),
-              );
-            },
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildPaymentFilterRow(
-              context,
-              allDocs.length,
-              sentCount,
-              receivedCount,
-            ),
-            Expanded(child: listWidget),
-          ],
+                child: ListTile(
+                  key: ValueKey(d.id),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  title: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: isPending ? onSurface(context, a55) : null,
+                    ),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      subtitleStr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, isPending ? a40 : a55),
+                      ),
+                    ),
+                  ),
+                  trailing: Text(
+                    _fmtEur(amountCents),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isPending ? onSurface(context, a55) : null,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
