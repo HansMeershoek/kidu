@@ -7251,7 +7251,7 @@ class _LogboekPageState extends State<_LogboekPage>
   _LogboekMode _logboekMode = _LogboekMode.uitgaven;
   String? _paymentFilterParentUid; // null = beide ouders
 
-  /// null = Alle; otherwise filter amount edits by [editedBy] uid.
+  /// null = beide ouders; otherwise filter amount edits by [editedBy] uid.
   String? _wijzigFilterEditedByUid;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
   late final TabController _modeTabController;
@@ -7307,6 +7307,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (_paymentFilterParentUid != null) return true;
       return _periodFilter != _PeriodFilter.all;
     }
+    if (_wijzigFilterEditedByUid != null) return true;
     return _periodFilter != _PeriodFilter.all;
   }
 
@@ -7471,107 +7472,6 @@ class _LogboekPageState extends State<_LogboekPage>
     } catch (_) {
       if (mounted) setState(() => _parentsLoaded = true);
     }
-  }
-
-  void _showPeriodFilterSheet() {
-    final pageContext = context;
-    final now = DateTime.now();
-
-    void selectPeriod(_PeriodFilter filter, DateTime? start, DateTime? end) {
-      setState(() {
-        _periodFilter = filter;
-        _filterStart = start;
-        _filterEnd = end;
-        _rebuildExpensesStream();
-        _rebuildPaymentsStream();
-      });
-      Navigator.of(context).pop();
-    }
-
-    final options = [
-      ('Alle tijd', _PeriodFilter.all, null, null),
-      ('Periode kiezen', _PeriodFilter.custom, null, null),
-    ];
-
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 8,
-                ),
-                child: Text(
-                  'Periode',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              for (final (label, filter, start, end) in options)
-                ListTile(
-                  title: Text(label),
-                  leading: _periodFilter == filter
-                      ? Icon(
-                          Icons.check,
-                          color: Theme.of(context).colorScheme.primary,
-                        )
-                      : null,
-                  onTap: () async {
-                    if (filter == _PeriodFilter.custom) {
-                      Navigator.of(context).pop();
-                      final initialRange =
-                          (_periodFilter == _PeriodFilter.custom &&
-                              _filterStart != null &&
-                              _filterEnd != null)
-                          ? DateTimeRange(
-                              start: _filterStart!,
-                              end: _filterEnd!.subtract(
-                                const Duration(days: 1),
-                              ),
-                            )
-                          : DateTimeRange(
-                              start: now.subtract(const Duration(days: 29)),
-                              end: now,
-                            );
-                      final range = await showDateRangePicker(
-                        context: pageContext,
-                        initialDateRange: initialRange,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(now.year, now.month, now.day),
-                      );
-                      if (range == null || !mounted) return;
-                      setState(() {
-                        _periodFilter = _PeriodFilter.custom;
-                        _filterStart = DateTime(
-                          range.start.year,
-                          range.start.month,
-                          range.start.day,
-                        );
-                        _filterEnd = DateTime(
-                          range.end.year,
-                          range.end.month,
-                          range.end.day + 1,
-                        );
-                        _rebuildExpensesStream();
-                        _rebuildPaymentsStream();
-                      });
-                      return;
-                    }
-                    selectPeriod(filter, start, end);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showUitgavenFilterSheet() {
@@ -7972,6 +7872,179 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  void _showWijzigingenFilterSheet() {
+    final pageContext = context;
+    final now = DateTime.now();
+
+    Future<void> pickCustomPeriod(StateSetter setModalState) async {
+      final initialRange =
+          (_periodFilter == _PeriodFilter.custom &&
+              _filterStart != null &&
+              _filterEnd != null)
+          ? DateTimeRange(
+              start: _filterStart!,
+              end: _filterEnd!.subtract(const Duration(days: 1)),
+            )
+          : DateTimeRange(
+              start: now.subtract(const Duration(days: 29)),
+              end: now,
+            );
+      final range = await showDateRangePicker(
+        context: pageContext,
+        initialDateRange: initialRange,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(now.year, now.month, now.day),
+      );
+      if (range == null || !mounted) return;
+      setState(() {
+        _periodFilter = _PeriodFilter.custom;
+        _filterStart = DateTime(
+          range.start.year,
+          range.start.month,
+          range.start.day,
+        );
+        _filterEnd = DateTime(
+          range.end.year,
+          range.end.month,
+          range.end.day + 1,
+        );
+        _rebuildExpensesStream();
+        _rebuildPaymentsStream();
+      });
+      setModalState(() {});
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final maxH = min(
+          480.0,
+          MediaQuery.of(sheetContext).size.height * 0.65,
+        );
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              bottom: 16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                return ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxH),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Filter',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _wijzigFilterEditedByUid = null;
+                                  _periodFilter = _PeriodFilter.all;
+                                  _filterStart = null;
+                                  _filterEnd = null;
+                                  _rebuildExpensesStream();
+                                  _rebuildPaymentsStream();
+                                });
+                                setModalState(() {});
+                              },
+                              child: const Text('Alle filters wissen'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_parentsLoaded && _parentItems.isNotEmpty) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Ouder',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(color: onSurface(context, a60)),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              FilterChip(
+                                label: const Text('Beide'),
+                                selected: _wijzigFilterEditedByUid == null,
+                                showCheckmark: false,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _wijzigFilterEditedByUid = null;
+                                  });
+                                  setModalState(() {});
+                                },
+                              ),
+                              for (final p in _parentItems)
+                                FilterChip(
+                                  label: Text(
+                                    p.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  selected: _wijzigFilterEditedByUid == p.uid,
+                                  showCheckmark: false,
+                                  onSelected: (v) {
+                                    setState(() {
+                                      _wijzigFilterEditedByUid = v ? p.uid : null;
+                                    });
+                                    setModalState(() {});
+                                  },
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Periode',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(color: onSurface(context, a60)),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_expenseExportPeriodLabel()),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => pickCustomPeriod(setModalState),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   static String _fmtDateWithYear(DateTime? dt) {
     if (dt == null) return '—';
     const mo = [
@@ -8022,13 +8095,6 @@ class _LogboekPageState extends State<_LogboekPage>
       'dec',
     ];
     return '${dt.day} ${mo[dt.month - 1]}';
-  }
-
-  String? _otherParentUid() {
-    for (final p in _parentItems) {
-      if (p.uid != widget.uid) return p.uid;
-    }
-    return null;
   }
 
   String _expenseExportParentLabel() {
@@ -8086,20 +8152,11 @@ class _LogboekPageState extends State<_LogboekPage>
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
-  String _wijzigExportEditedByLabel() {
-    if (_wijzigFilterEditedByUid == null) return 'Alle';
-    if (_wijzigFilterEditedByUid == widget.uid) {
-      final mine = widget.myName?.trim();
-      if (mine != null && mine.isNotEmpty) return mine;
-      return 'Jij';
-    }
-    final other = widget.otherName?.trim();
-    if (other != null && other.isNotEmpty) return other;
-    return 'Co-parent';
-  }
+  String _wijzigExportParentLabel() =>
+      _paymentExportParentLabelFor(_wijzigFilterEditedByUid);
 
   List<({String label, String value})> _wijzigExportSummaryRows() => [
-    (label: 'Gewijzigd door', value: _wijzigExportEditedByLabel()),
+    (label: 'Ouder', value: _wijzigExportParentLabel()),
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
@@ -8248,6 +8305,12 @@ class _LogboekPageState extends State<_LogboekPage>
 
   String _wijzigEditedByName(String uid) {
     final trimmedUid = uid.trim();
+    for (final parent in _parentItems) {
+      if (parent.uid == trimmedUid) {
+        final name = parent.name.trim();
+        if (name.isNotEmpty) return name;
+      }
+    }
     if (trimmedUid == widget.uid) {
       final mine = widget.myName?.trim();
       if (mine != null && mine.isNotEmpty) return mine;
@@ -9259,9 +9322,9 @@ class _LogboekPageState extends State<_LogboekPage>
           _csvLine(
             const [
               'Datum wijziging',
-              'Titel uitgave',
-              'Van bedrag',
-              'Naar bedrag',
+              'Titel',
+              'Van',
+              'Naar',
               'Reden',
               'Gewijzigd door',
             ],
@@ -9346,13 +9409,35 @@ class _LogboekPageState extends State<_LogboekPage>
         return '${_fmtDateWithYear(dt)} - $hh:$mm';
       }
 
-      String pdfPeriodLabel() {
-        final dates = rows.map((row) => row.editedAt).toList(growable: false);
-        if (dates.isEmpty) return '-';
-        dates.sort();
-        final start = _fmtDateWithYear(dates.first);
-        final end = _fmtDateWithYear(dates.last);
-        return start == end ? start : '$start - $end';
+      String pdfPeriodValue(DateTime start, DateTime end) {
+        final startLabel = _fmtDateWithYear(start);
+        final endLabel = _fmtDateWithYear(end);
+        return startLabel == endLabel ? startLabel : '$startLabel t/m $endLabel';
+      }
+
+      ({String label, String value}) pdfPeriodSummaryRow() {
+        if (_periodFilter == _PeriodFilter.custom &&
+            _filterStart != null &&
+            _filterEnd != null) {
+          final inclusiveEnd = _filterEnd!.subtract(const Duration(days: 1));
+          return (
+            label: 'Periode',
+            value: pdfPeriodValue(_filterStart!, inclusiveEnd),
+          );
+        }
+
+        final exportedDates = rows
+            .map((row) => row.editedAt)
+            .toList(growable: false);
+        if (exportedDates.isEmpty) {
+          return (label: 'Volledige periode', value: '-');
+        }
+
+        exportedDates.sort();
+        return (
+          label: 'Volledige periode',
+          value: pdfPeriodValue(exportedDates.first, exportedDates.last),
+        );
       }
 
       pw.MemoryImage? logoImage;
@@ -9367,8 +9452,8 @@ class _LogboekPageState extends State<_LogboekPage>
       final exportedAt = pdfExportedAtLabel(DateTime.now());
       final summaryRows = [
         (label: 'Tab', value: 'Wijzigingen'),
-        (label: 'Gewijzigd door', value: _wijzigExportEditedByLabel()),
-        (label: 'Periode', value: pdfPeriodLabel()),
+        (label: 'Ouder', value: _wijzigExportParentLabel()),
+        pdfPeriodSummaryRow(),
       ];
 
       doc.addPage(
@@ -9488,9 +9573,9 @@ class _LogboekPageState extends State<_LogboekPage>
               },
               headers: const [
                 'Datum wijziging',
-                'Titel uitgave',
-                'Van bedrag',
-                'Naar bedrag',
+                'Titel',
+                'Van',
+                'Naar',
                 'Reden',
                 'Gewijzigd door',
               ],
@@ -9943,8 +10028,6 @@ class _LogboekPageState extends State<_LogboekPage>
                     ),
                   ),
                 ),
-              if (_logboekMode == _LogboekMode.wijzigingen)
-                _buildWijzigingenEditorFilterRow(context),
               Expanded(
                 child: IndexedStack(
                   index: activeTabIndex,
@@ -9986,7 +10069,7 @@ class _LogboekPageState extends State<_LogboekPage>
               _showPaymentFilterSheet();
               return;
             }
-            _showPeriodFilterSheet();
+            _showWijzigingenFilterSheet();
           },
           tooltip: 'Filter',
         ),
@@ -10047,51 +10130,6 @@ class _LogboekPageState extends State<_LogboekPage>
                 child: const ColoredBox(color: Color(0xFFF7F6F4)),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWijzigingenEditorFilterRow(BuildContext context) {
-    final myLabel = widget.myName ?? 'Jij';
-    final otherUid = _otherParentUid();
-    final otherLabel = widget.otherName ?? 'Co-parent';
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FilterChip(
-              label: const Text('Alle'),
-              selected: _wijzigFilterEditedByUid == null,
-              showCheckmark: false,
-              onSelected: (_) => setState(() {
-                _wijzigFilterEditedByUid = null;
-              }),
-            ),
-            const SizedBox(width: 8),
-            FilterChip(
-              label: Text(myLabel),
-              selected: _wijzigFilterEditedByUid == widget.uid,
-              showCheckmark: false,
-              onSelected: (v) => setState(() {
-                _wijzigFilterEditedByUid = v ? widget.uid : null;
-              }),
-            ),
-            if (otherUid != null) ...[
-              const SizedBox(width: 8),
-              FilterChip(
-                label: Text(otherLabel),
-                selected: _wijzigFilterEditedByUid == otherUid,
-                showCheckmark: false,
-                onSelected: (v) => setState(() {
-                  _wijzigFilterEditedByUid = v ? otherUid : null;
-                }),
-              ),
-            ],
           ],
         ),
       ),
@@ -10161,12 +10199,8 @@ class _LogboekPageState extends State<_LogboekPage>
               ),
               itemBuilder: (context, i) {
                 final row = rows[i];
-                final whoLabel = row.editedBy == widget.uid
-                    ? 'Jij'
-                    : (widget.otherName ?? 'Co-parent');
-                final paidByName = row.createdBy == widget.uid
-                    ? (widget.myName ?? 'Jij')
-                    : (widget.otherName ?? 'Co-parent');
+                final whoLabel = _wijzigEditedByName(row.editedBy);
+                final paidByName = _paymentPartyName(row.createdBy);
                 return Material(
                   type: MaterialType.transparency,
                   borderRadius: BorderRadius.circular(8),
