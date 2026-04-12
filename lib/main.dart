@@ -7299,11 +7299,11 @@ class _LogboekPageState extends State<_LogboekPage>
     return false;
   }
 
-  bool get _logboekFilterIconActive {
-    if (_logboekMode == _LogboekMode.uitgaven) {
+  bool _logboekFilterIconActiveFor(_LogboekMode mode) {
+    if (mode == _LogboekMode.uitgaven) {
       return _uitgavenFiltersActive;
     }
-    if (_logboekMode == _LogboekMode.betalingen) {
+    if (mode == _LogboekMode.betalingen) {
       if (_paymentFilterParentUid != null) return true;
       return _periodFilter != _PeriodFilter.all;
     }
@@ -7329,11 +7329,21 @@ class _LogboekPageState extends State<_LogboekPage>
     _paymentsStream = q.snapshots();
   }
 
+  void _onModeTabControllerChanged() {
+    if (_modeTabController.indexIsChanging) return;
+    final i = _modeTabController.index;
+    if (i < 0 || i >= _LogboekMode.values.length) return;
+    final next = _LogboekMode.values[i];
+    if (next == _logboekMode) return;
+    setState(() => _logboekMode = next);
+  }
+
   @override
   void initState() {
     super.initState();
     _initialHoldStartedAt = DateTime.now();
     _modeTabController = TabController(length: 3, vsync: this);
+    _modeTabController.addListener(_onModeTabControllerChanged);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
     Future.wait([
@@ -7352,6 +7362,7 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   void dispose() {
+    _modeTabController.removeListener(_onModeTabControllerChanged);
     _modeTabController.dispose();
     super.dispose();
   }
@@ -10008,7 +10019,11 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   Widget build(BuildContext context) {
-    final activeTabIndex = _logboekMode.index;
+    final activeMode = _LogboekMode.values[_modeTabController.index.clamp(
+      0,
+      _LogboekMode.values.length - 1,
+    )];
+    final filterIconActive = _logboekFilterIconActiveFor(activeMode);
     final logboekContent = !_initialDataReady
         ? const Center(child: CircularProgressIndicator())
         : Column(
@@ -10029,8 +10044,8 @@ class _LogboekPageState extends State<_LogboekPage>
                   ),
                 ),
               Expanded(
-                child: IndexedStack(
-                  index: activeTabIndex,
+                child: TabBarView(
+                  controller: _modeTabController,
                   children: [
                     _buildExpenseList(context),
                     _buildPaymentList(context),
@@ -10053,19 +10068,17 @@ class _LogboekPageState extends State<_LogboekPage>
       actions: [
         IconButton(
           icon: Icon(
-            _logboekFilterIconActive
-                ? Icons.filter_alt
-                : Icons.filter_list_outlined,
+            filterIconActive ? Icons.filter_alt : Icons.filter_list_outlined,
           ),
-          color: _logboekFilterIconActive
+          color: filterIconActive
               ? Theme.of(context).colorScheme.primary
               : null,
           onPressed: () {
-            if (_logboekMode == _LogboekMode.uitgaven) {
+            if (activeMode == _LogboekMode.uitgaven) {
               _showUitgavenFilterSheet();
               return;
             }
-            if (_logboekMode == _LogboekMode.betalingen) {
+            if (activeMode == _LogboekMode.betalingen) {
               _showPaymentFilterSheet();
               return;
             }
@@ -10073,17 +10086,17 @@ class _LogboekPageState extends State<_LogboekPage>
           },
           tooltip: 'Filter',
         ),
-        if (_logboekMode == _LogboekMode.uitgaven ||
-            _logboekMode == _LogboekMode.betalingen ||
-            _logboekMode == _LogboekMode.wijzigingen)
+        if (activeMode == _LogboekMode.uitgaven ||
+            activeMode == _LogboekMode.betalingen ||
+            activeMode == _LogboekMode.wijzigingen)
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
             onPressed: () {
-              if (_logboekMode == _LogboekMode.betalingen) {
+              if (activeMode == _LogboekMode.betalingen) {
                 _showPaymentExportConfirmSheet();
                 return;
               }
-              if (_logboekMode == _LogboekMode.wijzigingen) {
+              if (activeMode == _LogboekMode.wijzigingen) {
                 _showWijzigingenExportConfirmSheet();
                 return;
               }
