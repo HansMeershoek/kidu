@@ -10408,11 +10408,7 @@ class _LogboekPageState extends State<_LogboekPage>
                   ? (amountCents / nKids).round()
                   : amountCents;
               final dateStr = _fmtDate(createdAt);
-              final subtitleStr = isFiltered
-                  ? '$dateStr · aandeel 1/$nKids'
-                  : nKids > 0
-                  ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
-                  : dateStr;
+              final subtitleStr = '$paidByName · $dateStr';
               return SizedBox(
                 height: _logboekListRowExtent,
                 child: Material(
