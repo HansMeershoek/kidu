@@ -10089,7 +10089,23 @@ class _LogboekPageState extends State<_LogboekPage>
                         ),
                       ),
                     ),
-                    _buildWijzigingenList(context),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: _logboekListCardHeight,
+                          child: KiduCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: _buildWijzigingenList(context),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -10233,118 +10249,98 @@ class _LogboekPageState extends State<_LogboekPage>
             }
             final rows = futSnap.data ?? const <_WijzigRow>[];
             if (rows.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Geen bedragwijzigingen gevonden.'),
-                ),
+              return const Align(
+                alignment: Alignment.topLeft,
+                child: Text('Geen bedragwijzigingen gevonden.'),
               );
             }
             return ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.zero,
               itemCount: rows.length,
               separatorBuilder: (context, _) => Divider(
-                height: 1,
-                thickness: 0.4,
-                color: Theme.of(
-                  context,
-                ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+                height: _logboekListSeparatorExtent,
+                color: outlineV(context, a40),
               ),
               itemBuilder: (context, i) {
                 final row = rows[i];
                 final whoLabel = _wijzigEditedByName(row.editedBy);
                 final paidByName = _paymentPartyName(row.createdBy);
-                return Material(
-                  type: MaterialType.transparency,
-                  borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
+                return SizedBox(
+                  height: _logboekListRowExtent,
+                  child: Material(
+                    type: MaterialType.transparency,
                     borderRadius: BorderRadius.circular(8),
-                    highlightColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.10),
-                    splashColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.08),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _ExpenseDetailPage(
-                          householdId: widget.householdId,
-                          expenseId: row.expenseId,
-                          uid: widget.uid,
-                          createdByUid: row.createdBy,
-                          title: row.title,
-                          amountCents: row.expenseAmountCents,
-                          paidByName: paidByName,
-                          createdAt: row.createdAt,
-                          isPending: false,
-                          onManageNote: row.createdBy == widget.uid
-                              ? () => _doManagePrivateNote(
-                                  context,
-                                  householdId: widget.householdId,
-                                  expenseId: row.expenseId,
-                                  uid: widget.uid,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      highlightColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.10),
+                      splashColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.08),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _ExpenseDetailPage(
+                            householdId: widget.householdId,
+                            expenseId: row.expenseId,
+                            uid: widget.uid,
+                            createdByUid: row.createdBy,
+                            title: row.title,
+                            amountCents: row.expenseAmountCents,
+                            paidByName: paidByName,
+                            createdAt: row.createdAt,
+                            isPending: false,
+                            onManageNote: row.createdBy == widget.uid
+                                ? () => _doManagePrivateNote(
+                                    context,
+                                    householdId: widget.householdId,
+                                    expenseId: row.expenseId,
+                                    uid: widget.uid,
+                                  )
+                                : null,
+                            otherParentName: widget.otherName,
+                            childIds: row.childIds,
+                            childNames: row.childIds
+                                .map(
+                                  (id) =>
+                                      _children
+                                          .where((c) => c.id == id)
+                                          .map((c) => c.name)
+                                          .firstOrNull ??
+                                      'Verwijderd kind',
                                 )
-                              : null,
-                          otherParentName: widget.otherName,
-                          childIds: row.childIds,
-                          childNames: row.childIds
-                              .map(
-                                (id) =>
-                                    _children
-                                        .where((c) => c.id == id)
-                                        .map((c) => c.name)
-                                        .firstOrNull ??
-                                    'Verwijderd kind',
-                              )
-                              .toList(),
+                                .toList(),
+                          ),
                         ),
                       ),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 4,
-                      ),
-                      dense: true,
-                      visualDensity: VisualDensity.compact,
-                      title: Text(
-                        row.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
+                      child: ListTile(
+                        key: ValueKey(
+                          '${row.expenseId}_${row.editedAt.toIso8601String()}',
                         ),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${_fmtEur(row.fromAmountCents)} → ${_fmtEur(row.toAmountCents)}',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '$whoLabel · ${_ExpenseDetailPage._formatDateTime(row.editedAt)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: onSurface(context, a55)),
-                            ),
-                            if (row.reason.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                row.reason,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: onSurface(context, a68),
-                                      height: 1.35,
-                                    ),
-                              ),
-                            ],
-                          ],
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                        dense: true,
+                        minTileHeight: _logboekListRowExtent,
+                        minVerticalPadding: 0,
+                        visualDensity: VisualDensity.compact,
+                        title: Text(
+                          row.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '$whoLabel · ${_ExpenseDetailPage._formatDateTime(row.editedAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Text(
+                          '${_fmtEur(row.fromAmountCents)} → ${_fmtEur(row.toAmountCents)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
