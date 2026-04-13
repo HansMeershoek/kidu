@@ -7238,6 +7238,9 @@ class _LogboekPageState extends State<_LogboekPage>
     with SingleTickerProviderStateMixin {
   static const Duration _logboekHoldMinDuration = Duration(milliseconds: 120);
   static const Duration _logboekHoldFadeDuration = Duration(milliseconds: 180);
+  static const int _logboekVisibleRowCount = 9;
+  static const double _logboekListRowExtent = 64;
+  static const double _logboekListSeparatorExtent = 14;
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -7260,6 +7263,11 @@ class _LogboekPageState extends State<_LogboekPage>
   bool _initialHoldDismissScheduled = false;
   bool _isOffline = false;
   late final DateTime _initialHoldStartedAt;
+
+  double get _logboekListCardHeight =>
+      (_logboekVisibleRowCount * _logboekListRowExtent) +
+      ((_logboekVisibleRowCount - 1) * _logboekListSeparatorExtent) +
+      (12 * 2);
 
   Query<Map<String, dynamic>> _basePeriodQuery() {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
@@ -7292,6 +7300,24 @@ class _LogboekPageState extends State<_LogboekPage>
     _expensesStream = q.snapshots();
   }
 
+  void _rebuildPaymentsStream() {
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
+      'households/${widget.householdId}/payments',
+    );
+    if (_periodFilter != _PeriodFilter.all &&
+        _filterStart != null &&
+        _filterEnd != null) {
+      q = q
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStart!),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(_filterEnd!));
+    }
+    q = q.orderBy('createdAt', descending: true);
+    _paymentsStream = q.snapshots();
+  }
+
   bool get _uitgavenFiltersActive {
     if (_periodFilter != _PeriodFilter.all) return true;
     if (_filterParentUid != null) return true;
@@ -7309,24 +7335,6 @@ class _LogboekPageState extends State<_LogboekPage>
     }
     if (_wijzigFilterEditedByUid != null) return true;
     return _periodFilter != _PeriodFilter.all;
-  }
-
-  void _rebuildPaymentsStream() {
-    Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
-      'households/${widget.householdId}/payments',
-    );
-    if (_periodFilter != _PeriodFilter.all &&
-        _filterStart != null &&
-        _filterEnd != null) {
-      q = q
-          .where(
-            'createdAt',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(_filterStart!),
-          )
-          .where('createdAt', isLessThan: Timestamp.fromDate(_filterEnd!));
-    }
-    q = q.orderBy('createdAt', descending: true);
-    _paymentsStream = q.snapshots();
   }
 
   void _onModeTabControllerChanged() {
@@ -10047,8 +10055,40 @@ class _LogboekPageState extends State<_LogboekPage>
                 child: TabBarView(
                   controller: _modeTabController,
                   children: [
-                    _buildExpenseList(context),
-                    _buildPaymentList(context),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: _logboekListCardHeight,
+                          child: KiduCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: _buildExpenseList(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: _logboekListCardHeight,
+                          child: KiduCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: _buildPaymentList(context),
+                          ),
+                        ),
+                      ),
+                    ),
                     _buildWijzigingenList(context),
                   ],
                 ),
@@ -10335,132 +10375,125 @@ class _LogboekPageState extends State<_LogboekPage>
         }
         final docs = snap.data!.docs;
         if (docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Geen uitgaven gevonden.'),
-            ),
+          return const Align(
+            alignment: Alignment.topLeft,
+            child: Text('Geen uitgaven gevonden.'),
           );
         }
         return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.zero,
           itemCount: docs.length,
           separatorBuilder: (context, _) => Divider(
-            height: 1,
-            thickness: 0.4,
-            color: Theme.of(
-              context,
-            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+            height: _logboekListSeparatorExtent,
+            color: outlineV(context, a40),
           ),
           itemBuilder: (context, i) {
-            final d = docs[i];
-            final e = d.data();
-            final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
-            final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
-            final createdAtRaw = e['createdAt'];
-            DateTime? createdAt;
-            if (createdAtRaw is Timestamp) {
-              createdAt = createdAtRaw.toDate().toLocal();
-            } else if (createdAtRaw is DateTime) {
-              createdAt = createdAtRaw.toLocal();
-            }
-            final childIds =
-                (e['childIds'] as List?)?.whereType<String>().toList() ??
-                const <String>[];
-            final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-            final paidByName = createdBy == widget.uid
-                ? (widget.myName ?? 'Jij')
-                : (widget.otherName ?? 'Co-parent');
-            final nKids = childIds.length;
-            final isFiltered = _filterChildId != null && nKids > 0;
-            final displayCents = isFiltered
-                ? (amountCents / nKids).round()
-                : amountCents;
-            final dateStr = _fmtDate(createdAt);
-            final subtitleStr = isFiltered
-                ? '$dateStr · aandeel 1/$nKids'
-                : nKids > 0
-                ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
-                : dateStr;
-            return Material(
-              type: MaterialType.transparency,
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                highlightColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.10),
-                splashColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.08),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => _ExpenseDetailPage(
-                      householdId: widget.householdId,
-                      expenseId: d.id,
-                      uid: widget.uid,
-                      createdByUid: createdBy,
-                      title: title,
-                      amountCents: amountCents,
-                      paidByName: paidByName,
-                      createdAt: createdAt,
-                      isPending: false,
-                      onManageNote: createdBy == widget.uid
-                          ? () => _doManagePrivateNote(
-                              context,
-                              householdId: widget.householdId,
-                              expenseId: d.id,
-                              uid: widget.uid,
-                            )
-                          : null,
-                      otherParentName: widget.otherName,
-                      childIds: childIds,
-                      childNames: childIds
-                          .map(
-                            (id) =>
-                                _children
-                                    .where((c) => c.id == id)
-                                    .map((c) => c.name)
-                                    .firstOrNull ??
-                                'Verwijderd kind',
-                          )
-                          .toList(),
+              final d = docs[i];
+              final e = d.data();
+              final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+              final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+              final createdAtRaw = e['createdAt'];
+              DateTime? createdAt;
+              if (createdAtRaw is Timestamp) {
+                createdAt = createdAtRaw.toDate().toLocal();
+              } else if (createdAtRaw is DateTime) {
+                createdAt = createdAtRaw.toLocal();
+              }
+              final childIds =
+                  (e['childIds'] as List?)?.whereType<String>().toList() ??
+                  const <String>[];
+              final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+              final paidByName = createdBy == widget.uid
+                  ? (widget.myName ?? 'Jij')
+                  : (widget.otherName ?? 'Co-parent');
+              final nKids = childIds.length;
+              final isFiltered = _filterChildId != null && nKids > 0;
+              final displayCents = isFiltered
+                  ? (amountCents / nKids).round()
+                  : amountCents;
+              final dateStr = _fmtDate(createdAt);
+              final subtitleStr = isFiltered
+                  ? '$dateStr · aandeel 1/$nKids'
+                  : nKids > 0
+                  ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
+                  : dateStr;
+              return SizedBox(
+                height: _logboekListRowExtent,
+                child: Material(
+                  type: MaterialType.transparency,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    highlightColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.10),
+                    splashColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.08),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => _ExpenseDetailPage(
+                          householdId: widget.householdId,
+                          expenseId: d.id,
+                          uid: widget.uid,
+                          createdByUid: createdBy,
+                          title: title,
+                          amountCents: amountCents,
+                          paidByName: paidByName,
+                          createdAt: createdAt,
+                          isPending: false,
+                          onManageNote: createdBy == widget.uid
+                              ? () => _doManagePrivateNote(
+                                  context,
+                                  householdId: widget.householdId,
+                                  expenseId: d.id,
+                                  uid: widget.uid,
+                                )
+                              : null,
+                          otherParentName: widget.otherName,
+                          childIds: childIds,
+                          childNames: childIds
+                              .map(
+                                (id) =>
+                                    _children
+                                        .where((c) => c.id == id)
+                                        .map((c) => c.name)
+                                        .firstOrNull ??
+                                    'Verwijderd kind',
+                              )
+                              .toList(),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                child: ListTile(
-                  key: ValueKey(d.id),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                  dense: true,
-                  visualDensity: VisualDensity.compact,
-                  title: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      subtitleStr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a55),
+                    child: ListTile(
+                      key: ValueKey(d.id),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                      dense: true,
+                      minTileHeight: _logboekListRowExtent,
+                      minVerticalPadding: 0,
+                      visualDensity: VisualDensity.compact,
+                      title: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: subtitleStr.isEmpty
+                          ? null
+                          : Text(
+                              subtitleStr,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                      trailing: Text(
+                        _fmtEur(displayCents),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                  trailing: Text(
-                    _fmtEur(displayCents),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
                 ),
-              ),
-            );
+              );
           },
         );
       },
@@ -10499,121 +10532,111 @@ class _LogboekPageState extends State<_LogboekPage>
             .toList(growable: false);
 
         if (docs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Geen betalingen gevonden.'),
-            ),
+          return const Align(
+            alignment: Alignment.topLeft,
+            child: Text('Geen betalingen gevonden.'),
           );
         }
         return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.zero,
           itemCount: docs.length,
           separatorBuilder: (context, _) => Divider(
-            height: 1,
-            thickness: 0.4,
-            color: Theme.of(
-              context,
-            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+            height: _logboekListSeparatorExtent,
+            color: outlineV(context, a40),
           ),
           itemBuilder: (context, i) {
-            final d = docs[i];
-            final p = d.data();
-            final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
-            final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
-            final toUserId = (p['toUserId'] as String?)?.trim() ?? '';
-            final status = (p['status'] as String?)?.trim() ?? '';
-            final createdAtRaw = p['createdAt'];
-            DateTime? createdAt;
-            if (createdAtRaw is Timestamp) {
-              createdAt = createdAtRaw.toDate().toLocal();
-            } else if (createdAtRaw is DateTime) {
-              createdAt = createdAtRaw.toLocal();
-            }
+              final d = docs[i];
+              final p = d.data();
+              final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
+              final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
+              final toUserId = (p['toUserId'] as String?)?.trim() ?? '';
+              final status = (p['status'] as String?)?.trim() ?? '';
+              final createdAtRaw = p['createdAt'];
+              DateTime? createdAt;
+              if (createdAtRaw is Timestamp) {
+                createdAt = createdAtRaw.toDate().toLocal();
+              } else if (createdAtRaw is DateTime) {
+                createdAt = createdAtRaw.toLocal();
+              }
 
-            final bool isSender = fromUserId == widget.uid;
-            final fromName = _paymentPartyName(fromUserId);
-            final toName = _paymentPartyName(toUserId);
-            final String title = 'Betaald door $fromName';
-            final String statusStr = status == 'confirmed'
-                ? 'Bevestigd'
-                : 'In afwachting';
-            final String dateStr = _fmtDate(createdAt);
-            final String subtitleStr = '$dateStr · Ontvangen door $toName · $statusStr';
-            final bool isPending = status != 'confirmed';
+              final bool isSender = fromUserId == widget.uid;
+              final fromName = _paymentPartyName(fromUserId);
+              final toName = _paymentPartyName(toUserId);
+              final String title = 'Betaald door $fromName';
+              final String statusStr = status == 'confirmed'
+                  ? 'Bevestigd'
+                  : 'In afwachting';
+              final String dateStr = _fmtDate(createdAt);
+              final String subtitleStr =
+                  '$dateStr · Ontvangen door $toName · $statusStr';
+              final bool isPending = status != 'confirmed';
 
-            final confirmedAtRaw = p['confirmedAt'];
-            DateTime? confirmedAt;
-            if (confirmedAtRaw is Timestamp) {
-              confirmedAt = confirmedAtRaw.toDate().toLocal();
-            } else if (confirmedAtRaw is DateTime) {
-              confirmedAt = confirmedAtRaw.toLocal();
-            }
+              final confirmedAtRaw = p['confirmedAt'];
+              DateTime? confirmedAt;
+              if (confirmedAtRaw is Timestamp) {
+                confirmedAt = confirmedAtRaw.toDate().toLocal();
+              } else if (confirmedAtRaw is DateTime) {
+                confirmedAt = confirmedAtRaw.toLocal();
+              }
 
-            final String? statusExplanation = isPending
-                ? (isSender
-                      ? 'Wacht op bevestiging door $toName'
-                      : 'Wacht op jouw bevestiging')
-                : null;
+              final String? statusExplanation = isPending
+                  ? (isSender
+                        ? 'Wacht op bevestiging door $toName'
+                        : 'Wacht op jouw bevestiging')
+                  : null;
 
-            return Material(
-              type: MaterialType.transparency,
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                highlightColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.10),
-                splashColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.08),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => _PaymentDetailPage(
-                      title: title,
-                      amountCents: amountCents,
-                      status: status,
-                      createdAt: createdAt,
-                      confirmedAt: confirmedAt,
-                      statusExplanation: statusExplanation,
+              return SizedBox(
+                height: _logboekListRowExtent,
+                child: Material(
+                  type: MaterialType.transparency,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    highlightColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.10),
+                    splashColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.08),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => _PaymentDetailPage(
+                          title: title,
+                          amountCents: amountCents,
+                          status: status,
+                          createdAt: createdAt,
+                          confirmedAt: confirmedAt,
+                          statusExplanation: statusExplanation,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                child: ListTile(
-                  key: ValueKey(d.id),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                  dense: true,
-                  visualDensity: VisualDensity.compact,
-                  title: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: isPending ? onSurface(context, a55) : null,
-                    ),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      subtitleStr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, isPending ? a40 : a55),
+                    child: ListTile(
+                      key: ValueKey(d.id),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                      dense: true,
+                      minTileHeight: _logboekListRowExtent,
+                      minVerticalPadding: 0,
+                      visualDensity: VisualDensity.compact,
+                      title: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        subtitleStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Text(
+                        _fmtEur(amountCents),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                  trailing: Text(
-                    _fmtEur(amountCents),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: isPending ? onSurface(context, a55) : null,
-                    ),
-                  ),
                 ),
-              ),
-            );
+              );
           },
         );
       },
