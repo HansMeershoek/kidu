@@ -7241,6 +7241,8 @@ class _LogboekPageState extends State<_LogboekPage>
   static const int _logboekVisibleRowCount = 9;
   static const double _logboekListRowExtent = 64;
   static const double _logboekListSeparatorExtent = 14;
+  static const double _wijzigingTrailingWidth = 168;
+  static const double _wijzigingArrowZoneWidth = 20;
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -7268,6 +7270,69 @@ class _LogboekPageState extends State<_LogboekPage>
       (_logboekVisibleRowCount * _logboekListRowExtent) +
       ((_logboekVisibleRowCount - 1) * _logboekListSeparatorExtent) +
       (12 * 2);
+
+  String _formatWijzigingDate(DateTime dt) {
+    const nlMonths = <String>[
+      'jan',
+      'feb',
+      'mrt',
+      'apr',
+      'mei',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec',
+    ];
+    return '${dt.day} ${nlMonths[dt.month - 1]}';
+  }
+
+  Widget _buildWijzigingTrailing(BuildContext context, _WijzigRow row) {
+    final baseStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final previousStyle = baseStyle?.copyWith(color: onSurface(context, a68));
+
+    Widget buildAmount(String value, TextStyle? style) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Text(
+          value,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.fade,
+          textAlign: TextAlign.right,
+          style: style,
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: _wijzigingTrailingWidth,
+      child: Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Expanded(
+            child: buildAmount(_fmtEur(row.fromAmountCents), previousStyle),
+          ),
+          SizedBox(
+            width: _wijzigingArrowZoneWidth,
+            child: Center(
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                size: 16,
+                color: outlineV(context, a68),
+              ),
+            ),
+          ),
+          Expanded(child: buildAmount(_fmtEur(row.toAmountCents), baseStyle)),
+        ],
+      ),
+    );
+  }
 
   Query<Map<String, dynamic>> _basePeriodQuery() {
     Query<Map<String, dynamic>> q = FirebaseFirestore.instance.collection(
@@ -10328,20 +10393,11 @@ class _LogboekPageState extends State<_LogboekPage>
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          '$whoLabel · ${_ExpenseDetailPage._formatDateTime(row.editedAt)}',
+                          '$whoLabel · ${_formatWijzigingDate(row.editedAt)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: Text(
-                          '${_fmtEur(row.fromAmountCents)} → ${_fmtEur(row.toAmountCents)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        trailing: _buildWijzigingTrailing(context, row),
                       ),
                     ),
                   ),
@@ -10554,13 +10610,12 @@ class _LogboekPageState extends State<_LogboekPage>
               final bool isSender = fromUserId == widget.uid;
               final fromName = _paymentPartyName(fromUserId);
               final toName = _paymentPartyName(toUserId);
-              final String title = 'Betaald door $fromName';
+              final String rowTitle = 'Aan $toName';
               final String statusStr = status == 'confirmed'
                   ? 'Bevestigd'
                   : 'In afwachting';
               final String dateStr = _fmtDate(createdAt);
-              final String subtitleStr =
-                  '$dateStr · Ontvangen door $toName · $statusStr';
+              final String subtitleStr = '$dateStr · $statusStr';
               final bool isPending = status != 'confirmed';
 
               final confirmedAtRaw = p['confirmedAt'];
@@ -10593,7 +10648,7 @@ class _LogboekPageState extends State<_LogboekPage>
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => _PaymentDetailPage(
-                          title: title,
+                          title: 'Betaald door $fromName',
                           amountCents: amountCents,
                           status: status,
                           createdAt: createdAt,
@@ -10610,7 +10665,7 @@ class _LogboekPageState extends State<_LogboekPage>
                       minVerticalPadding: 0,
                       visualDensity: VisualDensity.compact,
                       title: Text(
-                        title,
+                        rowTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
