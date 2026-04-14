@@ -7266,10 +7266,27 @@ class _LogboekPageState extends State<_LogboekPage>
   bool _isOffline = false;
   late final DateTime _initialHoldStartedAt;
 
+  /// Memo for [FutureBuilder] in [_buildWijzigingenList]: same key → same [Future].
+  String? _wijzigRowsLoadKey;
+  Future<List<_WijzigRow>>? _wijzigRowsFuture;
+
   double get _logboekListCardHeight =>
       (_logboekVisibleRowCount * _logboekListRowExtent) +
       ((_logboekVisibleRowCount - 1) * _logboekListSeparatorExtent) +
       (12 * 2);
+
+  Future<List<_WijzigRow>> _wijzigRowsFutureFor(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
+    String expenseDocsSig,
+  ) {
+    final loadKey =
+        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$expenseDocsSig';
+    if (_wijzigRowsLoadKey != loadKey) {
+      _wijzigRowsLoadKey = loadKey;
+      _wijzigRowsFuture = _loadWijzigRows(expenseDocs);
+    }
+    return _wijzigRowsFuture!;
+  }
 
   String _formatWijzigingDate(DateTime dt) {
     const nlMonths = <String>[
@@ -10304,7 +10321,7 @@ class _LogboekPageState extends State<_LogboekPage>
           key: ValueKey(
             '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$sig',
           ),
-          future: _loadWijzigRows(docs),
+          future: _wijzigRowsFutureFor(docs, sig),
           builder: (context, futSnap) {
             if (futSnap.connectionState == ConnectionState.waiting &&
                 !futSnap.hasData) {
