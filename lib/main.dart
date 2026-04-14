@@ -10226,21 +10226,27 @@ class _LogboekPageState extends State<_LogboekPage>
             tooltip: 'Exporteer selectie',
           ),
       ],
-      bottom: TabBar(
-        controller: _modeTabController,
-        onTap: (i) => setState(() {
-          _logboekMode = _LogboekMode.values[i];
-        }),
-        tabs: const [
-          Tab(text: 'Uitgaven'),
-          Tab(text: 'Betalingen'),
-          Tab(text: 'Wijzigingen'),
-        ],
-        isScrollable: true,
-        tabAlignment: TabAlignment.center,
-        indicatorSize: TabBarIndicatorSize.label,
-        dividerHeight: 0.5,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(kTextTabBarHeight + 6),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: TabBar(
+            controller: _modeTabController,
+            onTap: (i) => setState(() {
+              _logboekMode = _LogboekMode.values[i];
+            }),
+            tabs: const [
+              Tab(text: 'Uitgaven'),
+              Tab(text: 'Betalingen'),
+              Tab(text: 'Wijzigingen'),
+            ],
+            isScrollable: true,
+            tabAlignment: TabAlignment.center,
+            indicatorSize: TabBarIndicatorSize.label,
+            dividerHeight: 0,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+        ),
       ),
     );
 
