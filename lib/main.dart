@@ -7217,6 +7217,28 @@ class _WijzigRow {
   final DateTime? createdAt;
 }
 
+/// Keeps each Logboek [TabBarView] page subtree alive to reduce rebuild work when swiping.
+class _LogboekTabKeepAlive extends StatefulWidget {
+  const _LogboekTabKeepAlive({required this.builder});
+
+  final Widget Function(BuildContext context) builder;
+
+  @override
+  State<_LogboekTabKeepAlive> createState() => _LogboekTabKeepAliveState();
+}
+
+class _LogboekTabKeepAliveState extends State<_LogboekTabKeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.builder(context);
+  }
+}
+
 class _LogboekPage extends StatefulWidget {
   const _LogboekPage({
     required this.householdId,
@@ -10125,53 +10147,59 @@ class _LogboekPageState extends State<_LogboekPage>
                 child: TabBarView(
                   controller: _modeTabController,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: _logboekListCardHeight,
-                          child: KiduCard(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                    _LogboekTabKeepAlive(
+                      builder: (context) => Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: _logboekListCardHeight,
+                            child: KiduCard(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: _buildExpenseList(context),
                             ),
-                            child: _buildExpenseList(context),
                           ),
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: _logboekListCardHeight,
-                          child: KiduCard(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                    _LogboekTabKeepAlive(
+                      builder: (context) => Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: _logboekListCardHeight,
+                            child: KiduCard(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: _buildPaymentList(context),
                             ),
-                            child: _buildPaymentList(context),
                           ),
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: _logboekListCardHeight,
-                          child: KiduCard(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                    _LogboekTabKeepAlive(
+                      builder: (context) => Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: _logboekListCardHeight,
+                            child: KiduCard(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: _buildWijzigingenList(context),
                             ),
-                            child: _buildWijzigingenList(context),
                           ),
                         ),
                       ),
