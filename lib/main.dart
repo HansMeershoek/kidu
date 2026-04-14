@@ -7253,7 +7253,6 @@ class _LogboekPageState extends State<_LogboekPage>
   DateTime? _filterStart;
   DateTime? _filterEnd;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
-  _LogboekMode _logboekMode = _LogboekMode.uitgaven;
   String? _paymentFilterParentUid; // null = beide ouders
 
   /// null = beide ouders; otherwise filter amount edits by [editedBy] uid.
@@ -7419,13 +7418,9 @@ class _LogboekPageState extends State<_LogboekPage>
     return _periodFilter != _PeriodFilter.all;
   }
 
-  void _onModeTabControllerChanged() {
-    if (_modeTabController.indexIsChanging) return;
-    final i = _modeTabController.index;
-    if (i < 0 || i >= _LogboekMode.values.length) return;
-    final next = _LogboekMode.values[i];
-    if (next == _logboekMode) return;
-    setState(() => _logboekMode = next);
+  _LogboekMode _activeLogboekModeFromTabController() {
+    final i = _modeTabController.index.clamp(0, _LogboekMode.values.length - 1);
+    return _LogboekMode.values[i];
   }
 
   @override
@@ -7433,7 +7428,6 @@ class _LogboekPageState extends State<_LogboekPage>
     super.initState();
     _initialHoldStartedAt = DateTime.now();
     _modeTabController = TabController(length: 3, vsync: this);
-    _modeTabController.addListener(_onModeTabControllerChanged);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
     Future.wait([
@@ -7452,7 +7446,6 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   void dispose() {
-    _modeTabController.removeListener(_onModeTabControllerChanged);
     _modeTabController.dispose();
     super.dispose();
   }
@@ -10109,11 +10102,6 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   Widget build(BuildContext context) {
-    final activeMode = _LogboekMode.values[_modeTabController.index.clamp(
-      0,
-      _LogboekMode.values.length - 1,
-    )];
-    final filterIconActive = _logboekFilterIconActiveFor(activeMode);
     final logboekContent = !_initialDataReady
         ? const Center(child: CircularProgressIndicator())
         : Column(
@@ -10204,44 +10192,58 @@ class _LogboekPageState extends State<_LogboekPage>
         ),
       ),
       actions: [
-        IconButton(
-          icon: Icon(
-            filterIconActive ? Icons.filter_alt : Icons.filter_list_outlined,
-          ),
-          color: filterIconActive
-              ? Theme.of(context).colorScheme.primary
-              : null,
-          onPressed: () {
-            if (activeMode == _LogboekMode.uitgaven) {
-              _showUitgavenFilterSheet();
-              return;
-            }
-            if (activeMode == _LogboekMode.betalingen) {
-              _showPaymentFilterSheet();
-              return;
-            }
-            _showWijzigingenFilterSheet();
+        AnimatedBuilder(
+          animation: _modeTabController,
+          builder: (context, _) {
+            final activeMode = _activeLogboekModeFromTabController();
+            final filterIconActive = _logboekFilterIconActiveFor(activeMode);
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    filterIconActive
+                        ? Icons.filter_alt
+                        : Icons.filter_list_outlined,
+                  ),
+                  color: filterIconActive
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                  onPressed: () {
+                    if (activeMode == _LogboekMode.uitgaven) {
+                      _showUitgavenFilterSheet();
+                      return;
+                    }
+                    if (activeMode == _LogboekMode.betalingen) {
+                      _showPaymentFilterSheet();
+                      return;
+                    }
+                    _showWijzigingenFilterSheet();
+                  },
+                  tooltip: 'Filter',
+                ),
+                if (activeMode == _LogboekMode.uitgaven ||
+                    activeMode == _LogboekMode.betalingen ||
+                    activeMode == _LogboekMode.wijzigingen)
+                  IconButton(
+                    icon: const Icon(Icons.file_download_outlined),
+                    onPressed: () {
+                      if (activeMode == _LogboekMode.betalingen) {
+                        _showPaymentExportConfirmSheet();
+                        return;
+                      }
+                      if (activeMode == _LogboekMode.wijzigingen) {
+                        _showWijzigingenExportConfirmSheet();
+                        return;
+                      }
+                      _showExpenseExportConfirmSheet();
+                    },
+                    tooltip: 'Exporteer selectie',
+                  ),
+              ],
+            );
           },
-          tooltip: 'Filter',
         ),
-        if (activeMode == _LogboekMode.uitgaven ||
-            activeMode == _LogboekMode.betalingen ||
-            activeMode == _LogboekMode.wijzigingen)
-          IconButton(
-            icon: const Icon(Icons.file_download_outlined),
-            onPressed: () {
-              if (activeMode == _LogboekMode.betalingen) {
-                _showPaymentExportConfirmSheet();
-                return;
-              }
-              if (activeMode == _LogboekMode.wijzigingen) {
-                _showWijzigingenExportConfirmSheet();
-                return;
-              }
-              _showExpenseExportConfirmSheet();
-            },
-            tooltip: 'Exporteer selectie',
-          ),
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(kTextTabBarHeight + 6),
@@ -10249,9 +10251,6 @@ class _LogboekPageState extends State<_LogboekPage>
           padding: const EdgeInsets.only(top: 6),
           child: TabBar(
             controller: _modeTabController,
-            onTap: (i) => setState(() {
-              _logboekMode = _LogboekMode.values[i];
-            }),
             tabs: const [
               Tab(text: 'Uitgaven'),
               Tab(text: 'Betalingen'),
