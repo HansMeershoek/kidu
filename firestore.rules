@@ -407,6 +407,29 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /households/{householdId}/recurringExpenses/{recurringId}/privateNotes/{uid} {
+      allow get: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId)
+        && isRecurringMasterCreator(householdId, recurringId);
+
+      allow list: if false;
+
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId)
+        && isRecurringMasterCreator(householdId, recurringId)
+        && request.resource.data.keys().hasOnly(['note', 'updatedAt'])
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 180
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId)
+        && isRecurringMasterCreator(householdId, recurringId);
+    }
+
     match /households/{householdId}/expenses/{expenseId}/amountEdits/{editId} {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
 
