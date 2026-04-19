@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -276,7 +276,7 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
   }
 }
 
-// ── Shared private-note helpers (used by Dashboard and Logboek) ──────────────
+// â”€â”€ Shared private-note helpers (used by Dashboard and Logboek) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Returns true when there is a live server connection for writing.
 Future<bool> _checkCanWriteNow() async {
@@ -294,7 +294,7 @@ Future<bool> _checkCanWriteNow() async {
 }
 
 /// Shows the private-note edit dialog and returns a typed result.
-/// Pure UI only – no Firestore.
+/// Pure UI only â€“ no Firestore.
 Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
   BuildContext context, {
   required String initialNote,
@@ -402,7 +402,7 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
@@ -687,7 +687,7 @@ const String _privacyPolicyFull = '''
 KiDu Privacybeleid / Privacy Policy
 Laatst bijgewerkt: 2026-02-18
 
-NL — Privacybeleid
+NL â€” Privacybeleid
 
 1. Wie zijn wij?
 KiDu is een app om gedeelde kind-uitgaven tussen co-parents bij te houden.
@@ -701,15 +701,15 @@ App-gegevens die jij invoert
 - Huishouden (koppeling tussen co-parents).
 - Uitgaven (bedrag, omschrijving, datum, wie heeft betaald).
 - Invite codes (voor koppelen).
-- Privé notities (alleen zichtbaar voor de gebruiker die ze maakt).
+- PrivÃ© notities (alleen zichtbaar voor de gebruiker die ze maakt).
 
 Technische gegevens
 - We gebruiken Google Firebase (Auth/Firestore) om de app te laten werken. Deze diensten kunnen technische informatie verwerken die nodig is voor werking en beveiliging van de dienst.
 
 3. Waarvoor gebruiken we deze gegevens?
 - Inloggen en accountbeheer.
-- Koppelen van co-parents binnen één huishouden.
-- Opslaan en tonen van uitgaven, balans en privé notities.
+- Koppelen van co-parents binnen Ã©Ã©n huishouden.
+- Opslaan en tonen van uitgaven, balans en privÃ© notities.
 - Beveiliging (toegangscontrole op basis van household-membership).
 
 4. Delen we gegevens met derden?
@@ -733,7 +733,7 @@ KiDu is bedoeld voor (co-)ouders/volwassenen en is niet ontworpen voor gebruik d
 
 ---
 
-EN — Privacy Policy
+EN â€” Privacy Policy
 
 1. Who we are
 KiDu helps co-parents track shared child-related expenses.
@@ -1607,7 +1607,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
       buf.write(euroStr[i]);
     }
-    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
+    return '${negative ? '-' : ''}â‚¬$buf,${rem.toString().padLeft(2, '0')}';
   }
 
   String _formatRelativeNl(DateTime dt) {
@@ -2022,24 +2022,24 @@ class _DashboardPageState extends State<DashboardPage> {
                                 title: const Text('Privacy in KiDu'),
                                 content: SingleChildScrollView(
                                   child: Text(
-                                    'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
-                                    'Wat we wél gebruiken (alleen wat nodig is):\n'
-                                    '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
-                                    '• Je Google-account (voor veilig inloggen)\n'
-                                    '• Jullie gedeelde uitgaven in KiDu\n\n'
-                                    'Wat KiDu níét vraagt of gebruikt:\n'
-                                    '• Geen telefoonnummer\n'
-                                    '• Geen toegang tot je contacten\n'
-                                    '• Geen locatie\n'
-                                    '• Geen agenda, microfoon of camera\n'
-                                    '• Geen push-notificaties of "ping-gedrag"\n\n'
+                                    'KiDu is gebouwd met Ã©Ã©n uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+                                    'Wat we wÃ©l gebruiken (alleen wat nodig is):\n'
+                                    'â€¢ Je gekozen naam (zodat jullie elkaar herkennen)\n'
+                                    'â€¢ Je Google-account (voor veilig inloggen)\n'
+                                    'â€¢ Jullie gedeelde uitgaven in KiDu\n\n'
+                                    'Wat KiDu nÃ­Ã©t vraagt of gebruikt:\n'
+                                    'â€¢ Geen telefoonnummer\n'
+                                    'â€¢ Geen toegang tot je contacten\n'
+                                    'â€¢ Geen locatie\n'
+                                    'â€¢ Geen agenda, microfoon of camera\n'
+                                    'â€¢ Geen push-notificaties of "ping-gedrag"\n\n'
                                     'Delen met anderen?\n'
-                                    '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
-                                    '• We delen geen gegevens voor marketingdoeleinden.\n'
-                                    '• We verkopen je gegevens niet.\n\n'
+                                    'â€¢ Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
+                                    'â€¢ We delen geen gegevens voor marketingdoeleinden.\n'
+                                    'â€¢ We verkopen je gegevens niet.\n\n'
                                     'Je houdt de controle:\n'
-                                    '• Je kunt je naam altijd aanpassen.\n'
-                                    '• Je kunt uitloggen wanneer je wilt.',
+                                    'â€¢ Je kunt je naam altijd aanpassen.\n'
+                                    'â€¢ Je kunt uitloggen wanneer je wilt.',
                                     style: Theme.of(ctx).textTheme.bodyMedium
                                         ?.copyWith(color: onSurface(ctx, a68)),
                                   ),
@@ -2090,7 +2090,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 title: const Text('KiDu'),
                                 content: const Text(
                                   'Rust in gedeelde kosten tussen co-parents.\n'
-                                  'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                                  'Koppelen, bijhouden, afrekenen â€” zonder gedoe.',
                                 ),
                                 actions: [
                                   TextButton(
@@ -2735,7 +2735,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   return;
                                 }
                                 if (effectiveSelectedChildIds.isEmpty) {
-                                  _showSnackBar('Selecteer minimaal één kind.');
+                                  _showSnackBar('Selecteer minimaal Ã©Ã©n kind.');
                                   return;
                                 }
 
@@ -3268,7 +3268,7 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       await _googleSignIn.signOut();
     } catch (_) {
-      // Google was mogelijk al uitgelogd — negeren
+      // Google was mogelijk al uitgelogd â€” negeren
     }
 
     if (!context.mounted) {
@@ -3334,7 +3334,7 @@ class _DashboardPageState extends State<DashboardPage> {
           );
         }
         // Do not treat ConnectionState.waiting as loading when [initialData] is
-        // present — Firestore keeps waiting until the first snapshot event.
+        // present â€” Firestore keeps waiting until the first snapshot event.
         if (!snapshot.hasData) {
           _reportPreviewReady(false);
           return Scaffold(
@@ -3464,7 +3464,7 @@ class _DashboardPageState extends State<DashboardPage> {
             }
 
             // Solo/invite UI uses !canAddExpenses; that is also true while members
-            // have not emitted yet — show loading instead of a false "not linked" state.
+            // have not emitted yet â€” show loading instead of a false "not linked" state.
             if (hasHousehold && membersAwaitingFirstSnapshot) {
               _reportPreviewReady(false);
               return Scaffold(
@@ -3570,7 +3570,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   ),
                                                   const SizedBox(height: 8),
                                                   Text(
-                                                    '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
+                                                    '$myDashboardName ${_formatEur(0)} â€¢ Co-parent ${_formatEur(0)}',
                                                     maxLines: 1,
                                                     overflow:
                                                         TextOverflow.ellipsis,
@@ -3651,7 +3651,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     ),
                                                     const SizedBox(height: 8),
                                                     Text(
-                                                      'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                                      'Nog niet gekoppeld â€” nodig je co-parent uit om te starten.',
                                                       style: Theme.of(context)
                                                           .textTheme
                                                           .bodySmall
@@ -4116,7 +4116,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   createdAt.toDate(),
                                                 );
                                           lastActivityText =
-                                              'Laatste activiteit · $timeStr';
+                                              'Laatste activiteit Â· $timeStr';
                                         }
 
                                         final secondaryMetadataFuture =
@@ -4170,7 +4170,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             final balanceBreakdownText =
                                                 visibleOtherName == null
                                                 ? null
-                                                : '$myName ${_formatEur(myPaidCents)} • $visibleOtherName ${_formatEur(otherPaidCents)}';
+                                                : '$myName ${_formatEur(myPaidCents)} â€¢ $visibleOtherName ${_formatEur(otherPaidCents)}';
 
                                             String? visibleStatusText;
                                             if (pendingInCents != null &&
@@ -4180,7 +4180,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             } else if (pendingOutCents != null &&
                                                 pendingOutCents > 0) {
                                               visibleStatusText =
-                                                  '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
+                                                  '${_formatEur(pendingOutCents)} gemeld Â· wacht op bevestiging';
                                             } else if (balanceCents > 0 &&
                                                 visibleOtherName != null) {
                                               visibleStatusText =
@@ -4754,7 +4754,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           labelText:
                                                                               'Bedrag',
                                                                           prefixText:
-                                                                              '€ ',
+                                                                              'â‚¬ ',
                                                                           isDense:
                                                                               true,
                                                                           border:
@@ -4853,7 +4853,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                                   },
                                                                                                 );
                                                                                             _showSnackBar(
-                                                                                              'Betaling gemeld — wacht op bevestiging.',
+                                                                                              'Betaling gemeld â€” wacht op bevestiging.',
                                                                                             );
                                                                                           } catch (
                                                                                             e
@@ -5125,7 +5125,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 : dateLabel
                                                                       .isEmpty
                                                                 ? actorLabel
-                                                                : '$actorLabel • $dateLabel';
+                                                                : '$actorLabel â€¢ $dateLabel';
                                                             final note =
                                                                 visibleNotes[d.id] ??
                                                                 rowFallback?.note;
@@ -5135,7 +5135,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 ? baseSubtitleText
                                                                           .isEmpty
                                                                     ? note
-                                                                    : '$baseSubtitleText · $note'
+                                                                    : '$baseSubtitleText Â· $note'
                                                                 : baseSubtitleText;
                                                             final expChildIds =
                                                                 (e['childIds']
@@ -5752,7 +5752,7 @@ class _ExpenseDetailPage extends StatefulWidget {
       if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
       buf.write(euroStr[i]);
     }
-    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
+    return '${negative ? '-' : ''}â‚¬$buf,${rem.toString().padLeft(2, '0')}';
   }
 
   static String _prefillAmountForEdit(int cents) {
@@ -5789,7 +5789,7 @@ class _ExpenseDetailPage extends StatefulWidget {
   }
 
   static String _formatDateTime(DateTime? dt) {
-    if (dt == null) return '—';
+    if (dt == null) return 'â€”';
     const nlMonths = [
       'jan',
       'feb',
@@ -5956,7 +5956,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     if (children.length > 1 && effectiveSelectedChildIds.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecteer minimaal één kind.')),
+        const SnackBar(content: Text('Selecteer minimaal Ã©Ã©n kind.')),
       );
       return;
     }
@@ -6092,7 +6092,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     decimal: true,
                   ),
                   decoration: const InputDecoration(
-                    labelText: 'Nieuw bedrag (€)',
+                    labelText: 'Nieuw bedrag (â‚¬)',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -6509,7 +6509,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)} · ${editorLabel(editedBy)} · ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
+                                      '${_ExpenseDetailPage._formatEur(fromC)} â†’ ${_ExpenseDetailPage._formatEur(toC)} Â· ${editorLabel(editedBy)} Â· ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -6850,9 +6850,9 @@ class _PaymentDetailPage extends StatelessWidget {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Logboek – read-only expense history with child filter
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Logboek â€“ read-only expense history with child filter
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum _PeriodFilter { all, custom }
 
@@ -7206,7 +7206,7 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   static String _fmtDateWithYear(DateTime? dt) {
-    if (dt == null) return '—';
+    if (dt == null) return 'â€”';
     const mo = [
       'jan',
       'feb',
@@ -7235,11 +7235,11 @@ class _LogboekPageState extends State<_LogboekPage>
       if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
       buf.write(euroStr[i]);
     }
-    return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
+    return '${negative ? '-' : ''}â‚¬$buf,${rem.toString().padLeft(2, '0')}';
   }
 
   static String _fmtDate(DateTime? dt) {
-    if (dt == null) return '—';
+    if (dt == null) return 'â€”';
     const mo = [
       'jan',
       'feb',
@@ -8395,7 +8395,7 @@ class _LogboekPageState extends State<_LogboekPage>
                   .map(
                     (row) => [
                       _ExpenseDetailPage._formatDateTime(row.editedAt)
-                          .replaceAll(' • ', ' - '),
+                          .replaceAll(' â€¢ ', ' - '),
                       row.title,
                       _fmtCsvAmount(row.fromAmountCents),
                       _fmtCsvAmount(row.toAmountCents),
@@ -8879,7 +8879,7 @@ class _LogboekPageState extends State<_LogboekPage>
                     vertical: 6,
                   ),
                   child: Text(
-                    'Offline — je ziet de laatst geladen gegevens.',
+                    'Offline â€” je ziet de laatst geladen gegevens.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: onSurface(context, a62),
                     ),
@@ -9252,13 +9252,13 @@ class _LogboekPageState extends State<_LogboekPage>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${_fmtEur(row.fromAmountCents)} → ${_fmtEur(row.toAmountCents)}',
+                              '${_fmtEur(row.fromAmountCents)} â†’ ${_fmtEur(row.toAmountCents)}',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '$whoLabel · ${_ExpenseDetailPage._formatDateTime(row.editedAt)}',
+                              '$whoLabel Â· ${_ExpenseDetailPage._formatDateTime(row.editedAt)}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall
@@ -9379,9 +9379,9 @@ class _LogboekPageState extends State<_LogboekPage>
                       : amountCents;
                   final dateStr = _fmtDate(createdAt);
                   final subtitleStr = isFiltered
-                      ? '$dateStr · aandeel 1/$nKids'
+                      ? '$dateStr Â· aandeel 1/$nKids'
                       : nKids > 0
-                      ? '$dateStr · ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
+                      ? '$dateStr Â· ${nKids == 1 ? '1 kind' : '$nKids kinderen'}'
                       : dateStr;
                   return Material(
                     type: MaterialType.transparency,
@@ -9630,7 +9630,7 @@ class _LogboekPageState extends State<_LogboekPage>
                   ? 'Bevestigd'
                   : 'In afwachting';
               final String dateStr = _fmtDate(createdAt);
-              final String subtitleStr = '$dateStr · $statusStr';
+              final String subtitleStr = '$dateStr Â· $statusStr';
               final bool isPending = status != 'confirmed';
 
               final confirmedAtRaw = p['confirmedAt'];
@@ -9725,9 +9725,9 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Kinderen management screen
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _KinderenPage extends StatefulWidget {
   const _KinderenPage({required this.householdId});
@@ -10128,13 +10128,959 @@ class _KinderenPageState extends State<_KinderenPage> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Terugkerende kosten â€“ v1 page + add-form shell
+//
+// Local-only UI shell for the recurring-expenses feature. Reached from
+// Instellingen > Huishouden. The page now owns a calm intro/empty-state and
+// a CTA that opens [_AddRecurringExpenseDialog]. This step intentionally
+// ships NO recurring data model, NO Firestore reads/writes for templates,
+// and NO persistence â€” saving the form is a no-op that closes after local
+// client-side validation only.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const int _kRecurringTitleMaxLength = 60;
+
+/// Parses a Dutch-style EUR amount (e.g. "12,34" or "12.34") to integer cents.
+/// Mirrors the parsing rhythm of the "Nieuwe uitgave" amount field.
+/// Local helper for the recurring-expense form; the dashboard keeps its own
+/// private equivalent to avoid coupling this flow to dashboard internals.
+int? _tryParseRecurringEurToCents(String input) {
+  final raw = input.trim().replaceAll(' ', '');
+  if (raw.isEmpty) return null;
+  final normalized = raw.replaceAll(',', '.');
+  if (!RegExp(r'^\d+(\.\d{0,2})?$').hasMatch(normalized)) return null;
+  final parts = normalized.split('.');
+  final euros = int.tryParse(parts[0]) ?? 0;
+  var cents = 0;
+  if (parts.length == 2 && parts[1].isNotEmpty) {
+    final frac = parts[1];
+    if (frac.length == 1) {
+      cents = int.parse(frac) * 10;
+    } else if (frac.length == 2) {
+      cents = int.parse(frac);
+    } else {
+      return null;
+    }
+  }
+  return euros * 100 + cents;
+}
+
+String _formatRecurringStartDateNl(DateTime dt) {
+  const months = [
+    'januari',
+    'februari',
+    'maart',
+    'april',
+    'mei',
+    'juni',
+    'juli',
+    'augustus',
+    'september',
+    'oktober',
+    'november',
+    'december',
+  ];
+  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+}
+
+/// Dutch-style EUR formatter mirroring the dashboard's _formatEur rhythm.
+/// Kept local to the recurring flow so this step does not depend on
+/// _DashboardPageState.
+String _formatRecurringEurCents(int cents) {
+  final abs = cents.abs();
+  final euros = abs ~/ 100;
+  final rem = abs % 100;
+  final euroStr = euros.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < euroStr.length; i++) {
+    if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+    buf.write(euroStr[i]);
+  }
+  return 'â‚¬$buf,${rem.toString().padLeft(2, '0')}';
+}
+
+/// Human-readable status label for a recurring master. Unknown/missing
+/// values fall back to the active label so v1 reads calmly.
+String _formatRecurringStatusLabel(String? status) {
+  if (status == 'paused') return 'Gepauzeerd';
+  return 'Actief';
+}
+
+class _TerugkerendeKostenPage extends StatefulWidget {
+  const _TerugkerendeKostenPage({required this.householdId});
+
+  final String householdId;
+
+  @override
+  State<_TerugkerendeKostenPage> createState() =>
+      _TerugkerendeKostenPageState();
+}
+
+class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
+  Future<void> _openAddRecurringDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          _AddRecurringExpenseDialog(householdId: widget.householdId),
+    );
+    if (!mounted) return;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maandelijkse uitgave opgeslagen.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      // Voorkom dat deze achtergrondpagina herlayoutet bij keyboard-open
+      // (gebeurt wanneer de _AddRecurringExpenseDialog hierboven opent).
+      // Zonder dit kan de lijst/card achter de dialog overflowen en een
+      // gele/zwarte overflow-strip tonen door de modal heen.
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Terugkerende kosten',
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection(
+                      'households/${widget.householdId}/recurringExpenses',
+                    )
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snap) {
+                  final docs = snap.data?.docs ?? const [];
+                  final hasData = snap.hasData;
+                  return KiduCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Hier beheer je vaste kosten die terugkomen.',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: onSurface(context, a84),
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (!hasData)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  height: 14,
+                                  width: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.6,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Ladenâ€¦',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: onSurface(context, a55),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (docs.isEmpty) ...[
+                          Text(
+                            'Nog geen terugkerende kosten ingesteld.',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: onSurface(context, a55),
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ] else ...[
+                          const SizedBox(height: 4),
+                          _RecurringMasterList(docs: docs),
+                          const SizedBox(height: 16),
+                        ],
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ElevatedButton.icon(
+                            onPressed: _openAddRecurringDialog,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Nieuwe terugkerende kost'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Recurring-master list (v1)
+//
+// Calm, read-only rendering of existing recurring masters. Intentionally
+// minimal: title, amount, start-date and status only. No edit/pause affordance
+// yet â€” those are out of scope for this step.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class _RecurringMasterList extends StatelessWidget {
+  const _RecurringMasterList({required this.docs});
+
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final divider = Divider(
+      height: 1,
+      thickness: 1,
+      color: outlineV(context, a55),
+    );
+
+    final rows = <Widget>[];
+    for (var i = 0; i < docs.length; i++) {
+      if (i > 0) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: divider,
+          ),
+        );
+      }
+      rows.add(_buildRow(context, textTheme, docs[i].data()));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: rows,
+    );
+  }
+
+  Widget _buildRow(
+    BuildContext context,
+    TextTheme textTheme,
+    Map<String, dynamic> data,
+  ) {
+    final title = (data['title'] as String?)?.trim() ?? 'â€”';
+    final amountCents = (data['amountCents'] is int)
+        ? data['amountCents'] as int
+        : 0;
+    final startTs = data['startDate'];
+    final startDate = startTs is Timestamp ? startTs.toDate() : null;
+    final statusLabel = _formatRecurringStatusLabel(data['status'] as String?);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: onSurface(context, a84),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                startDate != null
+                    ? 'Start ${_formatRecurringStartDateNl(startDate)} â€¢ $statusLabel'
+                    : statusLabel,
+                style: textTheme.bodySmall?.copyWith(
+                  color: onSurface(context, a55),
+                  height: 1.35,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          _formatRecurringEurCents(amountCents),
+          style: textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: onSurface(context, a84),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Add-recurring-expense dialog
+//
+// Top-level StatefulWidget that mirrors the field rhythm and validation feel
+// of "Nieuwe uitgave" without reaching into _DashboardPageState. Owns its own
+// controllers/focus nodes via initState/dispose so they outlive the dialog's
+// dismiss animation. Recurring cadence is fixed to monthly in v1, so no
+// frequency chooser is rendered; the start-date slot is kept compact so the
+// form stays slim on mobile.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class _AddRecurringExpenseDialog extends StatefulWidget {
+  const _AddRecurringExpenseDialog({required this.householdId});
+
+  final String householdId;
+
+  @override
+  State<_AddRecurringExpenseDialog> createState() =>
+      _AddRecurringExpenseDialogState();
+}
+
+class _AddRecurringExpenseDialogState
+    extends State<_AddRecurringExpenseDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _amountController;
+  late final TextEditingController _noteController;
+  late final FocusNode _titleFocusNode;
+  late final FocusNode _amountFocusNode;
+
+  bool _titleHasError = false;
+  bool _amountHasError = false;
+  bool _childSelectionHasError = false;
+
+  bool _loadingChildren = true;
+  List<_ChildItem> _children = const [];
+  bool _hasCustomChildSelection = false;
+  List<String> _customSelectedChildIds = const [];
+
+  late DateTime _startDate;
+
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    _amountController = TextEditingController();
+    _noteController = TextEditingController();
+    _titleFocusNode = FocusNode();
+    _amountFocusNode = FocusNode();
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, now.day);
+    _loadChildren();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    _noteController.dispose();
+    _titleFocusNode.dispose();
+    _amountFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Loads active children for the household. Kept local to this flow so the
+  /// recurring form does not depend on _DashboardPageState helpers.
+  Future<void> _loadChildren() async {
+    final householdId = widget.householdId.trim();
+    if (householdId.isEmpty) {
+      if (mounted) setState(() => _loadingChildren = false);
+      return;
+    }
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/$householdId/children')
+          .get();
+      final docs =
+          snap.docs
+              .where(
+                (d) =>
+                    d.data()['isArchived'] != true &&
+                    d.data()['isDeleted'] != true,
+              )
+              .toList()
+            ..sort((a, b) {
+              final aTs = a.data()['createdAt'];
+              final bTs = b.data()['createdAt'];
+              if (aTs is Timestamp && bTs is Timestamp) {
+                return aTs.compareTo(bTs);
+              }
+              return 0;
+            });
+      if (!mounted) return;
+      setState(() {
+        _children = docs
+            .map(
+              (d) => _ChildItem(
+                id: d.id,
+                name: (d.data()['name'] as String?)?.trim() ?? '?',
+              ),
+            )
+            .toList();
+        _loadingChildren = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingChildren = false);
+    }
+  }
+
+  List<String> get _effectiveSelectedChildIds {
+    if (_children.isEmpty) return const [];
+    if (_hasCustomChildSelection) return _customSelectedChildIds;
+    return _children.map((c) => c.id).toList(growable: false);
+  }
+
+  String get _childSelectionSummary {
+    if (!_hasCustomChildSelection ||
+        _customSelectedChildIds.length == _children.length) {
+      return 'Alle kinderen';
+    }
+    return '${_customSelectedChildIds.length} van ${_children.length} geselecteerd';
+  }
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+      helpText: 'Startdatum',
+      cancelText: 'Annuleren',
+      confirmText: 'Kiezen',
+    );
+    if (picked == null || !mounted) return;
+    setState(
+      () => _startDate = DateTime(picked.year, picked.month, picked.day),
+    );
+  }
+
+  Future<void> _pickChildren() async {
+    final picked = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _RecurringChildSelectionDialog(
+        children: _children,
+        initialSelectedChildIds: _hasCustomChildSelection
+            ? _customSelectedChildIds
+            : const [],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (picked.length == _children.length) {
+        _hasCustomChildSelection = false;
+        _customSelectedChildIds = const [];
+      } else {
+        _hasCustomChildSelection = true;
+        _customSelectedChildIds = picked;
+      }
+      if (picked.isNotEmpty) _childSelectionHasError = false;
+    });
+  }
+
+  Future<void> _onSavePressed() async {
+    if (_saving) return;
+
+    final title = _titleController.text.trim();
+    final amountCents = _tryParseRecurringEurToCents(_amountController.text);
+    final selectedChildIds = _effectiveSelectedChildIds;
+    final titleInvalid = title.isEmpty;
+    final amountInvalid = amountCents == null || amountCents <= 0;
+    final childSelectionInvalid = selectedChildIds.isEmpty;
+
+    if (titleInvalid || amountInvalid || childSelectionInvalid) {
+      setState(() {
+        _titleHasError = titleInvalid;
+        _amountHasError = amountInvalid;
+        _childSelectionHasError = childSelectionInvalid;
+      });
+      if (titleInvalid) {
+        _titleFocusNode.requestFocus();
+      } else if (amountInvalid) {
+        _amountFocusNode.requestFocus();
+      }
+      return;
+    }
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final householdId = widget.householdId.trim();
+    if (uid == null || householdId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opslaan mislukt. Probeer opnieuw.')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    // Online-gate: recurring masters mogen bewust geen pending/offline create
+    // worden. Hergebruikt hetzelfde patroon als elders in de app, zodat de
+    // tone-of-voice voor de gebruiker consistent blijft.
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Je bent offline, probeer het later opnieuw'),
+        ),
+      );
+      return;
+    }
+
+    final noteTrimmed = _noteController.text.trim();
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final masterRef = firestore
+          .collection('households/$householdId/recurringExpenses')
+          .doc();
+      final batch = firestore.batch();
+      batch.set(masterRef, <String, dynamic>{
+        'title': title,
+        'amountCents': amountCents,
+        'currency': 'EUR',
+        'childIds': selectedChildIds,
+        'startDate': Timestamp.fromDate(_startDate),
+        'cadence': 'monthly',
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (noteTrimmed.isNotEmpty) {
+        final noteRef = masterRef.collection('privateNotes').doc(uid);
+        batch.set(noteRef, <String, dynamic>{
+          'note': noteTrimmed,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      // Harde server-ack: dwing een server-round-trip af op de net
+      // aangemaakte master. Als de verbinding tussen precheck en commit
+      // is weggevallen, zit de write nog in de lokale pending queue en
+      // zal deze read falen â€” dan behandelen we save expliciet als niet
+      // gelukt en laten we de dialog open.
+      await masterRef
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 6));
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Geen verbinding met server. Probeer opnieuw.'),
+        ),
+      );
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      final msg = mapUserFacingError(
+        e,
+        fallback: 'Opslaan mislukt. Probeer opnieuw.',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final subtleErrorHintStyle = textTheme.bodySmall?.copyWith(
+      color: cs.error.withValues(alpha: 0.85),
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+    );
+    final subtleErrorInputStyle = textTheme.bodyLarge?.copyWith(
+      color: cs.error.withValues(alpha: 0.88),
+      fontWeight: FontWeight.w400,
+    );
+
+    final showChildSelectionRow = !_loadingChildren && _children.length > 1;
+    final showNoChildrenHint = !_loadingChildren && _children.isEmpty;
+
+    // Title-anchored width. Cap sits between the old narrow (420) and the
+    // too-wide (480) attempts so "Maandelijkse uitgave" still fits with calm
+    // side-margins while the meta-zone doesn't read as uitgesmeerd.
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
+
+    // Labels stay regular; values pick up a touch more weight for scanability.
+    final metaLabelStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w400,
+      color: onSurface(context, a84),
+    );
+    final metaValueStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w500,
+      color: onSurface(context, a84),
+    );
+    final metaActionStyle = TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      title: const Text('Maandelijkse uitgave'),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        child: SizedBox(
+          width: dialogContentW,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _titleController,
+                  focusNode: _titleFocusNode,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  maxLength: _kRecurringTitleMaxLength,
+                  onTap: () {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  onChanged: (_) {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  buildCounter:
+                      (
+                        context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) => null,
+                  decoration: InputDecoration(
+                    labelText: 'Titel',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
+                    hintText: _titleHasError ? 'Vul een titel in' : null,
+                    hintStyle: _titleHasError ? subtleErrorHintStyle : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _amountController,
+                  focusNode: _amountFocusNode,
+                  style: _amountHasError ? subtleErrorInputStyle : null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onTap: () {
+                    if (_amountHasError) {
+                      setState(() => _amountHasError = false);
+                    }
+                  },
+                  onChanged: (value) {
+                    final trimmed = value.trim();
+                    final parsed = _tryParseRecurringEurToCents(value);
+                    final nextHasError =
+                        trimmed.isNotEmpty && (parsed == null || parsed <= 0);
+                    if (_amountHasError != nextHasError) {
+                      setState(() => _amountHasError = nextHasError);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Bedrag (EUR)',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
+                    hintText: _amountHasError
+                        ? 'Vul een geldig bedrag in'
+                        : 'Bijv. 12,34',
+                    hintStyle: _amountHasError ? subtleErrorHintStyle : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _noteController,
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLength: 180,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Notitie (optioneel)',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Start row â€” label + value ride together as one text group
+                // via Text.rich; Expanded drops all remaining flex space
+                // between the group and the right-aligned action.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: 'Start: ', style: metaLabelStyle),
+                            TextSpan(
+                              text: _formatRecurringStartDateNl(_startDate),
+                              style: metaValueStyle,
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _pickStartDate,
+                      style: metaActionStyle,
+                      child: const Text('Wijzigen'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (_loadingChildren)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Text('Voor: ', style: metaLabelStyle),
+                        const SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(strokeWidth: 1.6),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (showChildSelectionRow)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: 'Voor: ', style: metaLabelStyle),
+                              TextSpan(
+                                text: _childSelectionSummary,
+                                style: metaValueStyle?.copyWith(
+                                  color: _childSelectionHasError
+                                      ? cs.error.withValues(alpha: 0.85)
+                                      : metaValueStyle.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _pickChildren,
+                        style: metaActionStyle,
+                        child: const Text('Selectie'),
+                      ),
+                    ],
+                  )
+                else if (showNoChildrenHint)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: 'Voor: ', style: metaLabelStyle),
+                          TextSpan(
+                            text:
+                                'Voeg eerst een kind toe in Instellingen > Kinderen.',
+                            style: metaValueStyle?.copyWith(
+                              color: onSurface(context, a68),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: (_loadingChildren || _saving) ? null : _onSavePressed,
+          child: _saving
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 1.8),
+                )
+              : const Text('Opslaan'),
+        ),
+      ],
+    );
+  }
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Recurring child-selection dialog
+//
+// Local sibling of the dashboard's own child-selection dialog. Kept inside
+// this flow so the recurring form has no coupling to _DashboardPageState.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class _RecurringChildSelectionDialog extends StatefulWidget {
+  const _RecurringChildSelectionDialog({
+    required this.children,
+    this.initialSelectedChildIds = const [],
+  });
+
+  final List<_ChildItem> children;
+  final List<String> initialSelectedChildIds;
+
+  @override
+  State<_RecurringChildSelectionDialog> createState() =>
+      _RecurringChildSelectionDialogState();
+}
+
+class _RecurringChildSelectionDialogState
+    extends State<_RecurringChildSelectionDialog> {
+  late Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    final allIds = widget.children.map((c) => c.id).toSet();
+    final initial = widget.initialSelectedChildIds
+        .where(allIds.contains)
+        .toSet();
+    _selected = initial.isEmpty ? allIds : initial;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allCount = widget.children.length;
+    final allSelected = _selected.length == allCount;
+    final cs = Theme.of(context).colorScheme;
+
+    return AlertDialog(
+      title: const Text('Voor wie?'),
+      contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextButton(
+              onPressed: () => setState(() {
+                _selected = allSelected
+                    ? <String>{}
+                    : widget.children.map((c) => c.id).toSet();
+              }),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                allSelected ? 'Alles deselecteren' : 'Alles selecteren',
+              ),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.children.length,
+                itemBuilder: (context, index) {
+                  final child = widget.children[index];
+                  final selected = _selected.contains(child.id);
+                  return CheckboxListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: cs.primary.withValues(alpha: a84),
+                    title: Text(child.name),
+                    value: selected,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value ?? false) {
+                          _selected = {..._selected, child.id};
+                        } else {
+                          _selected = _selected
+                              .where((id) => id != child.id)
+                              .toSet();
+                        }
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_selected.toList()),
+          child: const Text('Gereed'),
+        ),
+      ],
+    );
+  }
+}
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Add-child dialog
 //
 // Owns its TextEditingController via initState/dispose so the controller is
 // always torn down by Flutter's widget lifecycle, never while EditableText is
 // still mounted during the dialog's dismiss animation or IME hide.
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _AddChildDialog extends StatefulWidget {
   const _AddChildDialog({required this.activeNormalised});
@@ -10201,13 +11147,13 @@ class _AddChildDialogState extends State<_AddChildDialog> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Rename-child dialog
 //
 // Owns its TextEditingController so Flutter disposes it as part of the normal
-// widget lifecycle — never while EditableText is still mounted during the
+// widget lifecycle â€” never while EditableText is still mounted during the
 // dialog's dismiss animation or IME hide.
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _RenameChildDialog extends StatefulWidget {
   const _RenameChildDialog({
@@ -10282,7 +11228,7 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class KiduCard extends StatelessWidget {
   const KiduCard({
