@@ -2028,10 +2028,40 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                             onTap: () {
                               Navigator.of(context).pop();
-                              Navigator.of(rootContext).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const _TerugkerendeKostenPage(),
+                              // Route-lokale fix voor swipe-back jank op deze
+                              // ene route. Een PageRouteBuilder negeert het
+                              // pageTransitionsTheme, waardoor Android
+                              // predictive-back / iOS swipe-back niet de
+                              // onderliggende dashboard-opbouw blootleggen.
+                              // Dezelfde korte fade speelt bij zowel pijltje
+                              // terug als swipe-back, zodat beide paden
+                              // visueel (vrijwel) identiek aanvoelen.
+                              Navigator.of(rootContext).push<void>(
+                                PageRouteBuilder<void>(
+                                  pageBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                      ) => _TerugkerendeKostenPage(
+                                        householdId: householdId,
+                                      ),
+                                  transitionDuration: const Duration(
+                                    milliseconds: 220,
+                                  ),
+                                  reverseTransitionDuration: const Duration(
+                                    milliseconds: 220,
+                                  ),
+                                  transitionsBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                        child,
+                                      ) => FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
                                 ),
                               );
                             },
@@ -11169,15 +11199,80 @@ class _KinderenPageState extends State<_KinderenPage> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Terugkerende kosten – navigation skeleton
+// Terugkerende kosten – v1 page + add-form shell
 //
-// Navigation-only placeholder for the recurring-expenses feature. Reached from
-// Instellingen > Huishouden. No form, no Firestore, no recurring data model
-// yet — those land in a follow-up step.
+// Local-only UI shell for the recurring-expenses feature. Reached from
+// Instellingen > Huishouden. The page now owns a calm intro/empty-state and
+// a CTA that opens [_AddRecurringExpenseDialog]. This step intentionally
+// ships NO recurring data model, NO Firestore reads/writes for templates,
+// and NO persistence — saving the form is a no-op that closes after local
+// client-side validation only.
 // ────────────────────────────────────────────────────────────────────────────
 
-class _TerugkerendeKostenPage extends StatelessWidget {
-  const _TerugkerendeKostenPage();
+const int _kRecurringTitleMaxLength = 60;
+
+/// Parses a Dutch-style EUR amount (e.g. "12,34" or "12.34") to integer cents.
+/// Mirrors the parsing rhythm of the "Nieuwe uitgave" amount field.
+/// Local helper for the recurring-expense form; the dashboard keeps its own
+/// private equivalent to avoid coupling this flow to dashboard internals.
+int? _tryParseRecurringEurToCents(String input) {
+  final raw = input.trim().replaceAll(' ', '');
+  if (raw.isEmpty) return null;
+  final normalized = raw.replaceAll(',', '.');
+  if (!RegExp(r'^\d+(\.\d{0,2})?$').hasMatch(normalized)) return null;
+  final parts = normalized.split('.');
+  final euros = int.tryParse(parts[0]) ?? 0;
+  var cents = 0;
+  if (parts.length == 2 && parts[1].isNotEmpty) {
+    final frac = parts[1];
+    if (frac.length == 1) {
+      cents = int.parse(frac) * 10;
+    } else if (frac.length == 2) {
+      cents = int.parse(frac);
+    } else {
+      return null;
+    }
+  }
+  return euros * 100 + cents;
+}
+
+String _formatRecurringStartDateNl(DateTime dt) {
+  const months = [
+    'januari',
+    'februari',
+    'maart',
+    'april',
+    'mei',
+    'juni',
+    'juli',
+    'augustus',
+    'september',
+    'oktober',
+    'november',
+    'december',
+  ];
+  return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+}
+
+class _TerugkerendeKostenPage extends StatefulWidget {
+  const _TerugkerendeKostenPage({required this.householdId});
+
+  final String householdId;
+
+  @override
+  State<_TerugkerendeKostenPage> createState() =>
+      _TerugkerendeKostenPageState();
+}
+
+class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
+  Future<void> _openAddRecurringDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          _AddRecurringExpenseDialog(householdId: widget.householdId),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11215,10 +11310,19 @@ class _TerugkerendeKostenPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'De aanmaakflow bouwen we in de volgende stap.',
+                      'Nog geen terugkerende kosten ingesteld.',
                       style: textTheme.bodySmall?.copyWith(
                         color: onSurface(context, a55),
                         height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: ElevatedButton.icon(
+                        onPressed: _openAddRecurringDialog,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Nieuwe terugkerende kost'),
                       ),
                     ),
                   ],
@@ -11228,6 +11332,549 @@ class _TerugkerendeKostenPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Add-recurring-expense dialog
+//
+// Top-level StatefulWidget that mirrors the field rhythm and validation feel
+// of "Nieuwe uitgave" without reaching into _DashboardPageState. Owns its own
+// controllers/focus nodes via initState/dispose so they outlive the dialog's
+// dismiss animation. Recurring cadence is fixed to monthly in v1, so no
+// frequency chooser is rendered; the start-date slot is kept compact so the
+// form stays slim on mobile.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _AddRecurringExpenseDialog extends StatefulWidget {
+  const _AddRecurringExpenseDialog({required this.householdId});
+
+  final String householdId;
+
+  @override
+  State<_AddRecurringExpenseDialog> createState() =>
+      _AddRecurringExpenseDialogState();
+}
+
+class _AddRecurringExpenseDialogState
+    extends State<_AddRecurringExpenseDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _amountController;
+  late final TextEditingController _noteController;
+  late final FocusNode _titleFocusNode;
+  late final FocusNode _amountFocusNode;
+
+  bool _titleHasError = false;
+  bool _amountHasError = false;
+  bool _childSelectionHasError = false;
+
+  bool _loadingChildren = true;
+  List<_ChildItem> _children = const [];
+  bool _hasCustomChildSelection = false;
+  List<String> _customSelectedChildIds = const [];
+
+  late DateTime _startDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    _amountController = TextEditingController();
+    _noteController = TextEditingController();
+    _titleFocusNode = FocusNode();
+    _amountFocusNode = FocusNode();
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, now.day);
+    _loadChildren();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    _noteController.dispose();
+    _titleFocusNode.dispose();
+    _amountFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Loads active children for the household. Kept local to this flow so the
+  /// recurring form does not depend on _DashboardPageState helpers.
+  Future<void> _loadChildren() async {
+    final householdId = widget.householdId.trim();
+    if (householdId.isEmpty) {
+      if (mounted) setState(() => _loadingChildren = false);
+      return;
+    }
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/$householdId/children')
+          .get();
+      final docs =
+          snap.docs
+              .where(
+                (d) =>
+                    d.data()['isArchived'] != true &&
+                    d.data()['isDeleted'] != true,
+              )
+              .toList()
+            ..sort((a, b) {
+              final aTs = a.data()['createdAt'];
+              final bTs = b.data()['createdAt'];
+              if (aTs is Timestamp && bTs is Timestamp) {
+                return aTs.compareTo(bTs);
+              }
+              return 0;
+            });
+      if (!mounted) return;
+      setState(() {
+        _children = docs
+            .map(
+              (d) => _ChildItem(
+                id: d.id,
+                name: (d.data()['name'] as String?)?.trim() ?? '?',
+              ),
+            )
+            .toList();
+        _loadingChildren = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingChildren = false);
+    }
+  }
+
+  List<String> get _effectiveSelectedChildIds {
+    if (_children.isEmpty) return const [];
+    if (_hasCustomChildSelection) return _customSelectedChildIds;
+    return _children.map((c) => c.id).toList(growable: false);
+  }
+
+  String get _childSelectionSummary {
+    if (!_hasCustomChildSelection ||
+        _customSelectedChildIds.length == _children.length) {
+      return 'Alle kinderen';
+    }
+    return '${_customSelectedChildIds.length} van ${_children.length} geselecteerd';
+  }
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+      helpText: 'Startdatum',
+      cancelText: 'Annuleren',
+      confirmText: 'Kiezen',
+    );
+    if (picked == null || !mounted) return;
+    setState(
+      () => _startDate = DateTime(picked.year, picked.month, picked.day),
+    );
+  }
+
+  Future<void> _pickChildren() async {
+    final picked = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _RecurringChildSelectionDialog(
+        children: _children,
+        initialSelectedChildIds: _hasCustomChildSelection
+            ? _customSelectedChildIds
+            : const [],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (picked.length == _children.length) {
+        _hasCustomChildSelection = false;
+        _customSelectedChildIds = const [];
+      } else {
+        _hasCustomChildSelection = true;
+        _customSelectedChildIds = picked;
+      }
+      if (picked.isNotEmpty) _childSelectionHasError = false;
+    });
+  }
+
+  void _onSavePressed() {
+    final title = _titleController.text.trim();
+    final amountCents = _tryParseRecurringEurToCents(_amountController.text);
+    final titleInvalid = title.isEmpty;
+    final amountInvalid = amountCents == null || amountCents <= 0;
+    final childSelectionInvalid = _effectiveSelectedChildIds.isEmpty;
+
+    if (titleInvalid || amountInvalid || childSelectionInvalid) {
+      setState(() {
+        _titleHasError = titleInvalid;
+        _amountHasError = amountInvalid;
+        _childSelectionHasError = childSelectionInvalid;
+      });
+      if (titleInvalid) {
+        _titleFocusNode.requestFocus();
+      } else if (amountInvalid) {
+        _amountFocusNode.requestFocus();
+      }
+      return;
+    }
+    // No persistence in this step — local validation only, then close.
+    // The parent page deliberately shows no list yet, so a silent close
+    // does not imply that anything was actually saved.
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final subtleErrorHintStyle = textTheme.bodySmall?.copyWith(
+      color: cs.error.withValues(alpha: 0.85),
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+    );
+    final subtleErrorInputStyle = textTheme.bodyLarge?.copyWith(
+      color: cs.error.withValues(alpha: 0.88),
+      fontWeight: FontWeight.w400,
+    );
+
+    final showChildSelectionRow = !_loadingChildren && _children.length > 1;
+    final showNoChildrenHint = !_loadingChildren && _children.isEmpty;
+
+    // Title-anchored width. Cap sits between the old narrow (420) and the
+    // too-wide (480) attempts so "Maandelijkse uitgave" still fits with calm
+    // side-margins while the meta-zone doesn't read as uitgesmeerd.
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
+
+    // Labels stay regular; values pick up a touch more weight for scanability.
+    final metaLabelStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w400,
+      color: onSurface(context, a84),
+    );
+    final metaValueStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w500,
+      color: onSurface(context, a84),
+    );
+    final metaActionStyle = TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      title: const Text('Maandelijkse uitgave'),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        child: SizedBox(
+          width: dialogContentW,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _titleController,
+                  focusNode: _titleFocusNode,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  maxLength: _kRecurringTitleMaxLength,
+                  onTap: () {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  onChanged: (_) {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  buildCounter:
+                      (
+                        context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) => null,
+                  decoration: InputDecoration(
+                    labelText: 'Titel',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
+                    hintText: _titleHasError ? 'Vul een titel in' : null,
+                    hintStyle: _titleHasError ? subtleErrorHintStyle : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _amountController,
+                  focusNode: _amountFocusNode,
+                  style: _amountHasError ? subtleErrorInputStyle : null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onTap: () {
+                    if (_amountHasError) {
+                      setState(() => _amountHasError = false);
+                    }
+                  },
+                  onChanged: (value) {
+                    final trimmed = value.trim();
+                    final parsed = _tryParseRecurringEurToCents(value);
+                    final nextHasError =
+                        trimmed.isNotEmpty && (parsed == null || parsed <= 0);
+                    if (_amountHasError != nextHasError) {
+                      setState(() => _amountHasError = nextHasError);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Bedrag (EUR)',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
+                    hintText: _amountHasError
+                        ? 'Vul een geldig bedrag in'
+                        : 'Bijv. 12,34',
+                    hintStyle: _amountHasError ? subtleErrorHintStyle : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _noteController,
+                  textCapitalization: TextCapitalization.sentences,
+                  maxLength: 180,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Notitie (optioneel)',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Start row — label + value ride together as one text group
+                // via Text.rich; Expanded drops all remaining flex space
+                // between the group and the right-aligned action.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: 'Start: ', style: metaLabelStyle),
+                            TextSpan(
+                              text: _formatRecurringStartDateNl(_startDate),
+                              style: metaValueStyle,
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _pickStartDate,
+                      style: metaActionStyle,
+                      child: const Text('Wijzigen'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (_loadingChildren)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Text('Voor: ', style: metaLabelStyle),
+                        const SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(strokeWidth: 1.6),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (showChildSelectionRow)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: 'Voor: ', style: metaLabelStyle),
+                              TextSpan(
+                                text: _childSelectionSummary,
+                                style: metaValueStyle?.copyWith(
+                                  color: _childSelectionHasError
+                                      ? cs.error.withValues(alpha: 0.85)
+                                      : metaValueStyle.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _pickChildren,
+                        style: metaActionStyle,
+                        child: const Text('Selectie'),
+                      ),
+                    ],
+                  )
+                else if (showNoChildrenHint)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: 'Voor: ', style: metaLabelStyle),
+                          TextSpan(
+                            text:
+                                'Voeg eerst een kind toe in Instellingen > Kinderen.',
+                            style: metaValueStyle?.copyWith(
+                              color: onSurface(context, a68),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: _loadingChildren ? null : _onSavePressed,
+          child: const Text('Opslaan'),
+        ),
+      ],
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Recurring child-selection dialog
+//
+// Local sibling of the dashboard's own child-selection dialog. Kept inside
+// this flow so the recurring form has no coupling to _DashboardPageState.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _RecurringChildSelectionDialog extends StatefulWidget {
+  const _RecurringChildSelectionDialog({
+    required this.children,
+    this.initialSelectedChildIds = const [],
+  });
+
+  final List<_ChildItem> children;
+  final List<String> initialSelectedChildIds;
+
+  @override
+  State<_RecurringChildSelectionDialog> createState() =>
+      _RecurringChildSelectionDialogState();
+}
+
+class _RecurringChildSelectionDialogState
+    extends State<_RecurringChildSelectionDialog> {
+  late Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    final allIds = widget.children.map((c) => c.id).toSet();
+    final initial = widget.initialSelectedChildIds
+        .where(allIds.contains)
+        .toSet();
+    _selected = initial.isEmpty ? allIds : initial;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allCount = widget.children.length;
+    final allSelected = _selected.length == allCount;
+    final cs = Theme.of(context).colorScheme;
+
+    return AlertDialog(
+      title: const Text('Voor wie?'),
+      contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextButton(
+              onPressed: () => setState(() {
+                _selected = allSelected
+                    ? <String>{}
+                    : widget.children.map((c) => c.id).toSet();
+              }),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                allSelected ? 'Alles deselecteren' : 'Alles selecteren',
+              ),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.children.length,
+                itemBuilder: (context, index) {
+                  final child = widget.children[index];
+                  final selected = _selected.contains(child.id);
+                  return CheckboxListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: cs.primary.withValues(alpha: a84),
+                    title: Text(child.name),
+                    value: selected,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value ?? false) {
+                          _selected = {..._selected, child.id};
+                        } else {
+                          _selected = _selected
+                              .where((id) => id != child.id)
+                              .toSet();
+                        }
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: _selected.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_selected.toList()),
+          child: const Text('Gereed'),
+        ),
+      ],
     );
   }
 }
