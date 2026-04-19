@@ -11,6 +11,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
     }
 
+    function isRecurringMasterCreator(householdId, recurringId) {
+      return exists(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId))
+        && get(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId)).data.createdBy == request.auth.uid;
+    }
+
     function sameHouseholdUser(targetUserId) {
       let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
       let targetUser = get(/databases/$(database)/documents/users/$(targetUserId));
@@ -201,7 +206,9 @@ service cloud.firestore {
           'title',
           'createdAt',
           'createdBy',
-          'childIds'
+          'childIds',
+          'recurringExpenseId',
+          'periodKey'
         ])
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents > 0
@@ -212,7 +219,15 @@ service cloud.firestore {
         && (!('childIds' in request.resource.data)
             || request.resource.data.childIds == null
             || (request.resource.data.childIds is list
-                && request.resource.data.childIds.size() <= 7));
+                && request.resource.data.childIds.size() <= 7))
+        && (('recurringExpenseId' in request.resource.data)
+            == ('periodKey' in request.resource.data))
+        && (!('recurringExpenseId' in request.resource.data)
+            || (request.resource.data.recurringExpenseId is string
+                && request.resource.data.recurringExpenseId.size() > 0
+                && request.resource.data.periodKey is string
+                && request.resource.data.periodKey.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+                && isRecurringMasterCreator(householdId, request.resource.data.recurringExpenseId)));
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
@@ -233,6 +248,163 @@ service cloud.firestore {
                 && request.resource.data.childIds.size() <= 7));
 
       allow delete: if false;
+    }
+
+    match /households/{householdId}/recurringExpenses/{recurringId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+
+      allow create: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'title',
+          'amountCents',
+          'currency',
+          'childIds',
+          'startDate',
+          'cadence',
+          'status',
+          'createdAt',
+          'createdBy',
+          'updatedAt'
+        ])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 1
+        && request.resource.data.title.size() <= 60
+        && request.resource.data.amountCents is int
+        && request.resource.data.amountCents > 0
+        && request.resource.data.currency == 'EUR'
+        && request.resource.data.childIds is list
+        && request.resource.data.childIds.size() >= 1
+        && request.resource.data.childIds.size() <= 7
+        && request.resource.data.startDate is timestamp
+        && request.resource.data.cadence == 'monthly'
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time
+        && (!('updatedAt' in request.resource.data)
+            || request.resource.data.updatedAt == request.time);
+
+      allow update: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.auth.uid == resource.data.createdBy
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.cadence == resource.data.cadence
+        && request.resource.data.startDate == resource.data.startDate
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title',
+          'amountCents',
+          'childIds',
+          'status',
+          'updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title'])
+            || (request.resource.data.title is string
+                && request.resource.data.title.size() >= 1
+                && request.resource.data.title.size() <= 60))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['amountCents'])
+            || (request.resource.data.amountCents is int
+                && request.resource.data.amountCents > 0))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['childIds'])
+            || (request.resource.data.childIds is list
+                && request.resource.data.childIds.size() >= 1
+                && request.resource.data.childIds.size() <= 7))
+        && request.resource.data.status in ['active', 'paused'];
+
+      allow delete: if false;
+    }
+
+    match /households/{householdId}/recurringExpenses/{recurringId}/changes/{changeId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+
+      allow create: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && isRecurringMasterCreator(householdId, recurringId)
+        && request.resource.data.keys().hasOnly([
+          'changeType',
+          'fromAmountCents',
+          'toAmountCents',
+          'fromStatus',
+          'toStatus',
+          'fromTitle',
+          'toTitle',
+          'fromChildIds',
+          'toChildIds',
+          'reason',
+          'editedBy',
+          'editedAt'
+        ])
+        && request.resource.data.changeType is string
+        && request.resource.data.changeType in ['amount', 'status', 'title', 'children']
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 1
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.editedBy == request.auth.uid
+        && request.resource.data.editedAt == request.time
+        && (request.resource.data.changeType != 'amount'
+            || ('fromAmountCents' in request.resource.data
+                && 'toAmountCents' in request.resource.data
+                && !('fromStatus' in request.resource.data)
+                && !('toStatus' in request.resource.data)
+                && !('fromTitle' in request.resource.data)
+                && !('toTitle' in request.resource.data)
+                && !('fromChildIds' in request.resource.data)
+                && !('toChildIds' in request.resource.data)))
+        && (request.resource.data.changeType != 'status'
+            || ('fromStatus' in request.resource.data
+                && 'toStatus' in request.resource.data
+                && !('fromAmountCents' in request.resource.data)
+                && !('toAmountCents' in request.resource.data)
+                && !('fromTitle' in request.resource.data)
+                && !('toTitle' in request.resource.data)
+                && !('fromChildIds' in request.resource.data)
+                && !('toChildIds' in request.resource.data)))
+        && (request.resource.data.changeType != 'title'
+            || ('fromTitle' in request.resource.data
+                && 'toTitle' in request.resource.data
+                && !('fromAmountCents' in request.resource.data)
+                && !('toAmountCents' in request.resource.data)
+                && !('fromStatus' in request.resource.data)
+                && !('toStatus' in request.resource.data)
+                && !('fromChildIds' in request.resource.data)
+                && !('toChildIds' in request.resource.data)))
+        && (request.resource.data.changeType != 'children'
+            || ('fromChildIds' in request.resource.data
+                && 'toChildIds' in request.resource.data
+                && !('fromAmountCents' in request.resource.data)
+                && !('toAmountCents' in request.resource.data)
+                && !('fromStatus' in request.resource.data)
+                && !('toStatus' in request.resource.data)
+                && !('fromTitle' in request.resource.data)
+                && !('toTitle' in request.resource.data)))
+        && (!('fromAmountCents' in request.resource.data)
+            || (request.resource.data.fromAmountCents is int
+                && request.resource.data.toAmountCents is int
+                && request.resource.data.toAmountCents != request.resource.data.fromAmountCents))
+        && (!('fromStatus' in request.resource.data)
+            || (request.resource.data.fromStatus in ['active', 'paused']
+                && request.resource.data.toStatus in ['active', 'paused']
+                && request.resource.data.fromStatus != request.resource.data.toStatus))
+        && (!('fromTitle' in request.resource.data)
+            || (request.resource.data.fromTitle is string
+                && request.resource.data.toTitle is string
+                && request.resource.data.fromTitle.size() >= 1
+                && request.resource.data.fromTitle.size() <= 60
+                && request.resource.data.toTitle.size() >= 1
+                && request.resource.data.toTitle.size() <= 60
+                && request.resource.data.fromTitle != request.resource.data.toTitle))
+        && (!('fromChildIds' in request.resource.data)
+            || (request.resource.data.fromChildIds is list
+                && request.resource.data.toChildIds is list
+                && request.resource.data.fromChildIds.size() >= 1
+                && request.resource.data.fromChildIds.size() <= 7
+                && request.resource.data.toChildIds.size() >= 1
+                && request.resource.data.toChildIds.size() <= 7
+                && request.resource.data.fromChildIds != request.resource.data.toChildIds));
+
+      allow update, delete: if false;
     }
 
     match /households/{householdId}/expenses/{expenseId}/amountEdits/{editId} {
