@@ -2012,6 +2012,30 @@ class _DashboardPageState extends State<DashboardPage> {
                               );
                             },
                           ),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.standard,
+                            leading: Icon(
+                              Icons.event_repeat_outlined,
+                              size: 18,
+                              color: onSurface(context, a50),
+                            ),
+                            title: Text(
+                              'Terugkerende kosten',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const _TerugkerendeKostenPage(),
+                                ),
+                              );
+                            },
+                          ),
                         const SizedBox(height: 16),
                         Text(
                           'Info',
@@ -11139,6 +11163,70 @@ class _KinderenPageState extends State<_KinderenPage> {
                   ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Terugkerende kosten – navigation skeleton
+//
+// Navigation-only placeholder for the recurring-expenses feature. Reached from
+// Instellingen > Huishouden. No form, no Firestore, no recurring data model
+// yet — those land in a follow-up step.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _TerugkerendeKostenPage extends StatelessWidget {
+  const _TerugkerendeKostenPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Terugkerende kosten',
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: KiduCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Hier beheer je vaste kosten die terugkomen.',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a84),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'De aanmaakflow bouwen we in de volgende stap.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a55),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
