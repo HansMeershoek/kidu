@@ -11254,6 +11254,29 @@ String _formatRecurringStartDateNl(DateTime dt) {
   return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
 }
 
+/// Dutch-style EUR formatter mirroring the dashboard's _formatEur rhythm.
+/// Kept local to the recurring flow so this step does not depend on
+/// _DashboardPageState.
+String _formatRecurringEurCents(int cents) {
+  final abs = cents.abs();
+  final euros = abs ~/ 100;
+  final rem = abs % 100;
+  final euroStr = euros.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < euroStr.length; i++) {
+    if (i > 0 && (euroStr.length - i) % 3 == 0) buf.write('.');
+    buf.write(euroStr[i]);
+  }
+  return '€$buf,${rem.toString().padLeft(2, '0')}';
+}
+
+/// Human-readable status label for a recurring master. Unknown/missing
+/// values fall back to the active label so v1 reads calmly.
+String _formatRecurringStatusLabel(String? status) {
+  if (status == 'paused') return 'Gepauzeerd';
+  return 'Actief';
+}
+
 class _TerugkerendeKostenPage extends StatefulWidget {
   const _TerugkerendeKostenPage({required this.householdId});
 
@@ -11266,12 +11289,18 @@ class _TerugkerendeKostenPage extends StatefulWidget {
 
 class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
   Future<void> _openAddRecurringDialog() async {
-    await showDialog<void>(
+    final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) =>
           _AddRecurringExpenseDialog(householdId: widget.householdId),
     );
+    if (!mounted) return;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maandelijkse uitgave opgeslagen.')),
+      );
+    }
   }
 
   @override
@@ -11279,6 +11308,11 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      // Voorkom dat deze achtergrondpagina herlayoutet bij keyboard-open
+      // (gebeurt wanneer de _AddRecurringExpenseDialog hierboven opent).
+      // Zonder dit kan de lijst/card achter de dialog overflowen en een
+      // gele/zwarte overflow-strip tonen door de modal heen.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         centerTitle: true,
         title: Text(
@@ -11296,42 +11330,182 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Align(
               alignment: Alignment.topCenter,
-              child: KiduCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Hier beheer je vaste kosten die terugkomen.',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: onSurface(context, a84),
-                        height: 1.35,
-                      ),
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection(
+                      'households/${widget.householdId}/recurringExpenses',
+                    )
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snap) {
+                  final docs = snap.data?.docs ?? const [];
+                  final hasData = snap.hasData;
+                  return KiduCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Hier beheer je vaste kosten die terugkomen.',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: onSurface(context, a84),
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (!hasData)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  height: 14,
+                                  width: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.6,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Laden…',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: onSurface(context, a55),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (docs.isEmpty) ...[
+                          Text(
+                            'Nog geen terugkerende kosten ingesteld.',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: onSurface(context, a55),
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ] else ...[
+                          const SizedBox(height: 4),
+                          _RecurringMasterList(docs: docs),
+                          const SizedBox(height: 16),
+                        ],
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: ElevatedButton.icon(
+                            onPressed: _openAddRecurringDialog,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Nieuwe terugkerende kost'),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Nog geen terugkerende kosten ingesteld.',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a55),
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: ElevatedButton.icon(
-                        onPressed: _openAddRecurringDialog,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Nieuwe terugkerende kost'),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Recurring-master list (v1)
+//
+// Calm, read-only rendering of existing recurring masters. Intentionally
+// minimal: title, amount, start-date and status only. No edit/pause affordance
+// yet — those are out of scope for this step.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _RecurringMasterList extends StatelessWidget {
+  const _RecurringMasterList({required this.docs});
+
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final divider = Divider(
+      height: 1,
+      thickness: 1,
+      color: outlineV(context, a55),
+    );
+
+    final rows = <Widget>[];
+    for (var i = 0; i < docs.length; i++) {
+      if (i > 0) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: divider,
+          ),
+        );
+      }
+      rows.add(_buildRow(context, textTheme, docs[i].data()));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: rows,
+    );
+  }
+
+  Widget _buildRow(
+    BuildContext context,
+    TextTheme textTheme,
+    Map<String, dynamic> data,
+  ) {
+    final title = (data['title'] as String?)?.trim() ?? '—';
+    final amountCents = (data['amountCents'] is int)
+        ? data['amountCents'] as int
+        : 0;
+    final startTs = data['startDate'];
+    final startDate = startTs is Timestamp ? startTs.toDate() : null;
+    final statusLabel = _formatRecurringStatusLabel(data['status'] as String?);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: onSurface(context, a84),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                startDate != null
+                    ? 'Start ${_formatRecurringStartDateNl(startDate)} • $statusLabel'
+                    : statusLabel,
+                style: textTheme.bodySmall?.copyWith(
+                  color: onSurface(context, a55),
+                  height: 1.35,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          _formatRecurringEurCents(amountCents),
+          style: textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: onSurface(context, a84),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -11375,6 +11549,8 @@ class _AddRecurringExpenseDialogState
   List<String> _customSelectedChildIds = const [];
 
   late DateTime _startDate;
+
+  bool _saving = false;
 
   @override
   void initState() {
@@ -11499,12 +11675,15 @@ class _AddRecurringExpenseDialogState
     });
   }
 
-  void _onSavePressed() {
+  Future<void> _onSavePressed() async {
+    if (_saving) return;
+
     final title = _titleController.text.trim();
     final amountCents = _tryParseRecurringEurToCents(_amountController.text);
+    final selectedChildIds = _effectiveSelectedChildIds;
     final titleInvalid = title.isEmpty;
     final amountInvalid = amountCents == null || amountCents <= 0;
-    final childSelectionInvalid = _effectiveSelectedChildIds.isEmpty;
+    final childSelectionInvalid = selectedChildIds.isEmpty;
 
     if (titleInvalid || amountInvalid || childSelectionInvalid) {
       setState(() {
@@ -11519,10 +11698,90 @@ class _AddRecurringExpenseDialogState
       }
       return;
     }
-    // No persistence in this step — local validation only, then close.
-    // The parent page deliberately shows no list yet, so a silent close
-    // does not imply that anything was actually saved.
-    Navigator.of(context).pop();
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final householdId = widget.householdId.trim();
+    if (uid == null || householdId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opslaan mislukt. Probeer opnieuw.')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    // Online-gate: recurring masters mogen bewust geen pending/offline create
+    // worden. Hergebruikt hetzelfde patroon als elders in de app, zodat de
+    // tone-of-voice voor de gebruiker consistent blijft.
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Je bent offline, probeer het later opnieuw'),
+        ),
+      );
+      return;
+    }
+
+    final noteTrimmed = _noteController.text.trim();
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final masterRef = firestore
+          .collection('households/$householdId/recurringExpenses')
+          .doc();
+      final batch = firestore.batch();
+      batch.set(masterRef, <String, dynamic>{
+        'title': title,
+        'amountCents': amountCents,
+        'currency': 'EUR',
+        'childIds': selectedChildIds,
+        'startDate': Timestamp.fromDate(_startDate),
+        'cadence': 'monthly',
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (noteTrimmed.isNotEmpty) {
+        final noteRef = masterRef.collection('privateNotes').doc(uid);
+        batch.set(noteRef, <String, dynamic>{
+          'note': noteTrimmed,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      // Harde server-ack: dwing een server-round-trip af op de net
+      // aangemaakte master. Als de verbinding tussen precheck en commit
+      // is weggevallen, zit de write nog in de lokale pending queue en
+      // zal deze read falen — dan behandelen we save expliciet als niet
+      // gelukt en laten we de dialog open.
+      await masterRef
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 6));
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Geen verbinding met server. Probeer opnieuw.'),
+        ),
+      );
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      final msg = mapUserFacingError(
+        e,
+        fallback: 'Opslaan mislukt. Probeer opnieuw.',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
   }
 
   @override
@@ -11751,12 +12010,18 @@ class _AddRecurringExpenseDialogState
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
         ElevatedButton(
-          onPressed: _loadingChildren ? null : _onSavePressed,
-          child: const Text('Opslaan'),
+          onPressed: (_loadingChildren || _saving) ? null : _onSavePressed,
+          child: _saving
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 1.8),
+                )
+              : const Text('Opslaan'),
         ),
       ],
     );
