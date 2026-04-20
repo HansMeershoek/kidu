@@ -10295,6 +10295,182 @@ String _formatRecurringStatusLabel(String? status) {
   return 'Actief';
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Pure materialisatie-helper voor Maandelijkse uitgaven
+//
+// Deze sectie is bewust volledig zuiver: geen Firestore, geen UI, geen
+// lifecycle-trigger en geen runner. De helper levert alleen het
+// deterministische plan per ontbrekende periode, zodat een latere
+// write-laag exact weet welke expense-instances gemaakt moeten worden.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Pure snapshot van een recurring master, losgekoppeld van Firestore-typen.
+///
+/// Het doel is de berekening triviaal testbaar en zijeffect-vrij te houden;
+/// de write-laag vertaalt t.z.t. tussen DocumentSnapshot/Timestamp en dit
+/// value object.
+// ignore: unused_element
+class _RecurringMasterInput {
+  const _RecurringMasterInput({
+    required this.masterId,
+    required this.title,
+    required this.amountCents,
+    required this.currency,
+    required this.childIds,
+    required this.startDate,
+    required this.status,
+    required this.createdBy,
+  });
+
+  final String masterId;
+  final String title;
+  final int amountCents;
+  final String currency;
+  final List<String> childIds;
+  final DateTime startDate;
+  final String status;
+  final String createdBy;
+}
+
+/// Pure plan-entry voor één ontbrekende periode.
+///
+/// Bevat alle velden die een latere write-laag nodig heeft om een
+/// deterministische expense-instance aan te maken. Er is bewust geen
+/// DocumentReference en geen Firestore-Timestamp: de write-laag wrapt dat
+/// zelf wanneer die echt gaat schrijven.
+// ignore: unused_element
+class _RecurringMaterializationPlan {
+  const _RecurringMaterializationPlan({
+    required this.masterId,
+    required this.periodKey,
+    required this.dueAt,
+    required this.expenseId,
+    required this.title,
+    required this.amountCents,
+    required this.currency,
+    required this.childIds,
+    required this.recurringExpenseId,
+    required this.createdBy,
+    required this.createdAt,
+  });
+
+  final String masterId;
+  final String periodKey;
+
+  /// Lokale maker-datum om 00:00 voor deze periode, al geclamped naar de
+  /// laatste dag van de maand als startDate.day daar niet in past.
+  final DateTime dueAt;
+
+  /// Deterministische toekomstige expense-id: `rec_<masterId>_<periodKey>`.
+  final String expenseId;
+
+  final String title;
+  final int amountCents;
+  final String currency;
+  final List<String> childIds;
+
+  /// Verwijzing naar de master; wordt straks letterlijk meegeschreven in
+  /// het expense-instance-document.
+  final String recurringExpenseId;
+
+  final String createdBy;
+
+  /// Semantische createdAt voor de latere expense-instance: de due-datum
+  /// om 00:00 lokale tijd van de maker — NIET het moment van materialiseren.
+  final DateTime createdAt;
+}
+
+/// Vormt een periodKey als `YYYY-MM`.
+String _formatRecurringPeriodKey(int year, int month) {
+  final mm = month.toString().padLeft(2, '0');
+  return '$year-$mm';
+}
+
+/// Aantal dagen in maand [month] van jaar [year].
+/// `DateTime(y, m + 1, 0)` rolt netjes naar de laatste dag van maand m.
+int _recurringDaysInMonth(int year, int month) {
+  return DateTime(year, month + 1, 0).day;
+}
+
+/// Due-datum voor één periode: lokale datum om 00:00, met clamp naar de
+/// laatste dag van de maand als [startDay] groter is dan het aantal dagen
+/// van die maand (bv. startDay 31 → 28/29 februari).
+DateTime _recurringDueDateFor({
+  required int year,
+  required int month,
+  required int startDay,
+}) {
+  final maxDay = _recurringDaysInMonth(year, month);
+  final day = startDay > maxDay ? maxDay : startDay;
+  return DateTime(year, month, day);
+}
+
+/// Pure berekening van ontbrekende periodes voor één recurring master.
+///
+/// Retourneert een chronologische lijst van plan-entries voor elke periode die
+///  * op of ná de startmaand ligt,
+///  * waarvan de due-datum lokaal reeds is bereikt (`now` op of ná due),
+///  * én nog niet voorkomt in [existingPeriodKeys].
+///
+/// Voor `master.status != 'active'` is het resultaat altijd leeg. Backfill
+/// van meerdere ontbrekende maanden is expliciet toegestaan. Er wordt geen
+/// Firestore aangeraakt en er worden geen Timestamps of DocumentReferences
+/// geproduceerd.
+// ignore: unused_element
+List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
+  required _RecurringMasterInput master,
+  required DateTime now,
+  required Set<String> existingPeriodKeys,
+}) {
+  if (master.status != 'active') {
+    return const <_RecurringMaterializationPlan>[];
+  }
+
+  final startDay = master.startDate.day;
+  var year = master.startDate.year;
+  var month = master.startDate.month;
+
+  final plans = <_RecurringMaterializationPlan>[];
+
+  while (true) {
+    final due = _recurringDueDateFor(
+      year: year,
+      month: month,
+      startDay: startDay,
+    );
+    // "Aan de beurt" = now op of ná due. Zodra due strikt na now ligt,
+    // stoppen we; latere maanden zijn per definitie ook nog niet toe.
+    if (due.isAfter(now)) break;
+
+    final periodKey = _formatRecurringPeriodKey(year, month);
+    if (!existingPeriodKeys.contains(periodKey)) {
+      plans.add(
+        _RecurringMaterializationPlan(
+          masterId: master.masterId,
+          periodKey: periodKey,
+          dueAt: due,
+          expenseId: 'rec_${master.masterId}_$periodKey',
+          title: master.title,
+          amountCents: master.amountCents,
+          currency: master.currency,
+          childIds: List<String>.unmodifiable(master.childIds),
+          recurringExpenseId: master.masterId,
+          createdBy: master.createdBy,
+          createdAt: due,
+        ),
+      );
+    }
+
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return plans;
+}
+
 class _TerugkerendeKostenPage extends StatefulWidget {
   const _TerugkerendeKostenPage({required this.householdId});
 
