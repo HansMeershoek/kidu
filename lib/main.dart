@@ -12132,6 +12132,251 @@ List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
   return plans;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Write-laag voor recurring materialisatie (geïsoleerd, nog niet live)
+//
+// Bouwt bovenop de pure helper `_computeRecurringMaterializationPlan` en
+// voert de feitelijke Firestore-writes uit voor ontbrekende expense-
+// instances van één master. Deze stap sluit expliciet niets automatisch
+// aan: geen app-lifecycle, geen runner, geen save-flow-trigger. Een latere
+// stap koppelt dit aan een trigger.
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Resultaat van één materialisatie-run voor één master.
+///
+/// Bedoeld voor een latere runner/log-laag. De helper zelf gooit geen
+/// exceptions omhoog voor per-instance-fouten maar verzamelt ze, zodat één
+/// falende periode de rest niet stuk maakt.
+// ignore: unused_element
+class _RecurringMaterializationResult {
+  const _RecurringMaterializationResult({
+    required this.createdExpenseIds,
+    required this.skippedExpenseIds,
+    required this.failedExpenseIds,
+    required this.copiedNoteExpenseIds,
+  });
+
+  /// Expense-ids die daadwerkelijk in deze run zijn aangemaakt.
+  final List<String> createdExpenseIds;
+
+  /// Expense-ids die al bestonden en daarom zijn overgeslagen (idempotency).
+  final List<String> skippedExpenseIds;
+
+  /// Expense-ids waarvan de create faalde (rules, netwerk, race, …). De
+  /// overige entries in dezelfde run zijn wél geprobeerd.
+  final List<String> failedExpenseIds;
+
+  /// Expense-ids waarvoor de master-note éénmalig is gekopieerd naar de
+  /// nieuwe instance-note.
+  final List<String> copiedNoteExpenseIds;
+}
+
+/// Materialiseert voor één recurring master de ontbrekende expense-instances.
+///
+/// Verantwoordelijkheid:
+///  * creator-only: alleen als `uid == master.createdBy` gebeurt er iets,
+///  * bepaalt bestaande `periodKeys` via een smalle read-query op
+///    `expenses where recurringExpenseId == master.masterId`,
+///  * gebruikt de pure helper om het plan te maken,
+///  * schrijft per plan-entry éérst de expense-instance en daarná (als
+///    de master een niet-lege privateNote heeft) éénmalig een kopie van
+///    die note naar de instance-note.
+///
+/// Write-volgorde (bewust niet in één WriteBatch):
+///  * de rules voor `expenses/{id}/privateNotes/{uid}` vereisen dat de
+///    expense al bestaat (`exists(...)`) én dat de creator overeenkomt;
+///    binnen één batch ziet Firestore sibling-writes nog niet, dus
+///    een batch met expense + note zou altijd de note-create blokkeren.
+///    We schrijven daarom eerst de expense (await), daarna de note.
+///
+/// Idempotency:
+///  * deterministische id `rec_<masterId>_<periodKey>` + create-only write
+///    binnen een transactie vormen de harde garantie: bestaat het document
+///    al, dan schrijven we niets en tellen we de entry als skipped,
+///  * de losse `get()` vóór de transactie is slechts een lichte
+///    optimalisatie om een overduidelijk bestaande instance snel over te
+///    slaan; de correctheid leunt op de transactie, niet op deze pre-check,
+///  * per-entry fouten worden geteld en breken de rest niet,
+///  * note-kopie is best-effort: faalt die, dan blijft de instance staan.
+///
+/// Deze functie wordt in deze stap bewust nog nergens aangeroepen. Een
+/// latere trigger/runner-stap bepaalt waar en wanneer dit draait.
+// ignore: unused_element
+Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
+  required String householdId,
+  required String uid,
+  required _RecurringMasterInput master,
+  required DateTime now,
+}) async {
+  const emptyResult = _RecurringMaterializationResult(
+    createdExpenseIds: <String>[],
+    skippedExpenseIds: <String>[],
+    failedExpenseIds: <String>[],
+    copiedNoteExpenseIds: <String>[],
+  );
+
+  // Creator-only. Geen co-parent-pad, geen brede master-scan.
+  if (uid.isEmpty || householdId.isEmpty || master.masterId.isEmpty) {
+    return emptyResult;
+  }
+  if (uid != master.createdBy) return emptyResult;
+  if (master.status != 'active') return emptyResult;
+
+  final firestore = FirebaseFirestore.instance;
+
+  // Bestaande periodKeys voor déze master bepalen. Smal gescoped op
+  // `recurringExpenseId`; rules staan members lezen toe maar we schrijven
+  // verderop alleen als creator.
+  final existingPeriodKeys = <String>{};
+  try {
+    final existing = await firestore
+        .collection('households/$householdId/expenses')
+        .where('recurringExpenseId', isEqualTo: master.masterId)
+        .get();
+    for (final doc in existing.docs) {
+      final pk = doc.data()['periodKey'];
+      if (pk is String && pk.isNotEmpty) existingPeriodKeys.add(pk);
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('Recurring materialize: read existing failed: $e');
+    }
+    return emptyResult;
+  }
+
+  final plans = _computeRecurringMaterializationPlan(
+    master: master,
+    now: now,
+    existingPeriodKeys: existingPeriodKeys,
+  );
+  if (plans.isEmpty) return emptyResult;
+
+  // Master-note éénmalig inlezen; lege/ontbrekende note → geen kopie.
+  String? masterNote;
+  try {
+    final noteSnap = await firestore
+        .doc(
+          'households/$householdId/recurringExpenses/'
+          '${master.masterId}/privateNotes/$uid',
+        )
+        .get();
+    final raw = (noteSnap.data()?['note'] as String?)?.trim() ?? '';
+    if (raw.isNotEmpty) masterNote = raw;
+  } catch (e) {
+    // Note-bron niet leesbaar → we slaan note-kopie simpelweg over. De
+    // expense-creates zelf moeten hier niet op struikelen.
+    if (kDebugMode) {
+      debugPrint('Recurring materialize: read master note failed: $e');
+    }
+    masterNote = null;
+  }
+
+  final created = <String>[];
+  final skipped = <String>[];
+  final failed = <String>[];
+  final copiedNote = <String>[];
+
+  for (final plan in plans) {
+    final expenseRef = firestore.doc(
+      'households/$householdId/expenses/${plan.expenseId}',
+    );
+
+    // Lichte skip-optimalisatie: als we nu al een bestaande instance zien,
+    // slaan we de transactie over. De échte correctheid komt van de
+    // create-only transactie hieronder, niet van deze pre-check.
+    try {
+      final pre = await expenseRef.get();
+      if (pre.exists) {
+        skipped.add(plan.expenseId);
+        continue;
+      }
+    } catch (e) {
+      // Pre-check is niet-kritiek: laat de transactie alsnog proberen.
+      if (kDebugMode) {
+        debugPrint(
+          'Recurring materialize: pre-check ${plan.expenseId} failed: $e',
+        );
+      }
+    }
+
+    // Snapshot-velden voor de expense-instance. Volgt exact de create-
+    // rules voor recurring-linked expenses (`hasOnly`): title, amountCents,
+    // currency, createdAt, createdBy, childIds, recurringExpenseId,
+    // periodKey. createdAt wordt bewust op de due-datum gezet, niet op het
+    // moment van materialiseren.
+    final data = <String, dynamic>{
+      'amountCents': plan.amountCents,
+      'currency': plan.currency,
+      'title': plan.title,
+      'createdAt': Timestamp.fromDate(plan.createdAt),
+      'createdBy': plan.createdBy,
+      if (plan.childIds.isNotEmpty) 'childIds': plan.childIds,
+      'recurringExpenseId': plan.recurringExpenseId,
+      'periodKey': plan.periodKey,
+    };
+
+    // Create-only write via transactie: we schrijven alleen als het
+    // document nog niet bestaat. Zo kunnen twee devices / twee triggers
+    // niet allebei een instance voor dezelfde (masterId, periodKey)
+    // aanmaken; de tweede ziet binnen de transactie `snap.exists` en
+    // slaat rustig over. Géén upsert, géén stil overschrijven.
+    bool didCreate;
+    try {
+      didCreate = await firestore.runTransaction<bool>((tx) async {
+        final snap = await tx.get(expenseRef);
+        if (snap.exists) return false;
+        tx.set(expenseRef, data);
+        return true;
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          'Recurring materialize: create ${plan.expenseId} failed: '
+          '${mapUserFacingError(e, fallback: e.toString())}',
+        );
+      }
+      failed.add(plan.expenseId);
+      continue;
+    }
+
+    if (!didCreate) {
+      skipped.add(plan.expenseId);
+      continue;
+    }
+    created.add(plan.expenseId);
+
+    // Master-note éénmalig kopiëren naar de instance-note. Alleen voor
+    // instances die in deze run zelf zijn aangemaakt; daarna staat de
+    // kopie los van de master-note (geen sync, geen koppeling).
+    if (masterNote != null) {
+      final noteRef = expenseRef.collection('privateNotes').doc(uid);
+      try {
+        await noteRef.set({
+          'note': masterNote,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        copiedNote.add(plan.expenseId);
+      } catch (e) {
+        // Best-effort: de instance is al gemaakt; mislukte note-kopie
+        // mag de rest van de run niet stoppen.
+        if (kDebugMode) {
+          debugPrint(
+            'Recurring materialize: copy note ${plan.expenseId} failed: '
+            '${mapUserFacingError(e, fallback: e.toString())}',
+          );
+        }
+      }
+    }
+  }
+
+  return _RecurringMaterializationResult(
+    createdExpenseIds: List<String>.unmodifiable(created),
+    skippedExpenseIds: List<String>.unmodifiable(skipped),
+    failedExpenseIds: List<String>.unmodifiable(failed),
+    copiedNoteExpenseIds: List<String>.unmodifiable(copiedNote),
+  );
+}
+
 class _TerugkerendeKostenPage extends StatefulWidget {
   const _TerugkerendeKostenPage({
     required this.householdId,
