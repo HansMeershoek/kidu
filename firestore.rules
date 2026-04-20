@@ -208,7 +208,8 @@ service cloud.firestore {
           'createdBy',
           'childIds',
           'recurringExpenseId',
-          'periodKey'
+          'periodKey',
+          'materializedAt'
         ])
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents > 0
@@ -220,6 +221,8 @@ service cloud.firestore {
             || request.resource.data.childIds == null
             || (request.resource.data.childIds is list
                 && request.resource.data.childIds.size() <= 7))
+        && (!('materializedAt' in request.resource.data)
+            || request.resource.data.materializedAt is timestamp)
         && (('recurringExpenseId' in request.resource.data)
             == ('periodKey' in request.resource.data))
         && (!('recurringExpenseId' in request.resource.data)
