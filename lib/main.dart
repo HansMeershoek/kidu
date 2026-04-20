@@ -2158,6 +2158,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         secondaryAnimation,
                                       ) => _TerugkerendeKostenPage(
                                         householdId: householdId,
+                                        otherParentName: otherName,
                                       ),
                                   transitionDuration: const Duration(
                                     milliseconds: 180,
@@ -6449,6 +6450,521 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Edit expense amount error: $e');
+      }
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'Opslaan mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+    );
+    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
+      fontWeight: FontWeight.w400,
+    );
+    final titleTrimmed = _titleController.text.trim();
+    final titleErrorHint = titleTrimmed.isEmpty
+        ? 'Vul een titel in'
+        : 'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.';
+    return Align(
+      alignment: const Alignment(0, -0.15),
+      child: SizedBox(
+        width: dialogW,
+        child: AlertDialog(
+          title: const Text('Uitgave bewerken'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _titleController,
+                  focusNode: _titleFocusNode,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  maxLength: _kAddExpenseTitleMaxLength,
+                  onTap: () {
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  onChanged: (_) {
+                    if (_showNoChangesMessage) {
+                      setState(() => _showNoChangesMessage = false);
+                    }
+                    if (_titleHasError) {
+                      setState(() => _titleHasError = false);
+                    }
+                  },
+                  buildCounter:
+                      (
+                        context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) => null,
+                  decoration: InputDecoration(
+                    labelText: 'Titel',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
+                    hintText: _titleHasError ? titleErrorHint : null,
+                    hintStyle: _titleHasError ? subtleErrorHintStyle : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _amountController,
+                  focusNode: _amountFocusNode,
+                  style: _amountHasError ? subtleErrorInputStyle : null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onTap: () {
+                    if (_amountHasError) {
+                      setState(() => _amountHasError = false);
+                    }
+                  },
+                  onChanged: (value) {
+                    if (_showNoChangesMessage) {
+                      setState(() => _showNoChangesMessage = false);
+                    }
+                    final parsed = _ExpenseDetailPage._parseEurToCents(
+                      _amountController.text,
+                    );
+                    final backToOriginal =
+                        parsed != null && parsed == widget.currentAmountCents;
+                    final validAndChanged =
+                        parsed != null && parsed != widget.currentAmountCents;
+                    final trimmed = value.trim();
+                    final nextAmountHasError =
+                        trimmed.isNotEmpty && (parsed == null || parsed < 0);
+                    var shouldSetState = false;
+                    final nextShowReasonField = validAndChanged;
+                    if (nextShowReasonField != _showReasonField) {
+                      shouldSetState = true;
+                    }
+                    if (nextAmountHasError != _amountHasError) {
+                      shouldSetState = true;
+                    }
+                    if (backToOriginal &&
+                        _showReasonField &&
+                        _reasonController.text.isNotEmpty) {
+                      _reasonController.clear();
+                    }
+                    if (shouldSetState) {
+                      setState(() {
+                        _showReasonField = nextShowReasonField;
+                        _amountHasError = nextAmountHasError;
+                      });
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Nieuw bedrag (€)',
+                  ),
+                ),
+                if (_showReasonField) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _reasonController,
+                    focusNode: _reasonFocusNode,
+                    onTap: () {
+                      if (_reasonHasError) {
+                        setState(() => _reasonHasError = false);
+                      }
+                    },
+                    onChanged: (_) {
+                      if (_showNoChangesMessage) {
+                        setState(() => _showNoChangesMessage = false);
+                      }
+                      if (_reasonHasError) {
+                        setState(() => _reasonHasError = false);
+                      }
+                    },
+                    minLines: 2,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Reden',
+                      alignLabelWithHint: true,
+                      isDense: true,
+                      hintText: _reasonHasError ? 'Vul een reden in' : null,
+                      hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
+                    ),
+                  ),
+                ],
+                FutureBuilder<List<_ChildItem>>(
+                  future: _childrenFuture,
+                  builder: (context, snap) {
+                    final children = snap.data ?? const <_ChildItem>[];
+                    if (children.length <= 1) return const SizedBox.shrink();
+                    final effectiveSelectedChildIds =
+                        _effectiveSelectedChildIds(children);
+                    final childSelectionSummary =
+                        _isAllChildrenSelection(
+                              children,
+                              effectiveSelectedChildIds,
+                            )
+                            ? 'Alle kinderen'
+                            : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Voor:',
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  childSelectionSummary,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _saving || !snap.hasData
+                                    ? null
+                                    : () async {
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+                                        await _openChildSelectionDialog(
+                                          children,
+                                        );
+                                      },
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text('Selectie'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                if (_showNoChangesMessage)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'Er zijn geen wijzigingen.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.error.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : () => Navigator.of(context).pop(),
+              child: const Text('Annuleren'),
+            ),
+            ElevatedButton(
+              onPressed: _saving ? null : () => _submit(),
+              child: SizedBox(
+                width: 82,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Text('Opslaan'),
+                    if (_saving)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Same dialog shell/validation as [_EditExpenseAmountDialog], but persists to
+/// `recurringExpenses/{masterId}` and writes a `changes` doc only on amount edits.
+class _EditRecurringMasterExpenseDialog extends StatefulWidget {
+  const _EditRecurringMasterExpenseDialog({
+    required this.householdId,
+    required this.masterId,
+    required this.currentAmountCents,
+    required this.currentTitle,
+    required this.currentChildIds,
+    required this.childrenFuture,
+  });
+
+  final String householdId;
+  final String masterId;
+  final int currentAmountCents;
+  final String currentTitle;
+  final List<String> currentChildIds;
+  final Future<List<_ChildItem>> childrenFuture;
+
+  @override
+  State<_EditRecurringMasterExpenseDialog> createState() =>
+      _EditRecurringMasterExpenseDialogState();
+}
+
+class _EditRecurringMasterExpenseDialogState
+    extends State<_EditRecurringMasterExpenseDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _amountController;
+  late final TextEditingController _reasonController;
+  late final FocusNode _titleFocusNode;
+  late final FocusNode _amountFocusNode;
+  late final FocusNode _reasonFocusNode;
+  late final Future<List<_ChildItem>> _childrenFuture;
+  bool _showReasonField = false;
+  bool _showNoChangesMessage = false;
+  bool _titleHasError = false;
+  bool _amountHasError = false;
+  bool _reasonHasError = false;
+  bool _didChangeChildSelection = false;
+  bool _hasCustomChildSelection = false;
+  List<String> _customSelectedChildIds = const <String>[];
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.currentTitle);
+    _amountController = TextEditingController(
+      text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
+    );
+    _reasonController = TextEditingController();
+    _titleFocusNode = FocusNode();
+    _amountFocusNode = FocusNode();
+    _reasonFocusNode = FocusNode();
+    _childrenFuture = widget.childrenFuture;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    _reasonController.dispose();
+    _titleFocusNode.dispose();
+    _amountFocusNode.dispose();
+    _reasonFocusNode.dispose();
+    super.dispose();
+  }
+
+  List<String> _allChildIds(List<_ChildItem> children) =>
+      children.map((c) => c.id).toList(growable: false);
+
+  bool _isAllChildrenSelection(List<_ChildItem> children, List<String> childIds) {
+    final allChildIds = _allChildIds(children);
+    return allChildIds.isNotEmpty &&
+        childIds.length == allChildIds.length &&
+        childIds.toSet().containsAll(allChildIds);
+  }
+
+  List<String> _currentKnownChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
+    return widget.currentChildIds.where(allChildIds.contains).toList();
+  }
+
+  List<String> _effectiveSelectedChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
+    if (!_didChangeChildSelection) {
+      return _isAllChildrenSelection(children, widget.currentChildIds)
+          ? allChildIds
+          : _currentKnownChildIds(children);
+    }
+    return _hasCustomChildSelection ? _customSelectedChildIds : allChildIds;
+  }
+
+  List<String> _dialogInitialSelectedChildIds(List<_ChildItem> children) {
+    if (_didChangeChildSelection) {
+      return _hasCustomChildSelection ? _customSelectedChildIds : const [];
+    }
+    return _isAllChildrenSelection(children, widget.currentChildIds)
+        ? const []
+        : _currentKnownChildIds(children);
+  }
+
+  bool _sameChildIds(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    return a.toSet().containsAll(b);
+  }
+
+  Future<void> _openChildSelectionDialog(List<_ChildItem> children) async {
+    final pickedChildIds = await _showExpenseEditChildSelectionDialog(
+      context,
+      children: children,
+      initialSelectedChildIds: _dialogInitialSelectedChildIds(children),
+    );
+    if (pickedChildIds == null || !mounted) return;
+    setState(() {
+      _showNoChangesMessage = false;
+      _didChangeChildSelection = true;
+      if (pickedChildIds.length == children.length) {
+        _hasCustomChildSelection = false;
+        _customSelectedChildIds = const <String>[];
+      } else {
+        _hasCustomChildSelection = true;
+        _customSelectedChildIds = pickedChildIds;
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    final title = _titleController.text.trim();
+    final reasonTrimmed = _reasonController.text.trim();
+    final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    final children = await _childrenFuture;
+    final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
+    if (title.isEmpty) {
+      if (mounted) {
+        setState(() => _titleHasError = true);
+        _titleFocusNode.requestFocus();
+      }
+      return;
+    }
+    if (title.length > _kAddExpenseTitleMaxLength) {
+      if (mounted) {
+        setState(() => _titleHasError = true);
+        _titleFocusNode.requestFocus();
+      }
+      return;
+    }
+    if (parsed == null || parsed < 0) {
+      if (mounted) {
+        setState(() => _amountHasError = true);
+        _amountFocusNode.requestFocus();
+      }
+      return;
+    }
+    if (children.length > 1 && effectiveSelectedChildIds.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecteer minimaal één kind.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Je bent offline, probeer het later opnieuw'),
+        ),
+      );
+      setState(() => _saving = false);
+      return;
+    }
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+      final masterRef = FirebaseFirestore.instance.doc(
+        'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
+      );
+      final fresh = await masterRef.get(const GetOptions(source: Source.server));
+      final currentTitle =
+          ((fresh.data()?['title'] as String?) ?? widget.currentTitle).trim();
+      final currentChildIds =
+          (fresh.data()?['childIds'] as List?)?.whereType<String>().toList() ??
+          widget.currentChildIds;
+      final fromCents =
+          (fresh.data()?['amountCents'] as num?)?.toInt() ??
+          widget.currentAmountCents;
+      final titleChanged = title != currentTitle;
+      final amountChanged = parsed != fromCents;
+      final childIdsChanged =
+          !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
+      if (!amountChanged && !titleChanged && !childIdsChanged) {
+        if (!mounted) return;
+        setState(() {
+          _saving = false;
+          _showNoChangesMessage = true;
+        });
+        return;
+      }
+      if (amountChanged) {
+        if (reasonTrimmed.isEmpty) {
+          if (mounted) {
+            setState(() => _reasonHasError = true);
+            _reasonFocusNode.requestFocus();
+          }
+          setState(() => _saving = false);
+          return;
+        }
+        final batch = FirebaseFirestore.instance.batch();
+        final changeRef = masterRef.collection('changes').doc();
+        batch.set(changeRef, {
+          'changeType': 'amount',
+          'fromAmountCents': fromCents,
+          'toAmountCents': parsed,
+          'reason': reasonTrimmed,
+          'editedBy': uid,
+          'editedAt': FieldValue.serverTimestamp(),
+        });
+        final updateMap = <String, dynamic>{
+          'amountCents': parsed,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (titleChanged) updateMap['title'] = title;
+        if (childIdsChanged) {
+          updateMap['childIds'] = effectiveSelectedChildIds;
+        }
+        batch.update(masterRef, updateMap);
+        await batch.commit();
+      } else {
+        final updateMap = <String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (titleChanged) updateMap['title'] = title;
+        if (childIdsChanged) {
+          updateMap['childIds'] = effectiveSelectedChildIds;
+        }
+        await masterRef.update(updateMap);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Edit recurring master error: $e');
       }
       if (!mounted) return;
       setState(() => _saving = false);
@@ -11441,9 +11957,13 @@ String _formatRecurringStatusLabel(String? status) {
 }
 
 class _TerugkerendeKostenPage extends StatefulWidget {
-  const _TerugkerendeKostenPage({required this.householdId});
+  const _TerugkerendeKostenPage({
+    required this.householdId,
+    this.otherParentName,
+  });
 
   final String householdId;
+  final String? otherParentName;
 
   @override
   State<_TerugkerendeKostenPage> createState() =>
@@ -11626,6 +12146,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
                     child: _RecurringMasterList(
                       householdId: widget.householdId,
                       docs: docs,
+                      otherParentName: widget.otherParentName,
                     ),
                   ),
                 ),
@@ -11648,10 +12169,15 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _RecurringMasterList extends StatelessWidget {
-  const _RecurringMasterList({required this.householdId, required this.docs});
+  const _RecurringMasterList({
+    required this.householdId,
+    required this.docs,
+    this.otherParentName,
+  });
 
   final String householdId;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final String? otherParentName;
 
   // Ritme afgeleid van Logboek > Uitgaven (_LogboekPageState._logboekListRow*):
   // rij = 64, separator = 14. Vaste viewport voor exact 9 volledige rijen:
@@ -11679,7 +12205,8 @@ class _RecurringMasterList extends StatelessWidget {
           height: _separatorExtent,
           color: outlineV(context, a40),
         ),
-        itemBuilder: (context, i) => _buildRow(context, textTheme, docs[i]),
+        itemBuilder: (context, i) =>
+            _buildRow(context, textTheme, docs[i], otherParentName),
       ),
     );
   }
@@ -11688,6 +12215,7 @@ class _RecurringMasterList extends StatelessWidget {
     BuildContext context,
     TextTheme textTheme,
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    String? otherParentName,
   ) {
     final data = doc.data();
     final title = (data['title'] as String?)?.trim() ?? '—';
@@ -11744,6 +12272,7 @@ class _RecurringMasterList extends StatelessWidget {
                   startDate: startDate,
                   status: status,
                   preloadedChildNames: preloadedNames,
+                  otherParentName: otherParentName,
                 ),
               ),
             );
@@ -11781,17 +12310,12 @@ class _RecurringMasterList extends StatelessWidget {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Recurring-master detail page (v1 — read-only master fields)
+// Recurring-master detail page
 //
-// Smallest safe first step for master details: reached by tapping a recurring
-// row. Intentionally sober and family-style to [_ExpenseDetailPage] so the
-// rhythm feels familiar. This step explicitly ships:
-//   • no edit UI for title/amount/children
-//   • no pause/resume UI or reason-dialog
-//   • no change-history writes
-//   • creator-only private note read/write (co-parent sees no note UI)
-// If the viewer is not the creator, a calm footer hints that only the maker
-// can edit or pause — without rendering any buttons.
+// Master fields follow Firestore live (zoals [_ExpenseDetailPage]). Creator-only:
+// private note, plus [Uitgave bewerken] met dezelfde dialog-UX als een normale
+// uitgave (titel/bedrag/kinderen; reden alleen bij bedragwijziging). Geen
+// pause/status/start-edit in deze stap.
 // ────────────────────────────────────────────────────────────────────────────
 
 class _RecurringMasterDetailPage extends StatefulWidget {
@@ -11806,6 +12330,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
     required this.startDate,
     required this.status,
     this.preloadedChildNames,
+    this.otherParentName,
   });
 
   final String householdId;
@@ -11817,6 +12342,10 @@ class _RecurringMasterDetailPage extends StatefulWidget {
   final List<String> childIds;
   final DateTime? startDate;
   final String? status;
+
+  /// Zelfde rol als bij [_ExpenseDetailPage.otherParentName] voor het
+  /// wijzigingslabel (`Jij` / co-parent); optioneel zolang er geen route meegeeft.
+  final String? otherParentName;
 
   /// Names vooraf opgelost door de lijstrij (analoog aan hoe het dashboard
   /// dit aan [_ExpenseDetailPage] doorgeeft). Als dit niet-null is, tonen
@@ -11831,19 +12360,96 @@ class _RecurringMasterDetailPage extends StatefulWidget {
 class _RecurringMasterDetailPageState
     extends State<_RecurringMasterDetailPage> {
   bool _noteActionBusy = false;
-  // Cached once so rebuilds don't re-fetch child names.
-  late final Future<List<String>> _childNamesFuture;
+  late final Future<List<_ChildItem>> _recurringEditChildrenFuture;
+  List<String> _memoChildIdsForNames = const [];
+  Future<List<String>>? _memoChildNamesFuture;
 
   @override
   void initState() {
     super.initState();
-    final preloaded = widget.preloadedChildNames;
-    _childNamesFuture = preloaded != null
-        ? Future<List<String>>.value(preloaded)
-        : _ExpenseDetailPage._resolveChildNames(
-            widget.householdId,
-            widget.childIds,
-          );
+    _recurringEditChildrenFuture =
+        _loadExpenseEditChildren(widget.householdId);
+  }
+
+  Future<List<String>> _childNamesFutureFor(List<String> childIds) {
+    if (_memoChildNamesFuture != null &&
+        _memoChildIdsForNames.length == childIds.length &&
+        _memoChildIdsForNames.toSet().containsAll(childIds) &&
+        childIds.toSet().containsAll(_memoChildIdsForNames)) {
+      return _memoChildNamesFuture!;
+    }
+    _memoChildIdsForNames = List<String>.from(childIds);
+    _memoChildNamesFuture = _ExpenseDetailPage._resolveChildNames(
+      widget.householdId,
+      _memoChildIdsForNames,
+    );
+    return _memoChildNamesFuture!;
+  }
+
+  void _showRecurringSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openEditRecurringDialog({
+    required int currentAmountCents,
+    required String currentTitle,
+    required List<String> currentChildIds,
+  }) async {
+    if (!await _checkCanWriteNow()) {
+      if (mounted) {
+        _showRecurringSnackBar('Je bent offline, probeer het later opnieuw');
+      }
+      return;
+    }
+    if (!mounted) return;
+    final saved = await showDialog<bool>(
+      context: context,
+      useSafeArea: true,
+      barrierDismissible: false,
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  final keyboardVisible =
+                      MediaQuery.of(context).viewInsets.bottom > 0;
+                  if (keyboardVisible) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    return;
+                  }
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                },
+                child: const SizedBox.expand(),
+              ),
+            ),
+            GestureDetector(
+              onTap: () {},
+              child: _EditRecurringMasterExpenseDialog(
+                householdId: widget.householdId,
+                masterId: widget.masterId,
+                currentAmountCents: currentAmountCents,
+                currentTitle: currentTitle,
+                currentChildIds: currentChildIds,
+                childrenFuture: _recurringEditChildrenFuture,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved == true && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showRecurringSnackBar('Uitgave bijgewerkt.');
+      });
+    }
   }
 
   @override
@@ -11851,10 +12457,6 @@ class _RecurringMasterDetailPageState
     final textTheme = Theme.of(context).textTheme;
     final isCreator =
         widget.uid.isNotEmpty && widget.uid == widget.createdByUid.trim();
-    final startLabel = widget.startDate != null
-        ? _formatRecurringStartDateNl(widget.startDate!)
-        : '—';
-    final statusLabel = _formatRecurringStatusLabel(widget.status);
 
     return Scaffold(
       appBar: AppBar(
@@ -11872,186 +12474,330 @@ class _RecurringMasterDetailPageState
         child: Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Titel',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a70),
-                    ),
-                  ),
-                  subtitle: Text(widget.title),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Bedrag',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a70),
-                    ),
-                  ),
-                  subtitle: Text(
-                    _formatRecurringEurCents(widget.amountCents),
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (widget.childIds.isNotEmpty)
-                  FutureBuilder<List<String>>(
-                    future: _childNamesFuture,
-                    initialData: widget.preloadedChildNames,
-                    builder: (context, snap) {
-                      if (!snap.hasData) return const SizedBox.shrink();
-                      final names = snap.data!;
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Voor',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: onSurface(context, a70),
-                          ),
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .doc(
+                    'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
+                  )
+                  .snapshots(),
+              builder: (context, masterSnap) {
+                final data = masterSnap.data?.data();
+                final title = ((data?['title'] as String?) ?? widget.title)
+                    .trim();
+                final amountCents =
+                    (data?['amountCents'] as num?)?.toInt() ??
+                    widget.amountCents;
+                final childIds =
+                    (data?['childIds'] as List?)?.whereType<String>().toList() ??
+                    widget.childIds;
+                var startDate = widget.startDate;
+                final startRaw = data?['startDate'];
+                if (startRaw is Timestamp) {
+                  startDate = startRaw.toDate();
+                }
+                final status = (data?['status'] as String?) ?? widget.status;
+                final startLabel = startDate != null
+                    ? _formatRecurringStartDateNl(startDate)
+                    : '—';
+                final statusLabel = _formatRecurringStatusLabel(status);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Titel',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
                         ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            children: names
-                                .map(
-                                  (n) => Chip(
-                                    label: Text(n),
-                                    labelStyle: textTheme.bodySmall,
-                                    backgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest,
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                )
-                                .toList(),
-                          ),
+                      ),
+                      subtitle: Text(
+                        title.isEmpty ? widget.title : title,
+                      ),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Bedrag',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
                         ),
-                      );
-                    },
-                  ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Startdatum',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a70),
+                      ),
+                      subtitle: Text(
+                        _formatRecurringEurCents(amountCents),
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
-                  subtitle: Text(startLabel),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Status',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a70),
-                    ),
-                  ),
-                  subtitle: Text(statusLabel),
-                ),
-                if (isCreator) ...[
-                  const SizedBox(height: 12),
-                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .doc(
-                          'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${widget.uid}',
-                        )
-                        .snapshots(),
-                    builder: (context, snap) {
-                      final data = snap.data?.data();
-                      final note = (data?['note'] as String?)?.trim() ?? '';
-                      final hasNoteLive = note.isNotEmpty;
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (hasNoteLive)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Notitie',
+                    if (childIds.isNotEmpty)
+                      FutureBuilder<List<String>>(
+                        future: _childNamesFutureFor(childIds),
+                        initialData:
+                            _listsEqualForMemo(childIds, widget.childIds)
+                            ? widget.preloadedChildNames
+                            : null,
+                        builder: (context, snap) {
+                          if (!snap.hasData) return const SizedBox.shrink();
+                          final names = snap.data!;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              'Voor',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: onSurface(context, a70),
+                              ),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: names
+                                    .map(
+                                      (n) => Chip(
+                                        label: Text(n),
+                                        labelStyle: textTheme.bodySmall,
+                                        backgroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .collection(
+                            'households/${widget.householdId}/recurringExpenses/${widget.masterId}/changes',
+                          )
+                          .orderBy('editedAt', descending: true)
+                          .snapshots(),
+                      builder: (context, histSnap) {
+                        if (histSnap.hasError) {
+                          return const SizedBox.shrink();
+                        }
+                        if (!histSnap.hasData || histSnap.data!.docs.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        final histDocs = histSnap.data!.docs;
+                        String editorLabel(String? editedByUid) {
+                          final e = editedByUid?.trim() ?? '';
+                          if (e.isEmpty) return 'Co-parent';
+                          if (e == widget.uid) return 'Jij';
+                          final o = widget.otherParentName?.trim();
+                          if (o != null && o.isNotEmpty) return o;
+                          return 'Co-parent';
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Wijzigingsgeschiedenis',
                                 style: textTheme.bodySmall?.copyWith(
                                   color: onSurface(context, a70),
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              subtitle: Text(note),
-                            )
-                          else
-                            Text(
-                              'Nog geen notitie.',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: onSurface(context, a55),
-                                height: 1.35,
-                              ),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: FilledButton.tonalIcon(
-                              onPressed: _noteActionBusy
-                                  ? null
-                                  : () async {
-                                      if (_noteActionBusy) return;
-                                      setState(() => _noteActionBusy = true);
-                                      try {
-                                        await _doManageRecurringMasterPrivateNote(
-                                          context,
-                                          householdId: widget.householdId,
-                                          masterId: widget.masterId,
-                                          uid: widget.uid,
-                                        );
-                                      } finally {
-                                        if (mounted) {
-                                          setState(
-                                            () => _noteActionBusy = false,
-                                          );
-                                        }
-                                      }
-                                    },
-                              icon: Icon(
-                                hasNoteLive
-                                    ? Icons.edit_note
-                                    : Icons.note_add_outlined,
-                                size: 18,
-                              ),
-                              label: Text(
-                                hasNoteLive
-                                    ? 'Notitie wijzigen'
-                                    : 'Notitie toevoegen',
-                                style: textTheme.bodyMedium,
-                              ),
-                            ),
+                              const SizedBox(height: 10),
+                              ...histDocs.map((doc) {
+                                final h = doc.data();
+                                final fromC =
+                                    (h['fromAmountCents'] as num?)?.toInt() ?? 0;
+                                final toC =
+                                    (h['toAmountCents'] as num?)?.toInt() ?? 0;
+                                final reason =
+                                    (h['reason'] as String?)?.trim() ?? '';
+                                final editedBy = (h['editedBy'] as String?)
+                                    ?.trim();
+                                final editedAtRaw = h['editedAt'];
+                                DateTime? editedAtDt;
+                                if (editedAtRaw is Timestamp) {
+                                  editedAtDt = editedAtRaw.toDate().toLocal();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)} · ${editorLabel(editedBy)} · ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: onSurface(context, a68),
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                      if (reason.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          reason,
+                                          style: textTheme.bodyMedium
+                                              ?.copyWith(height: 1.35),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
                           ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-                if (!isCreator) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Alleen de maker kan deze terugkerende uitgave bewerken of pauzeren.',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a55),
-                      height: 1.35,
+                        );
+                      },
                     ),
-                  ),
-                ],
-              ],
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Startdatum',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(startLabel),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        'Status',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      subtitle: Text(statusLabel),
+                    ),
+                    if (isCreator) ...[
+                      const SizedBox(height: 12),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .doc(
+                              'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${widget.uid}',
+                            )
+                            .snapshots(),
+                        builder: (context, snap) {
+                          final nd = snap.data?.data();
+                          final note =
+                              (nd?['note'] as String?)?.trim() ?? '';
+                          final hasNoteLive = note.isNotEmpty;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (hasNoteLive)
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    'Notitie',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: onSurface(context, a70),
+                                    ),
+                                  ),
+                                  subtitle: Text(note),
+                                )
+                              else
+                                Text(
+                                  'Nog geen notitie.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: onSurface(context, a55),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: FilledButton.tonalIcon(
+                                  onPressed: _noteActionBusy
+                                      ? null
+                                      : () async {
+                                          if (_noteActionBusy) return;
+                                          setState(
+                                            () => _noteActionBusy = true,
+                                          );
+                                          try {
+                                            await _doManageRecurringMasterPrivateNote(
+                                              context,
+                                              householdId: widget.householdId,
+                                              masterId: widget.masterId,
+                                              uid: widget.uid,
+                                            );
+                                          } finally {
+                                            if (mounted) {
+                                              setState(
+                                                () => _noteActionBusy = false,
+                                              );
+                                            }
+                                          }
+                                        },
+                                  icon: Icon(
+                                    hasNoteLive
+                                        ? Icons.edit_note
+                                        : Icons.note_add_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    hasNoteLive
+                                        ? 'Notitie wijzigen'
+                                        : 'Notitie toevoegen',
+                                    style: textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: FilledButton.tonalIcon(
+                                  onPressed: () => _openEditRecurringDialog(
+                                    currentAmountCents: amountCents,
+                                    currentTitle: title.isEmpty
+                                        ? widget.title
+                                        : title,
+                                    currentChildIds: childIds,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    'Uitgave bewerken',
+                                    style: textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                    if (!isCreator) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Alleen de maker kan deze terugkerende uitgave bewerken of pauzeren.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a55),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),
       ),
     );
+  }
+
+  bool _listsEqualForMemo(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    return a.toSet().containsAll(b);
   }
 }
 
@@ -12087,6 +12833,7 @@ class _AddRecurringExpenseDialogState
   bool _titleHasError = false;
   bool _amountHasError = false;
   bool _childSelectionHasError = false;
+  bool _startDateHasError = false;
 
   bool _loadingChildren = true;
   List<_ChildItem> _children = const [];
@@ -12182,19 +12929,24 @@ class _AddRecurringExpenseDialogState
 
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // v1 staat geen startdatum in het verleden toe; zowel de picker-grens
+    // als de initial-datum worden daarom geclamped naar vandaag.
+    final safeInitial = _startDate.isBefore(today) ? today : _startDate;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _startDate,
-      firstDate: DateTime(now.year - 1),
+      initialDate: safeInitial,
+      firstDate: today,
       lastDate: DateTime(now.year + 5),
       helpText: 'Startdatum',
       cancelText: 'Annuleren',
       confirmText: 'Kiezen',
     );
     if (picked == null || !mounted) return;
-    setState(
-      () => _startDate = DateTime(picked.year, picked.month, picked.day),
-    );
+    setState(() {
+      _startDate = DateTime(picked.year, picked.month, picked.day);
+      _startDateHasError = false;
+    });
   }
 
   Future<void> _pickChildren() async {
@@ -12226,15 +12978,24 @@ class _AddRecurringExpenseDialogState
     final title = _titleController.text.trim();
     final amountCents = _tryParseRecurringEurToCents(_amountController.text);
     final selectedChildIds = _effectiveSelectedChildIds;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final titleInvalid = title.isEmpty;
     final amountInvalid = amountCents == null || amountCents <= 0;
     final childSelectionInvalid = selectedChildIds.isEmpty;
+    // Tweede verdediging: ook als een oude datum via omweg in _startDate
+    // belandt mag er geen write plaatsvinden. Vandaag en toekomst blijven ok.
+    final startDateInvalid = _startDate.isBefore(today);
 
-    if (titleInvalid || amountInvalid || childSelectionInvalid) {
+    if (titleInvalid ||
+        amountInvalid ||
+        childSelectionInvalid ||
+        startDateInvalid) {
       setState(() {
         _titleHasError = titleInvalid;
         _amountHasError = amountInvalid;
         _childSelectionHasError = childSelectionInvalid;
+        _startDateHasError = startDateInvalid;
       });
       if (titleInvalid) {
         _titleFocusNode.requestFocus();
@@ -12472,7 +13233,11 @@ class _AddRecurringExpenseDialogState
                             TextSpan(text: 'Start: ', style: metaLabelStyle),
                             TextSpan(
                               text: _formatRecurringStartDateNl(_startDate),
-                              style: metaValueStyle,
+                              style: metaValueStyle?.copyWith(
+                                color: _startDateHasError
+                                    ? cs.error.withValues(alpha: 0.85)
+                                    : metaValueStyle.color,
+                              ),
                             ),
                           ],
                         ),
