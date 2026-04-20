@@ -426,6 +426,93 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
   }
 }
 
+/// Creator-only private note for a recurring master; same dialog/write tone as
+/// [_doManagePrivateNote], path under `recurringExpenses/{id}/privateNotes`.
+Future<PrivateNoteDialogResult?> _doManageRecurringMasterPrivateNote(
+  BuildContext context, {
+  required String householdId,
+  required String masterId,
+  required String uid,
+}) async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .doc(
+          'households/$householdId/recurringExpenses/$masterId/privateNotes/$uid',
+        )
+        .get();
+    final initialNote = ((snap.data()?['note'] as String?) ?? '').trim();
+
+    if (!context.mounted) return null;
+    final result = await _showPrivateNoteDialog(
+      context,
+      initialNote: initialNote,
+      hasInitialNote: initialNote.isNotEmpty,
+    );
+
+    if (result is PrivateNoteDialogCancelled) return null;
+    if (!context.mounted) return null;
+
+    if (!await _checkCanWriteNow()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+              ),
+            ),
+          );
+      }
+      return null;
+    }
+
+    final ref = FirebaseFirestore.instance.doc(
+      'households/$householdId/recurringExpenses/$masterId/privateNotes/$uid',
+    );
+    if (result is PrivateNoteDialogDelete) {
+      await ref.delete();
+    } else if (result is PrivateNoteDialogSave) {
+      await ref.set({
+        'note': result.note,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              result is PrivateNoteDialogDelete
+                  ? 'Notitie verwijderd.'
+                  : 'Notitie opgeslagen.',
+            ),
+          ),
+        );
+    }
+    return result;
+  } catch (e) {
+    debugPrint('Recurring master note save error: $e');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              mapUserFacingError(
+                e,
+                fallback: 'Opslaan mislukt. Probeer opnieuw.',
+              ),
+            ),
+          ),
+        );
+    }
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
@@ -11694,15 +11781,15 @@ class _RecurringMasterList extends StatelessWidget {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Recurring-master detail page (v1 — read-only)
+// Recurring-master detail page (v1 — read-only master fields)
 //
 // Smallest safe first step for master details: reached by tapping a recurring
 // row. Intentionally sober and family-style to [_ExpenseDetailPage] so the
 // rhythm feels familiar. This step explicitly ships:
-//   • no edit UI
+//   • no edit UI for title/amount/children
 //   • no pause/resume UI or reason-dialog
 //   • no change-history writes
-//   • no new Firestore mutations
+//   • creator-only private note read/write (co-parent sees no note UI)
 // If the viewer is not the creator, a calm footer hints that only the maker
 // can edit or pause — without rendering any buttons.
 // ────────────────────────────────────────────────────────────────────────────
@@ -11743,6 +11830,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
 
 class _RecurringMasterDetailPageState
     extends State<_RecurringMasterDetailPage> {
+  bool _noteActionBusy = false;
   // Cached once so rebuilds don't re-fetch child names.
   late final Future<List<String>> _childNamesFuture;
 
@@ -11871,6 +11959,83 @@ class _RecurringMasterDetailPageState
                   ),
                   subtitle: Text(statusLabel),
                 ),
+                if (isCreator) ...[
+                  const SizedBox(height: 12),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${widget.uid}',
+                        )
+                        .snapshots(),
+                    builder: (context, snap) {
+                      final data = snap.data?.data();
+                      final note = (data?['note'] as String?)?.trim() ?? '';
+                      final hasNoteLive = note.isNotEmpty;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (hasNoteLive)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Notitie',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: onSurface(context, a70),
+                                ),
+                              ),
+                              subtitle: Text(note),
+                            )
+                          else
+                            Text(
+                              'Nog geen notitie.',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: onSurface(context, a55),
+                                height: 1.35,
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: FilledButton.tonalIcon(
+                              onPressed: _noteActionBusy
+                                  ? null
+                                  : () async {
+                                      if (_noteActionBusy) return;
+                                      setState(() => _noteActionBusy = true);
+                                      try {
+                                        await _doManageRecurringMasterPrivateNote(
+                                          context,
+                                          householdId: widget.householdId,
+                                          masterId: widget.masterId,
+                                          uid: widget.uid,
+                                        );
+                                      } finally {
+                                        if (mounted) {
+                                          setState(
+                                            () => _noteActionBusy = false,
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: Icon(
+                                hasNoteLive
+                                    ? Icons.edit_note
+                                    : Icons.note_add_outlined,
+                                size: 18,
+                              ),
+                              label: Text(
+                                hasNoteLive
+                                    ? 'Notitie wijzigen'
+                                    : 'Notitie toevoegen',
+                                style: textTheme.bodyMedium,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
                 if (!isCreator) ...[
                   const SizedBox(height: 12),
                   Text(
