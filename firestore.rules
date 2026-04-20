@@ -415,7 +415,22 @@ service cloud.firestore {
 
       allow list: if false;
 
-      allow create, update: if isSignedIn()
+      // Create is intentionally split from update so a private note may be
+      // written in the same WriteBatch as the recurring master. Firestore
+      // rules cannot observe sibling writes in the same batch, so requiring
+      // isRecurringMasterCreator at create-time would always fail when the
+      // master is being created in that same commit. Ownership stays hard
+      // on get/update/delete below. The uid in the path plus
+      // request.auth.uid == uid prevents writing under another user's slot.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && isHouseholdMember(householdId)
+        && request.resource.data.keys().hasOnly(['note', 'updatedAt'])
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 180
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
         && isRecurringMasterCreator(householdId, recurringId)
