@@ -12154,6 +12154,7 @@ class _RecurringMaterializationResult {
     required this.skippedExpenseIds,
     required this.failedExpenseIds,
     required this.copiedNoteExpenseIds,
+    required this.failedNoteCopyExpenseIds,
   });
 
   /// Expense-ids die daadwerkelijk in deze run zijn aangemaakt.
@@ -12162,13 +12163,21 @@ class _RecurringMaterializationResult {
   /// Expense-ids die al bestonden en daarom zijn overgeslagen (idempotency).
   final List<String> skippedExpenseIds;
 
-  /// Expense-ids waarvan de create faalde (rules, netwerk, race, …). De
-  /// overige entries in dezelfde run zijn wél geprobeerd.
+  /// Expense-ids waarvan de expense-create faalde (rules, netwerk, race, …).
+  /// De overige entries in dezelfde run zijn wél geprobeerd. Dit veld gaat
+  /// bewust niet over note-copy failures; die staan apart in
+  /// [failedNoteCopyExpenseIds].
   final List<String> failedExpenseIds;
 
   /// Expense-ids waarvoor de master-note éénmalig is gekopieerd naar de
   /// nieuwe instance-note.
   final List<String> copiedNoteExpenseIds;
+
+  /// Expense-ids waarvan de expense zelf wél is aangemaakt, maar waarvoor
+  /// de master-note-kopie naar de instance-note ook na een korte retry
+  /// niet is gelukt. De expense-instance zelf is hiervoor gewoon valide;
+  /// een latere runner/log-laag kan hier expliciet op reageren.
+  final List<String> failedNoteCopyExpenseIds;
 }
 
 /// Materialiseert voor één recurring master de ontbrekende expense-instances.
@@ -12197,7 +12206,10 @@ class _RecurringMaterializationResult {
 ///    optimalisatie om een overduidelijk bestaande instance snel over te
 ///    slaan; de correctheid leunt op de transactie, niet op deze pre-check,
 ///  * per-entry fouten worden geteld en breken de rest niet,
-///  * note-kopie is best-effort: faalt die, dan blijft de instance staan.
+///  * note-kopie is best-effort met één korte directe retry; blijft de
+///    kopie dan nog falen, dan staat de expense-instance gewoon en wordt
+///    de id apart bijgehouden in `failedNoteCopyExpenseIds` zodat een
+///    latere runner/log-laag er gericht op kan reageren.
 ///
 /// Deze functie wordt in deze stap bewust nog nergens aangeroepen. Een
 /// latere trigger/runner-stap bepaalt waar en wanneer dit draait.
@@ -12213,6 +12225,7 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
     skippedExpenseIds: <String>[],
     failedExpenseIds: <String>[],
     copiedNoteExpenseIds: <String>[],
+    failedNoteCopyExpenseIds: <String>[],
   );
 
   // Creator-only. Geen co-parent-pad, geen brede master-scan.
@@ -12275,6 +12288,7 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
   final skipped = <String>[];
   final failed = <String>[];
   final copiedNote = <String>[];
+  final failedNoteCopy = <String>[];
 
   for (final plan in plans) {
     final expenseRef = firestore.doc(
@@ -12348,21 +12362,48 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
     // Master-note éénmalig kopiëren naar de instance-note. Alleen voor
     // instances die in deze run zelf zijn aangemaakt; daarna staat de
     // kopie los van de master-note (geen sync, geen koppeling).
+    //
+    // Kleine hardening binnen dezelfde run: we doen maximaal één directe
+    // retry met een korte backoff voor de note-kopie. Lukt die dan nog
+    // niet, dan wordt de id apart geregistreerd als note-copy failure
+    // (los van expense-create failures) en loopt de run gewoon door.
     if (masterNote != null) {
       final noteRef = expenseRef.collection('privateNotes').doc(uid);
-      try {
-        await noteRef.set({
-          'note': masterNote,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+      final notePayload = <String, dynamic>{
+        'note': masterNote,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      var noteCopied = false;
+      Object? lastNoteError;
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        try {
+          await noteRef.set(notePayload);
+          noteCopied = true;
+          break;
+        } catch (e) {
+          lastNoteError = e;
+          if (kDebugMode) {
+            debugPrint(
+              'Recurring materialize: copy note ${plan.expenseId} '
+              'attempt $attempt failed: '
+              '${mapUserFacingError(e, fallback: e.toString())}',
+            );
+          }
+          if (attempt < 2) {
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+          }
+        }
+      }
+
+      if (noteCopied) {
         copiedNote.add(plan.expenseId);
-      } catch (e) {
-        // Best-effort: de instance is al gemaakt; mislukte note-kopie
-        // mag de rest van de run niet stoppen.
-        if (kDebugMode) {
+      } else {
+        failedNoteCopy.add(plan.expenseId);
+        if (kDebugMode && lastNoteError != null) {
           debugPrint(
-            'Recurring materialize: copy note ${plan.expenseId} failed: '
-            '${mapUserFacingError(e, fallback: e.toString())}',
+            'Recurring materialize: copy note ${plan.expenseId} '
+            'gave up after retry.',
           );
         }
       }
@@ -12374,6 +12415,7 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
     skippedExpenseIds: List<String>.unmodifiable(skipped),
     failedExpenseIds: List<String>.unmodifiable(failed),
     copiedNoteExpenseIds: List<String>.unmodifiable(copiedNote),
+    failedNoteCopyExpenseIds: List<String>.unmodifiable(failedNoteCopy),
   );
 }
 
