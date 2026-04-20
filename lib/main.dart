@@ -403,6 +403,94 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/// Creator-only private note for a recurring master; same dialog/write tone as
+/// [_doManagePrivateNote], path under `recurringExpenses/{id}/privateNotes`.
+Future<PrivateNoteDialogResult?> _doManageRecurringMasterPrivateNote(
+  BuildContext context, {
+  required String householdId,
+  required String masterId,
+  required String uid,
+}) async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .doc(
+          'households/$householdId/recurringExpenses/$masterId/privateNotes/$uid',
+        )
+        .get();
+    final initialNote = ((snap.data()?['note'] as String?) ?? '').trim();
+
+    if (!context.mounted) return null;
+    final result = await _showPrivateNoteDialog(
+      context,
+      initialNote: initialNote,
+      hasInitialNote: initialNote.isNotEmpty,
+    );
+
+    if (result is PrivateNoteDialogCancelled) return null;
+    if (!context.mounted) return null;
+
+    if (!await _checkCanWriteNow()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+              ),
+            ),
+          );
+      }
+      return null;
+    }
+
+    final ref = FirebaseFirestore.instance.doc(
+      'households/$householdId/recurringExpenses/$masterId/privateNotes/$uid',
+    );
+    if (result is PrivateNoteDialogDelete) {
+      await ref.delete();
+    } else if (result is PrivateNoteDialogSave) {
+      await ref.set({
+        'note': result.note,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              result is PrivateNoteDialogDelete
+                  ? 'Notitie verwijderd.'
+                  : 'Notitie opgeslagen.',
+            ),
+          ),
+        );
+    }
+    return result;
+  } catch (e) {
+    debugPrint('Recurring master note save error: $e');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              mapUserFacingError(
+                e,
+                fallback: 'Opslaan mislukt. Probeer opnieuw.',
+              ),
+            ),
+          ),
+        );
+    }
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
@@ -10441,6 +10529,282 @@ class _RecurringMasterList extends StatelessWidget {
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ────────────────────────────────────────────────────────────────────────────
+// Recurring-master detail page (v1 — read-only master fields)
+//
+// Smallest safe first step for master details: reached by tapping a recurring
+// row. Intentionally sober and family-style to [_ExpenseDetailPage] so the
+// rhythm feels familiar. This step explicitly ships:
+//   • no edit UI for title/amount/children
+//   • no pause/resume UI or reason-dialog
+//   • no change-history writes
+//   • creator-only private note read/write (co-parent sees no note UI)
+// If the viewer is not the creator, a calm footer hints that only the maker
+// can edit or pause — without rendering any buttons.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _RecurringMasterDetailPage extends StatefulWidget {
+  const _RecurringMasterDetailPage({
+    required this.householdId,
+    required this.masterId,
+    required this.uid,
+    required this.createdByUid,
+    required this.title,
+    required this.amountCents,
+    required this.childIds,
+    required this.startDate,
+    required this.status,
+    this.preloadedChildNames,
+  });
+
+  final String householdId;
+  final String masterId;
+  final String uid;
+  final String createdByUid;
+  final String title;
+  final int amountCents;
+  final List<String> childIds;
+  final DateTime? startDate;
+  final String? status;
+
+  /// Names vooraf opgelost door de lijstrij (analoog aan hoe het dashboard
+  /// dit aan [_ExpenseDetailPage] doorgeeft). Als dit niet-null is, tonen
+  /// de chips direct op frame 1 zonder zichtbare pop-in.
+  final List<String>? preloadedChildNames;
+
+  @override
+  State<_RecurringMasterDetailPage> createState() =>
+      _RecurringMasterDetailPageState();
+}
+
+class _RecurringMasterDetailPageState
+    extends State<_RecurringMasterDetailPage> {
+  bool _noteActionBusy = false;
+  // Cached once so rebuilds don't re-fetch child names.
+  late final Future<List<String>> _childNamesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final preloaded = widget.preloadedChildNames;
+    _childNamesFuture = preloaded != null
+        ? Future<List<String>>.value(preloaded)
+        : _ExpenseDetailPage._resolveChildNames(
+            widget.householdId,
+            widget.childIds,
+          );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final isCreator =
+        widget.uid.isNotEmpty && widget.uid == widget.createdByUid.trim();
+    final startLabel = widget.startDate != null
+        ? _formatRecurringStartDateNl(widget.startDate!)
+        : '—';
+    final statusLabel = _formatRecurringStatusLabel(widget.status);
+
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Maandelijkse uitgave',
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Titel',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(widget.title),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Bedrag',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(
+                    _formatRecurringEurCents(widget.amountCents),
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (widget.childIds.isNotEmpty)
+                  FutureBuilder<List<String>>(
+                    future: _childNamesFuture,
+                    initialData: widget.preloadedChildNames,
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const SizedBox.shrink();
+                      final names = snap.data!;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Voor',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: onSurface(context, a70),
+                          ),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: names
+                                .map(
+                                  (n) => Chip(
+                                    label: Text(n),
+                                    labelStyle: textTheme.bodySmall,
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Startdatum',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(startLabel),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Status',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(statusLabel),
+                ),
+                if (isCreator) ...[
+                  const SizedBox(height: 12),
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .doc(
+                          'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${widget.uid}',
+                        )
+                        .snapshots(),
+                    builder: (context, snap) {
+                      final data = snap.data?.data();
+                      final note = (data?['note'] as String?)?.trim() ?? '';
+                      final hasNoteLive = note.isNotEmpty;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (hasNoteLive)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Notitie',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: onSurface(context, a70),
+                                ),
+                              ),
+                              subtitle: Text(note),
+                            )
+                          else
+                            Text(
+                              'Nog geen notitie.',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: onSurface(context, a55),
+                                height: 1.35,
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: FilledButton.tonalIcon(
+                              onPressed: _noteActionBusy
+                                  ? null
+                                  : () async {
+                                      if (_noteActionBusy) return;
+                                      setState(() => _noteActionBusy = true);
+                                      try {
+                                        await _doManageRecurringMasterPrivateNote(
+                                          context,
+                                          householdId: widget.householdId,
+                                          masterId: widget.masterId,
+                                          uid: widget.uid,
+                                        );
+                                      } finally {
+                                        if (mounted) {
+                                          setState(
+                                            () => _noteActionBusy = false,
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: Icon(
+                                hasNoteLive
+                                    ? Icons.edit_note
+                                    : Icons.note_add_outlined,
+                                size: 18,
+                              ),
+                              label: Text(
+                                hasNoteLive
+                                    ? 'Notitie wijzigen'
+                                    : 'Notitie toevoegen',
+                                style: textTheme.bodyMedium,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+                if (!isCreator) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Alleen de maker kan deze terugkerende uitgave bewerken of pauzeren.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a55),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Add-recurring-expense dialog
 //
 // Top-level StatefulWidget that mirrors the field rhythm and validation feel
