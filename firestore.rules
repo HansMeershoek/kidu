@@ -227,7 +227,10 @@ service cloud.firestore {
                 && request.resource.data.recurringExpenseId.size() > 0
                 && request.resource.data.periodKey is string
                 && request.resource.data.periodKey.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
-                && isRecurringMasterCreator(householdId, request.resource.data.recurringExpenseId)));
+                && isRecurringMasterCreator(householdId, request.resource.data.recurringExpenseId)
+                && get(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(request.resource.data.recurringExpenseId)).data.status == 'active'
+                && request.resource.data.createdAt is timestamp
+                && expenseId == 'rec_' + request.resource.data.recurringExpenseId + '_' + request.resource.data.periodKey));
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
@@ -278,6 +281,7 @@ service cloud.firestore {
         && request.resource.data.childIds.size() >= 1
         && request.resource.data.childIds.size() <= 7
         && request.resource.data.startDate is timestamp
+        && request.resource.data.startDate >= request.time - duration.value(1, 'd')
         && request.resource.data.cadence == 'monthly'
         && request.resource.data.status == 'active'
         && request.resource.data.createdAt == request.time
