@@ -2000,14 +2000,40 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                             onTap: () {
                               Navigator.of(context).pop();
-                              Navigator.of(rootContext).push(
-                                MaterialPageRoute(
-                                  builder: (_) => _LogboekPage(
-                                    householdId: householdId,
-                                    uid: myUid,
-                                    myName: myName,
-                                    otherName: otherName,
+                              // Zelfde route-lokale fade als bij
+                              // _TerugkerendeKostenPage: maskeert swipe-back /
+                              // predictive-back jank op deze route en maakt
+                              // openen/sluiten visueel consistent met
+                              // 'Maandelijkse uitgaven'.
+                              Navigator.of(rootContext).push<void>(
+                                PageRouteBuilder<void>(
+                                  pageBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                      ) => _LogboekPage(
+                                        householdId: householdId,
+                                        uid: myUid,
+                                        myName: myName,
+                                        otherName: otherName,
+                                      ),
+                                  transitionDuration: const Duration(
+                                    milliseconds: 180,
                                   ),
+                                  reverseTransitionDuration: const Duration(
+                                    milliseconds: 180,
+                                  ),
+                                  transitionsBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                        child,
+                                      ) => FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
                                 ),
                               );
                             },
@@ -2047,10 +2073,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                         householdId: householdId,
                                       ),
                                   transitionDuration: const Duration(
-                                    milliseconds: 220,
+                                    milliseconds: 180,
                                   ),
                                   reverseTransitionDuration: const Duration(
-                                    milliseconds: 220,
+                                    milliseconds: 180,
                                   ),
                                   transitionsBuilder:
                                       (
@@ -4073,14 +4099,40 @@ class _DashboardPageState extends State<DashboardPage> {
                         children: [
                           FloatingActionButton.small(
                             heroTag: 'logboek_fab',
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => _LogboekPage(
-                                  householdId: householdIdStr,
-                                  uid: user.uid,
-                                  myName: myName,
-                                  otherName: otherName,
+                            // Zelfde route-lokale fade als bij
+                            // _TerugkerendeKostenPage: maskeert swipe-back /
+                            // predictive-back jank op deze route en maakt
+                            // openen/sluiten visueel consistent met
+                            // 'Maandelijkse uitgaven'.
+                            onPressed: () => Navigator.of(context).push<void>(
+                              PageRouteBuilder<void>(
+                                pageBuilder:
+                                    (
+                                      context,
+                                      animation,
+                                      secondaryAnimation,
+                                    ) => _LogboekPage(
+                                      householdId: householdIdStr,
+                                      uid: user.uid,
+                                      myName: myName,
+                                      otherName: otherName,
+                                    ),
+                                transitionDuration: const Duration(
+                                  milliseconds: 180,
                                 ),
+                                reverseTransitionDuration: const Duration(
+                                  milliseconds: 180,
+                                ),
+                                transitionsBuilder:
+                                    (
+                                      context,
+                                      animation,
+                                      secondaryAnimation,
+                                      child,
+                                    ) => FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
                               ),
                             ),
                             backgroundColor: Theme.of(
@@ -4141,25 +4193,49 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   if (!mounted) return;
                                                   messenger
                                                       .hideCurrentSnackBar();
-                                                  messenger.showSnackBar(
-                                                    SnackBar(
-                                                      content: const Text(
-                                                        'Voeg eerst een kind toe om een uitgave te registreren.',
-                                                      ),
-                                                      action: SnackBarAction(
-                                                        label: 'Kinderen',
-                                                        onPressed: () => nav.push(
-                                                          MaterialPageRoute<
-                                                            void
-                                                          >(
-                                                            builder: (_) =>
-                                                                _KinderenPage(
-                                                                  householdId:
-                                                                      householdIdStr,
-                                                                ),
+                                                  // Flutter negeert de
+                                                  // duration op een SnackBar
+                                                  // met SnackBarAction zodra
+                                                  // MediaQuery.accessibleNavigation
+                                                  // actief is; we sluiten
+                                                  // dezelfde snackbar daarom
+                                                  // gericht via de opgevangen
+                                                  // controller na exact 4 s.
+                                                  // close() op een reeds
+                                                  // gedismiste/vervangen
+                                                  // snackbar is een no-op.
+                                                  final noChildrenSnackBarController =
+                                                      messenger.showSnackBar(
+                                                        SnackBar(
+                                                          duration: const Duration(
+                                                            seconds: 5,
+                                                          ),
+                                                          content: const Text(
+                                                            'Voeg eerst een kind toe om een uitgave te registreren.',
+                                                          ),
+                                                          action: SnackBarAction(
+                                                            label: 'Kinderen',
+                                                            onPressed: () => nav.push(
+                                                              MaterialPageRoute<
+                                                                void
+                                                              >(
+                                                                builder: (_) =>
+                                                                    _KinderenPage(
+                                                                      householdId:
+                                                                          householdIdStr,
+                                                                    ),
+                                                              ),
+                                                            ),
                                                           ),
                                                         ),
+                                                      );
+                                                  unawaited(
+                                                    Future<void>.delayed(
+                                                      const Duration(
+                                                        seconds: 5,
                                                       ),
+                                                      noChildrenSnackBarController
+                                                          .close,
                                                     ),
                                                   );
                                                   return;
@@ -11289,11 +11365,61 @@ class _TerugkerendeKostenPage extends StatefulWidget {
 
 class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
   Future<void> _openAddRecurringDialog() async {
+    // Gelijkgetrokken met de 'Nieuwe uitgave'-flow op het dashboard
+    // (regel 4188-4217): zonder actieve kinderen opent de dialog niet,
+    // en verschijnt dezelfde tijdelijke snackbar met actie 'Kinderen' die
+    // naar _KinderenPage navigeert.
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final householdId = widget.householdId;
+    bool hasActiveChildren = false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/$householdId/children')
+          .get();
+      hasActiveChildren = snap.docs.any(
+        (d) =>
+            d.data()['isArchived'] != true && d.data()['isDeleted'] != true,
+      );
+    } catch (_) {
+      hasActiveChildren = false;
+    }
+    if (!mounted) return;
+    if (!hasActiveChildren) {
+      messenger.hideCurrentSnackBar();
+      // Flutter negeert de duration op een SnackBar met SnackBarAction zodra
+      // MediaQuery.accessibleNavigation actief is; we sluiten dezelfde
+      // snackbar daarom gericht via de opgevangen controller na exact 4 s.
+      // close() op een reeds gedismiste/vervangen snackbar is een no-op.
+      final noChildrenSnackBarController = messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 5),
+          content: const Text(
+            'Voeg eerst een kind toe om een uitgave te registreren.',
+          ),
+          action: SnackBarAction(
+            label: 'Kinderen',
+            onPressed: () => nav.push(
+              MaterialPageRoute<void>(
+                builder: (_) => _KinderenPage(householdId: householdId),
+              ),
+            ),
+          ),
+        ),
+      );
+      unawaited(
+        Future<void>.delayed(
+          const Duration(seconds: 5),
+          noChildrenSnackBarController.close,
+        ),
+      );
+      return;
+    }
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) =>
-          _AddRecurringExpenseDialog(householdId: widget.householdId),
+          _AddRecurringExpenseDialog(householdId: householdId),
     );
     if (!mounted) return;
     if (result == true) {
@@ -12053,7 +12179,9 @@ class _AddRecurringExpenseDialogState
     );
 
     final showChildSelectionRow = !_loadingChildren && _children.length > 1;
-    final showNoChildrenHint = !_loadingChildren && _children.isEmpty;
+    // Geen 'geen kinderen'-tak meer nodig: de recurring add-dialog opent
+    // alleen wanneer _openAddRecurringDialog al heeft vastgesteld dat er
+    // actieve kinderen zijn (consistent met 'Nieuwe uitgave'-flow).
 
     // Title-anchored width. Cap sits between the old narrow (420) and the
     // too-wide (480) attempts so "Maandelijkse uitgave" still fits with calm
@@ -12237,24 +12365,6 @@ class _AddRecurringExpenseDialogState
                         child: const Text('Selectie'),
                       ),
                     ],
-                  )
-                else if (showNoChildrenHint)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(text: 'Voor: ', style: metaLabelStyle),
-                          TextSpan(
-                            text:
-                                'Voeg eerst een kind toe in Instellingen > Kinderen.',
-                            style: metaValueStyle?.copyWith(
-                              color: onSurface(context, a68),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
               ],
             ),
