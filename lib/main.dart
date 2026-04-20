@@ -11316,94 +11316,109 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
       appBar: AppBar(
         centerTitle: true,
         title: Text(
-          'Terugkerende kosten',
+          'Maandelijkse uitgaven',
           style: textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: 0.4,
           ),
         ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'add_recurring_fab',
+        onPressed: _openAddRecurringDialog,
+        tooltip: 'Nieuwe maandelijkse uitgave',
+        child: const Icon(Icons.add, size: 24),
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection(
-                      'households/${widget.householdId}/recurringExpenses',
-                    )
-                    .orderBy('createdAt', descending: true)
-                    .snapshots(),
-                builder: (context, snap) {
-                  final docs = snap.data?.docs ?? const [];
-                  final hasData = snap.hasData;
-                  return KiduCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Hier beheer je vaste kosten die terugkomen.',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: onSurface(context, a84),
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (!hasData)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Row(
-                              children: [
-                                const SizedBox(
-                                  height: 14,
-                                  width: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.6,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Laden…',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: onSurface(context, a55),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else if (docs.isEmpty) ...[
+        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection(
+                'households/${widget.householdId}/recurringExpenses',
+              )
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
+          builder: (context, snap) {
+            final docs = snap.data?.docs ?? const [];
+            final hasData = snap.hasData;
+
+            if (!hasData) {
+              return Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(strokeWidth: 1.6),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Laden…',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a55),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            if (docs.isEmpty) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: KiduCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Text(
-                            'Nog geen terugkerende kosten ingesteld.',
+                            'Hier beheer je vaste kosten die terugkomen.',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: onSurface(context, a84),
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Nog geen terugkerende kosten ingesteld. Voeg er een toe met +.',
                             style: textTheme.bodySmall?.copyWith(
                               color: onSurface(context, a55),
                               height: 1.35,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                        ] else ...[
-                          const SizedBox(height: 4),
-                          _RecurringMasterList(docs: docs),
-                          const SizedBox(height: 16),
                         ],
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: ElevatedButton.icon(
-                            onPressed: _openAddRecurringDialog,
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Nieuwe terugkerende kost'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  );
-                },
+                  ),
+                ),
+              );
+            }
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: KiduCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: _RecurringMasterList(
+                      householdId: widget.householdId,
+                      docs: docs,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -11414,98 +11429,337 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
 // Recurring-master list (v1)
 //
 // Calm, read-only rendering of existing recurring masters. Intentionally
-// minimal: title, amount, start-date and status only. No edit/pause affordance
-// yet — those are out of scope for this step.
+// minimal: title, amount, start-date and status only. Rows are now tappable
+// and push to a read-only [_RecurringMasterDetailPage] — no edit/pause
+// affordance is rendered here (or on detail) in this step.
 // ────────────────────────────────────────────────────────────────────────────
 
 class _RecurringMasterList extends StatelessWidget {
-  const _RecurringMasterList({required this.docs});
+  const _RecurringMasterList({required this.householdId, required this.docs});
 
+  final String householdId;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  // Ritme afgeleid van Logboek > Uitgaven (_LogboekPageState._logboekListRow*):
+  // rij = 64, separator = 14. Vaste viewport voor exact 9 volledige rijen:
+  //   9 * 64 + 8 * 14 = 688. Een eventueel 10e item start pas op 702 en valt
+  // dus volledig buiten de viewport — geen halve rij onderaan. Bewust 1 rij
+  // lager dan daarvoor zodat de floating +-knop rechtsonder visueel vrij
+  // staat en niet optisch tegen de laatste rij / card aan zit.
+  static const double _rowExtent = 64;
+  static const double _separatorExtent = 14;
+  static const int _visibleRowCount = 9;
+  static const double _cardListHeight =
+      (_visibleRowCount * _rowExtent) +
+      ((_visibleRowCount - 1) * _separatorExtent);
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final divider = Divider(
-      height: 1,
-      thickness: 1,
-      color: outlineV(context, a55),
-    );
 
-    final rows = <Widget>[];
-    for (var i = 0; i < docs.length; i++) {
-      if (i > 0) {
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: divider,
-          ),
-        );
-      }
-      rows.add(_buildRow(context, textTheme, docs[i].data()));
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: rows,
+    return SizedBox(
+      height: _cardListHeight,
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: docs.length,
+        separatorBuilder: (context, _) => Divider(
+          height: _separatorExtent,
+          color: outlineV(context, a40),
+        ),
+        itemBuilder: (context, i) => _buildRow(context, textTheme, docs[i]),
+      ),
     );
   }
 
   Widget _buildRow(
     BuildContext context,
     TextTheme textTheme,
-    Map<String, dynamic> data,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
+    final data = doc.data();
     final title = (data['title'] as String?)?.trim() ?? '—';
     final amountCents = (data['amountCents'] is int)
         ? data['amountCents'] as int
         : 0;
     final startTs = data['startDate'];
     final startDate = startTs is Timestamp ? startTs.toDate() : null;
-    final statusLabel = _formatRecurringStatusLabel(data['status'] as String?);
+    final status = data['status'] as String?;
+    final statusLabel = _formatRecurringStatusLabel(status);
+    final createdBy = ((data['createdBy'] as String?) ?? '').trim();
+    final childIds =
+        (data['childIds'] as List?)?.whereType<String>().toList() ??
+        const <String>[];
+    final subtitleText = startDate != null
+        ? 'Start ${_formatRecurringStartDateNl(startDate)} • $statusLabel'
+        : statusLabel;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: onSurface(context, a84),
+    final cs = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      height: _rowExtent,
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          highlightColor: cs.primary.withValues(alpha: 0.10),
+          splashColor: cs.primary.withValues(alpha: 0.08),
+          onTap: () async {
+            final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+            final navigator = Navigator.of(context);
+            // Los de kindnamen op vóór navigatie zodat de chips op het
+            // detailscherm direct stabiel renderen (geen late pop-in).
+            // Firestore serveert deze doc-gets normaliter uit de offline
+            // cache, dus dit kost geen merkbare tap-vertraging.
+            final preloadedNames = childIds.isEmpty
+                ? const <String>[]
+                : await _ExpenseDetailPage._resolveChildNames(
+                    householdId,
+                    childIds,
+                  );
+            if (!navigator.mounted) return;
+            navigator.push(
+              MaterialPageRoute<void>(
+                builder: (_) => _RecurringMasterDetailPage(
+                  householdId: householdId,
+                  masterId: doc.id,
+                  uid: uid,
+                  createdByUid: createdBy,
+                  title: title,
+                  amountCents: amountCents,
+                  childIds: childIds,
+                  startDate: startDate,
+                  status: status,
+                  preloadedChildNames: preloadedNames,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
-              Text(
-                startDate != null
-                    ? 'Start ${_formatRecurringStartDateNl(startDate)} • $statusLabel'
-                    : statusLabel,
-                style: textTheme.bodySmall?.copyWith(
-                  color: onSurface(context, a55),
-                  height: 1.35,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            );
+          },
+          child: ListTile(
+            key: ValueKey(doc.id),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+            dense: true,
+            minTileHeight: _rowExtent,
+            minVerticalPadding: 0,
+            visualDensity: VisualDensity.compact,
+            title: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: subtitleText.isEmpty
+                ? null
+                : Text(
+                    subtitleText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+            trailing: Text(
+              _formatRecurringEurCents(amountCents),
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-            ],
+            ),
           ),
         ),
-        const SizedBox(width: 12),
-        Text(
-          _formatRecurringEurCents(amountCents),
-          style: textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: onSurface(context, a84),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Recurring-master detail page (v1 — read-only)
+//
+// Smallest safe first step for master details: reached by tapping a recurring
+// row. Intentionally sober and family-style to [_ExpenseDetailPage] so the
+// rhythm feels familiar. This step explicitly ships:
+//   • no edit UI
+//   • no pause/resume UI or reason-dialog
+//   • no change-history writes
+//   • no new Firestore mutations
+// If the viewer is not the creator, a calm footer hints that only the maker
+// can edit or pause — without rendering any buttons.
+// ────────────────────────────────────────────────────────────────────────────
+
+class _RecurringMasterDetailPage extends StatefulWidget {
+  const _RecurringMasterDetailPage({
+    required this.householdId,
+    required this.masterId,
+    required this.uid,
+    required this.createdByUid,
+    required this.title,
+    required this.amountCents,
+    required this.childIds,
+    required this.startDate,
+    required this.status,
+    this.preloadedChildNames,
+  });
+
+  final String householdId;
+  final String masterId;
+  final String uid;
+  final String createdByUid;
+  final String title;
+  final int amountCents;
+  final List<String> childIds;
+  final DateTime? startDate;
+  final String? status;
+
+  /// Names vooraf opgelost door de lijstrij (analoog aan hoe het dashboard
+  /// dit aan [_ExpenseDetailPage] doorgeeft). Als dit niet-null is, tonen
+  /// de chips direct op frame 1 zonder zichtbare pop-in.
+  final List<String>? preloadedChildNames;
+
+  @override
+  State<_RecurringMasterDetailPage> createState() =>
+      _RecurringMasterDetailPageState();
+}
+
+class _RecurringMasterDetailPageState
+    extends State<_RecurringMasterDetailPage> {
+  // Cached once so rebuilds don't re-fetch child names.
+  late final Future<List<String>> _childNamesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final preloaded = widget.preloadedChildNames;
+    _childNamesFuture = preloaded != null
+        ? Future<List<String>>.value(preloaded)
+        : _ExpenseDetailPage._resolveChildNames(
+            widget.householdId,
+            widget.childIds,
+          );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final isCreator =
+        widget.uid.isNotEmpty && widget.uid == widget.createdByUid.trim();
+    final startLabel = widget.startDate != null
+        ? _formatRecurringStartDateNl(widget.startDate!)
+        : '—';
+    final statusLabel = _formatRecurringStatusLabel(widget.status);
+
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Maandelijkse uitgave',
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
           ),
         ),
-      ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Titel',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(widget.title),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Bedrag',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(
+                    _formatRecurringEurCents(widget.amountCents),
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (widget.childIds.isNotEmpty)
+                  FutureBuilder<List<String>>(
+                    future: _childNamesFuture,
+                    initialData: widget.preloadedChildNames,
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const SizedBox.shrink();
+                      final names = snap.data!;
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Voor',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: onSurface(context, a70),
+                          ),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: names
+                                .map(
+                                  (n) => Chip(
+                                    label: Text(n),
+                                    labelStyle: textTheme.bodySmall,
+                                    backgroundColor: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Startdatum',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(startLabel),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Status',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                    ),
+                  ),
+                  subtitle: Text(statusLabel),
+                ),
+                if (!isCreator) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Alleen de maker kan deze terugkerende uitgave bewerken of pauzeren.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a55),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
