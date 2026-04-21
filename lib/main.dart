@@ -2158,6 +2158,62 @@ class _DashboardPageState extends State<DashboardPage> {
                               );
                             },
                           ),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.standard,
+                            leading: Icon(
+                              Icons.event_repeat_outlined,
+                              size: 18,
+                              color: onSurface(context, a50),
+                            ),
+                            title: Text(
+                              'Terugkerende kosten',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              // Route-lokale fix voor swipe-back jank op deze
+                              // ene route. Een PageRouteBuilder negeert het
+                              // pageTransitionsTheme, waardoor Android
+                              // predictive-back / iOS swipe-back niet de
+                              // onderliggende dashboard-opbouw blootleggen.
+                              // Dezelfde korte fade speelt bij zowel pijltje
+                              // terug als swipe-back, zodat beide paden
+                              // visueel (vrijwel) identiek aanvoelen.
+                              Navigator.of(rootContext).push<void>(
+                                PageRouteBuilder<void>(
+                                  pageBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                      ) => _TerugkerendeKostenPage(
+                                        householdId: householdId,
+                                        otherParentName: otherName,
+                                        myParentName: myName,
+                                      ),
+                                  transitionDuration: const Duration(
+                                    milliseconds: 180,
+                                  ),
+                                  reverseTransitionDuration: const Duration(
+                                    milliseconds: 180,
+                                  ),
+                                  transitionsBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                        child,
+                                      ) => FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                ),
+                              );
+                            },
+                          ),
                         const SizedBox(height: 16),
                         Text(
                           'Info',
@@ -10384,6 +10440,39 @@ String _formatRecurringStatusLabel(String? status) {
   return 'Actief';
 }
 
+/// Compact, tone-of-voice consistent oudernaam voor recurring weergaves.
+///
+/// Voor de lijstregel willen we beide ouders op dezelfde manier tonen:
+/// altijd de echte naam, dus óók voor de eigen gebruiker (geen `Jij`).
+/// Daarom geeft de caller desgewenst `myParentName` mee — dan krijgt de
+/// maker zijn/haar eigen echte naam. Zonder `myParentName` valt de helper
+/// terug op `Jij` voor eigenaar, wat op detailschermen nog passend is.
+String _recurringParentLabel({
+  required String createdByUid,
+  required String? currentUid,
+  required String? otherParentName,
+  String? myParentName,
+}) {
+  final created = createdByUid.trim();
+  final me = (currentUid ?? '').trim();
+  if (created.isNotEmpty && me.isNotEmpty && created == me) {
+    final mine = myParentName?.trim();
+    if (mine != null && mine.isNotEmpty) return mine;
+    return 'Jij';
+  }
+  final o = otherParentName?.trim();
+  if (o != null && o.isNotEmpty) return o;
+  return 'Co-parent';
+}
+
+/// Subtiele statuskleur voor de kleine indicator-dot in de recurring
+/// lijstregel. Bewust gedempt gekozen zodat `active` niet schreeuwt en
+/// `paused` wel herkenbaar opvalt zonder waarschuwingstoon.
+Color _recurringStatusDotColor(String? status) {
+  if (status == 'paused') return const Color(0xFFB07700); // amber/oranje
+  return _kSuccessGreen;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Pure materialisatie-helper voor Maandelijkse uitgaven
 //
@@ -10407,6 +10496,7 @@ class _RecurringMasterInput {
     required this.currency,
     required this.childIds,
     required this.startDate,
+    required this.materializeFromDate,
     required this.status,
     required this.createdBy,
   });
@@ -10417,6 +10507,14 @@ class _RecurringMasterInput {
   final String currency;
   final List<String> childIds;
   final DateTime startDate;
+
+  /// Interne datumgrens waarop de runner mag starten met materialiseren.
+  /// `startDate` blijft de bron voor de dag-van-de-maand; deze grens
+  /// beperkt alleen vanaf welke due-datum er überhaupt gematerialiseerd
+  /// mag worden. Bij create op rules-niveau gelijk aan `startDate`; voor
+  /// legacy masters zonder het veld vult de runner dit op met `startDate`.
+  final DateTime materializeFromDate;
+
   final String status;
   final String createdBy;
 }
@@ -10499,12 +10597,14 @@ DateTime _recurringDueDateFor({
 /// Retourneert een chronologische lijst van plan-entries voor elke periode die
 ///  * op of ná de startmaand ligt,
 ///  * waarvan de due-datum lokaal reeds is bereikt (`now` op of ná due),
+///  * waarvan de due-datum op of ná [_RecurringMasterInput.materializeFromDate]
+///    ligt (interne floor voor pause/hervat- en datumwijzigings-semantiek),
 ///  * én nog niet voorkomt in [existingPeriodKeys].
 ///
 /// Voor `master.status != 'active'` is het resultaat altijd leeg. Backfill
-/// van meerdere ontbrekende maanden is expliciet toegestaan. Er wordt geen
-/// Firestore aangeraakt en er worden geen Timestamps of DocumentReferences
-/// geproduceerd.
+/// van meerdere ontbrekende maanden is expliciet toegestaan, maar nooit
+/// onder de floor. Er wordt geen Firestore aangeraakt en er worden geen
+/// Timestamps of DocumentReferences geproduceerd.
 // ignore: unused_element
 List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
   required _RecurringMasterInput master,
@@ -10519,6 +10619,14 @@ List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
   var year = master.startDate.year;
   var month = master.startDate.month;
 
+  // Floor normaliseren naar lokale 00:00 zodat de vergelijking met de
+  // due-datum (eveneens 00:00 lokaal) puur calendrisch is.
+  final floor = DateTime(
+    master.materializeFromDate.year,
+    master.materializeFromDate.month,
+    master.materializeFromDate.day,
+  );
+
   final plans = <_RecurringMaterializationPlan>[];
 
   while (true) {
@@ -10530,6 +10638,19 @@ List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
     // "Aan de beurt" = now op of ná due. Zodra due strikt na now ligt,
     // stoppen we; latere maanden zijn per definitie ook nog niet toe.
     if (due.isAfter(now)) break;
+
+    // Periodes onder de floor zijn definitief overgeslagen (pauze-venster
+    // of vooruitgeschoven datumwijziging). We gaan door met de volgende
+    // maand; stoppen mag niet, want latere maanden kunnen de floor wél
+    // passeren.
+    if (due.isBefore(floor)) {
+      month += 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+      continue;
+    }
 
     final periodKey = _formatRecurringPeriodKey(year, month);
     if (!existingPeriodKeys.contains(periodKey)) {
@@ -10936,6 +11057,23 @@ class _RecurringMaterializationRunner {
       final rawStart = startTs.toDate();
       final startDate = DateTime(rawStart.year, rawStart.month, rawStart.day);
 
+      // Interne floor voor pause/hervat- en latere datumwijzigings-semantiek.
+      // Backward compatibility: legacy masters zonder dit veld (of met een
+      // onverwacht type) vallen terug op `startDate`, wat de bestaande
+      // gedragscurve exact reproduceert.
+      final materializeFromTs = data['materializeFromDate'];
+      final DateTime materializeFromDate;
+      if (materializeFromTs is Timestamp) {
+        final rawFloor = materializeFromTs.toDate();
+        materializeFromDate = DateTime(
+          rawFloor.year,
+          rawFloor.month,
+          rawFloor.day,
+        );
+      } else {
+        materializeFromDate = startDate;
+      }
+
       final title = (data['title'] as String?)?.trim() ?? '';
       final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
       final currency = ((data['currency'] as String?) ?? 'EUR').trim();
@@ -10958,6 +11096,7 @@ class _RecurringMaterializationRunner {
         currency: currency,
         childIds: childIds,
         startDate: startDate,
+        materializeFromDate: materializeFromDate,
         status: status,
         createdBy: createdBy,
       );
@@ -10982,9 +11121,19 @@ class _RecurringMaterializationRunner {
 }
 
 class _TerugkerendeKostenPage extends StatefulWidget {
-  const _TerugkerendeKostenPage({required this.householdId});
+  const _TerugkerendeKostenPage({
+    required this.householdId,
+    this.otherParentName,
+    this.myParentName,
+  });
 
   final String householdId;
+  final String? otherParentName;
+
+  /// Echte naam van de huidige gebruiker; gebruikt door de lijstregel om
+  /// in plaats van `Jij` dezelfde soort naamweergave als de co-parent te
+  /// tonen (transparantie/consistentie).
+  final String? myParentName;
 
   @override
   State<_TerugkerendeKostenPage> createState() =>
@@ -11117,6 +11266,8 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
                     child: _RecurringMasterList(
                       householdId: widget.householdId,
                       docs: docs,
+                      otherParentName: widget.otherParentName,
+                      myParentName: widget.myParentName,
                     ),
                   ),
                 ),
@@ -11139,10 +11290,21 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
 // ────────────────────────────────────────────────────────────────────────────
 
 class _RecurringMasterList extends StatelessWidget {
-  const _RecurringMasterList({required this.householdId, required this.docs});
+  const _RecurringMasterList({
+    required this.householdId,
+    required this.docs,
+    this.otherParentName,
+    this.myParentName,
+  });
 
   final String householdId;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final String? otherParentName;
+
+  /// Echte naam van de huidige gebruiker, zodat de lijstregel voor een
+  /// door 'mij' aangemaakte recurring dezelfde naamweergave toont als
+  /// voor de co-parent (geen `Jij`).
+  final String? myParentName;
 
   // Ritme afgeleid van Logboek > Uitgaven (_LogboekPageState._logboekListRow*):
   // rij = 64, separator = 14. Vaste viewport voor exact 9 volledige rijen:
@@ -11170,7 +11332,8 @@ class _RecurringMasterList extends StatelessWidget {
           height: _separatorExtent,
           color: outlineV(context, a40),
         ),
-        itemBuilder: (context, i) => _buildRow(context, textTheme, docs[i]),
+        itemBuilder: (context, i) =>
+            _buildRow(context, textTheme, docs[i], otherParentName, myParentName),
       ),
     );
   }
@@ -11179,6 +11342,8 @@ class _RecurringMasterList extends StatelessWidget {
     BuildContext context,
     TextTheme textTheme,
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    String? otherParentName,
+    String? myParentName,
   ) {
     final data = doc.data();
     final title = (data['title'] as String?)?.trim() ?? '—';
@@ -11188,14 +11353,28 @@ class _RecurringMasterList extends StatelessWidget {
     final startTs = data['startDate'];
     final startDate = startTs is Timestamp ? startTs.toDate() : null;
     final status = data['status'] as String?;
-    final statusLabel = _formatRecurringStatusLabel(status);
+    final isPaused = status == 'paused';
     final createdBy = ((data['createdBy'] as String?) ?? '').trim();
     final childIds =
         (data['childIds'] as List?)?.whereType<String>().toList() ??
         const <String>[];
-    final subtitleText = startDate != null
-        ? 'Start ${_formatRecurringStartDateNl(startDate)} • $statusLabel'
-        : statusLabel;
+    final parentLabel = _recurringParentLabel(
+      createdByUid: createdBy,
+      currentUid: FirebaseAuth.instance.currentUser?.uid,
+      otherParentName: otherParentName,
+      myParentName: myParentName,
+    );
+    // Nieuwe semantiek: we tonen niet langer de volledige startdatum,
+    // maar leunen op de vervaldag-van-de-maand. Gepauzeerde masters
+    // tonen bewust géén dag/datum — alleen oudernaam en het dot-puntje
+    // verraadt de pauze-status.
+    final dayOfMonth = startDate?.day;
+    final subtitleText = isPaused
+        ? parentLabel
+        : (dayOfMonth != null
+              ? '$parentLabel · Op de ${dayOfMonth}e'
+              : parentLabel);
+    final statusDotColor = _recurringStatusDotColor(status);
 
     final cs = Theme.of(context).colorScheme;
 
@@ -11239,6 +11418,12 @@ class _RecurringMasterList extends StatelessWidget {
               ),
             );
           },
+          // Gepauzeerde rows ogen subtiel minder actief dan actieve rows.
+          // In lijn met `Logboek > Wijzigingen` (_buildWijzigingTrailing):
+          // we dempen niet meer via een hele-row Opacity, maar via een
+          // rustigere tekstkleur op titel, subtitle en bedrag — dezelfde
+          // `onSurface(context, a68)`-familie. Tapbaarheid, layout en
+          // spacing blijven identiek; alleen de kleurtoon valt rustig weg.
           child: ListTile(
             key: ValueKey(doc.id),
             contentPadding: const EdgeInsets.symmetric(horizontal: 5),
@@ -11250,6 +11435,9 @@ class _RecurringMasterList extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              style: isPaused
+                  ? TextStyle(color: onSurface(context, a68))
+                  : null,
             ),
             subtitle: subtitleText.isEmpty
                 ? null
@@ -11257,12 +11445,51 @@ class _RecurringMasterList extends StatelessWidget {
                     subtitleText,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: isPaused
+                        ? TextStyle(color: onSurface(context, a68))
+                        : null,
                   ),
-            trailing: Text(
-              _formatRecurringEurCents(amountCents),
-              style: textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Statuspuntje — groen bij actief, amber/oranje bij gepauzeerd.
+                // 2× groter dan de eerdere micro-dot voor duidelijke herkenning,
+                // met een subtiele ring in de card-border-familie zodat het
+                // rustig blijft en niet als badge overkomt.
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: statusDotColor,
+                    border: Border.all(
+                      color: outlineV(context, a40),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Vaste breedte houdt het puntje over meerdere rijen onder
+                // elkaar uitgelijnd. Iets ruimer gedimensioneerd dan voorheen
+                // zodat alledaagse recurring bedragen (€100,00, €124,00,
+                // €1.000,00 …) volledig renderen zonder ellipsis; de bredere
+                // amount-box schuift het puntje tegelijk iets naar links,
+                // wat de trailing cluster rustiger laat lezen.
+                SizedBox(
+                  width: 88,
+                  child: Text(
+                    _formatRecurringEurCents(amountCents),
+                    textAlign: TextAlign.end,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isPaused ? onSurface(context, a68) : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
