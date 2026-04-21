@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -280,15 +280,24 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
 
 /// Stabiele client-side sorteer-comparator voor expense-docs.
 ///
-/// Primair op `createdAt` desc. Voor gematerialiseerde recurring-instances
-/// is `createdAt` semantisch vastgezet op de due-datum 00:00 lokale maker-
-/// tijd, dus meerdere instances op dezelfde due-datum botsen hier bewust.
-/// Als secundaire as gebruiken we `materializedAt` desc met fallback naar
-/// `createdAt`: dat is het echte serverside materialisatie-moment en
-/// breekt zo ties tussen instances op dezelfde due-datum. Voor handmatige
-/// expenses (zonder `materializedAt`) valt de secundaire as samen met
-/// `createdAt`, wat geen effect heeft omdat hun `createdAt` al het echte
-/// schrijfmoment is. Als uiterste stabiele tie-break `doc.id` asc.
+/// Zichtbare recency in Dashboard > `Recente uitgaven` en Logboek >
+/// `Uitgaven` leunt op het échte aanmaak-/materialisatiemoment:
+///
+///  * primair:   `materializedAt ?? createdAt` desc — voor gematerialiseerde
+///               recurring-instances is dat het serverside materialisatie-
+///               moment, voor handmatige expenses valt dit samen met
+///               `createdAt` (= echte schrijfmoment), zodat een net vandaag
+///               gematerialiseerde maandelijkse post ook echt bovenaan kan
+///               komen en niet wegvalt tegen een handmatige post van
+///               eerder vandaag op dezelfde due-datum 00:00,
+///  * secundair: `createdAt` desc — breekt ties tussen instances die op
+///               dezelfde dag zijn gematerialiseerd en bewaart de
+///               natuurlijke due-datum-volgorde,
+///  * tertiair:  `doc.id` asc — uiterste stabiele tie-break, deterministisch.
+///
+/// Puur client-side: geen Firestore-query-aanpassing, geen extra orderBy,
+/// geen data-model-wijziging. `materializedAt`/`createdAt`-semantiek zelf
+/// wordt hier bewust niet gewijzigd.
 int _compareExpenseDocsStable(
   QueryDocumentSnapshot<Map<String, dynamic>> a,
   QueryDocumentSnapshot<Map<String, dynamic>> b,
@@ -300,25 +309,29 @@ int _compareExpenseDocsStable(
   final bCreatedAt = db['createdAt'];
   final aCreatedTs = aCreatedAt is Timestamp ? aCreatedAt : null;
   final bCreatedTs = bCreatedAt is Timestamp ? bCreatedAt : null;
-  if (aCreatedTs != null && bCreatedTs != null) {
-    final primary = bCreatedTs.compareTo(aCreatedTs);
-    if (primary != 0) return primary;
-  } else if (aCreatedTs != null) {
-    return -1;
-  } else if (bCreatedTs != null) {
-    return 1;
-  }
 
   final aMat = da['materializedAt'];
   final bMat = db['materializedAt'];
-  final aSecondary = aMat is Timestamp ? aMat : aCreatedTs;
-  final bSecondary = bMat is Timestamp ? bMat : bCreatedTs;
-  if (aSecondary != null && bSecondary != null) {
-    final secondary = bSecondary.compareTo(aSecondary);
-    if (secondary != 0) return secondary;
-  } else if (aSecondary != null) {
+  final aMatTs = aMat is Timestamp ? aMat : null;
+  final bMatTs = bMat is Timestamp ? bMat : null;
+
+  final aPrimary = aMatTs ?? aCreatedTs;
+  final bPrimary = bMatTs ?? bCreatedTs;
+  if (aPrimary != null && bPrimary != null) {
+    final primary = bPrimary.compareTo(aPrimary);
+    if (primary != 0) return primary;
+  } else if (aPrimary != null) {
     return -1;
-  } else if (bSecondary != null) {
+  } else if (bPrimary != null) {
+    return 1;
+  }
+
+  if (aCreatedTs != null && bCreatedTs != null) {
+    final secondary = bCreatedTs.compareTo(aCreatedTs);
+    if (secondary != 0) return secondary;
+  } else if (aCreatedTs != null) {
+    return -1;
+  } else if (bCreatedTs != null) {
     return 1;
   }
 
@@ -10417,6 +10430,27 @@ String _formatRecurringStartDateNl(DateTime dt) {
   return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
 }
 
+/// Compacte NL-datum (`<d MMM>`) voor de recurring lijstregel.
+/// Alleen dag + korte maandnaam, bewust zonder jaartal zodat de subtitle
+/// rustig blijft. Gebruikt dezelfde maandvolgorde als [_formatRecurringStartDateNl].
+String _formatRecurringShortDateNl(DateTime dt) {
+  const months = [
+    'jan',
+    'feb',
+    'mrt',
+    'apr',
+    'mei',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'okt',
+    'nov',
+    'dec',
+  ];
+  return '${dt.day} ${months[dt.month - 1]}';
+}
+
 /// Dutch-style EUR formatter mirroring the dashboard's _formatEur rhythm.
 /// Kept local to the recurring flow so this step does not depend on
 /// _DashboardPageState.
@@ -10496,6 +10530,7 @@ class _RecurringMasterInput {
     required this.currency,
     required this.childIds,
     required this.startDate,
+    required this.dueDayOfMonth,
     required this.materializeFromDate,
     required this.status,
     required this.createdBy,
@@ -10506,11 +10541,18 @@ class _RecurringMasterInput {
   final int amountCents;
   final String currency;
   final List<String> childIds;
+
+  /// Oorspronkelijke start/ankerdatum van de master. Blijft behouden als
+  /// historisch concept en als create-tijd ankerpunt; is niet langer de
+  /// (enige) bron voor de zichtbare vervaldag-semantiek.
   final DateTime startDate;
 
+  /// Terugkerende vervaldag van de maand (1..31). Voor legacy masters
+  /// zonder dit veld vult de runner dit op met `startDate.day`.
+  final int dueDayOfMonth;
+
   /// Interne datumgrens waarop de runner mag starten met materialiseren.
-  /// `startDate` blijft de bron voor de dag-van-de-maand; deze grens
-  /// beperkt alleen vanaf welke due-datum er überhaupt gematerialiseerd
+  /// Beperkt alleen vanaf welke due-datum er überhaupt gematerialiseerd
   /// mag worden. Bij create op rules-niveau gelijk aan `startDate`; voor
   /// legacy masters zonder het veld vult de runner dit op met `startDate`.
   final DateTime materializeFromDate;
@@ -10592,6 +10634,81 @@ DateTime _recurringDueDateFor({
   return DateTime(year, month, day);
 }
 
+/// Pure display-afleiding: retourneert de eerstvolgende concrete
+/// vervaldatum van een recurring master, of `null` als die er
+/// semantisch niet is.
+///
+/// Bewust volledig zijeffect-vrij: geen Firestore, geen writes, geen
+/// dependency op de runner. Wordt uitsluitend door de UI gebruikt om
+/// lijstregel en detailscherm semantisch correct te renderen.
+///
+/// Regels:
+///  * bij `status != 'active'` → `null` (gepauzeerd toont géén concrete
+///    eerstvolgende datum),
+///  * `dueDayOfMonth` is leidend; voor legacy masters zonder dit veld
+///    valt de helper terug op `startDate.day`,
+///  * clamp-regel is identiek aan [_recurringDueDateFor]: als de
+///    structurele dag niet bestaat in een maand (bv. 31 in februari)
+///    geldt de laatste dag van die maand,
+///  * anchor = `max(today, materializeFromDate-floor)` zodat gepauzeerde
+///    periodes nooit alsnog als eerstvolgende datum opduiken en de
+///    eerstvolgende datum nooit in het verleden ligt,
+///  * [existingPeriodKeys] bevat de periodKeys (`YYYY-MM`) waarvoor al
+///    een expense-instance bestaat; die periodes worden in de afleiding
+///    overgeslagen zodat we niet blijven hangen op vandaag terwijl de
+///    periode van vandaag feitelijk al is gematerialiseerd,
+///  * iteratie is bounded (max 60 maanden vooruit) als defensieve safety.
+DateTime? _recurringNextConcreteDueDate({
+  required String? status,
+  required int? dueDayOfMonth,
+  required DateTime? startDate,
+  required DateTime? materializeFromDate,
+  required DateTime now,
+  Set<String> existingPeriodKeys = const <String>{},
+}) {
+  if (status != 'active') return null;
+
+  int? effectiveDueDay = dueDayOfMonth;
+  if (effectiveDueDay == null && startDate != null) {
+    effectiveDueDay = startDate.day;
+  }
+  if (effectiveDueDay == null) return null;
+  if (effectiveDueDay < 1) effectiveDueDay = 1;
+  if (effectiveDueDay > 31) effectiveDueDay = 31;
+
+  final today = DateTime(now.year, now.month, now.day);
+  final floor = materializeFromDate != null
+      ? DateTime(
+          materializeFromDate.year,
+          materializeFromDate.month,
+          materializeFromDate.day,
+        )
+      : today;
+  final anchor = today.isAfter(floor) ? today : floor;
+
+  var year = anchor.year;
+  var month = anchor.month;
+  for (var i = 0; i < 60; i++) {
+    final due = _recurringDueDateFor(
+      year: year,
+      month: month,
+      startDay: effectiveDueDay,
+    );
+    if (!due.isBefore(anchor)) {
+      final periodKey = _formatRecurringPeriodKey(year, month);
+      if (!existingPeriodKeys.contains(periodKey)) {
+        return due;
+      }
+    }
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return null;
+}
+
 /// Pure berekening van ontbrekende periodes voor één recurring master.
 ///
 /// Retourneert een chronologische lijst van plan-entries voor elke periode die
@@ -10615,7 +10732,13 @@ List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
     return const <_RecurringMaterializationPlan>[];
   }
 
-  final startDay = master.startDate.day;
+  // De dag-van-de-maand komt voortaan uit `dueDayOfMonth` (is voor legacy
+  // masters door de runner al gevuld met `startDate.day`, en in de helper
+  // hier nogmaals geclamped naar een veilig bereik als extra verdediging).
+  final rawDueDay = master.dueDayOfMonth;
+  final startDay = rawDueDay < 1
+      ? 1
+      : (rawDueDay > 31 ? 31 : rawDueDay);
   var year = master.startDate.year;
   var month = master.startDate.month;
 
@@ -11074,6 +11197,22 @@ class _RecurringMaterializationRunner {
         materializeFromDate = startDate;
       }
 
+      // Nieuwe semantiek voor de dag-van-de-maand: `dueDayOfMonth` is de
+      // bron, met fallback naar `startDate.day` voor legacy masters die dit
+      // veld nog niet kennen. Out-of-range waarden worden naar een veilig
+      // bereik geclamped zodat de pure helper niets hoeft te raden.
+      final dueDayRaw = data['dueDayOfMonth'];
+      int dueDayOfMonth;
+      if (dueDayRaw is int) {
+        dueDayOfMonth = dueDayRaw;
+      } else if (dueDayRaw is num) {
+        dueDayOfMonth = dueDayRaw.toInt();
+      } else {
+        dueDayOfMonth = startDate.day;
+      }
+      if (dueDayOfMonth < 1) dueDayOfMonth = 1;
+      if (dueDayOfMonth > 31) dueDayOfMonth = 31;
+
       final title = (data['title'] as String?)?.trim() ?? '';
       final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
       final currency = ((data['currency'] as String?) ?? 'EUR').trim();
@@ -11096,6 +11235,7 @@ class _RecurringMaterializationRunner {
         currency: currency,
         childIds: childIds,
         startDate: startDate,
+        dueDayOfMonth: dueDayOfMonth,
         materializeFromDate: materializeFromDate,
         status: status,
         createdBy: createdBy,
@@ -11364,16 +11504,70 @@ class _RecurringMasterList extends StatelessWidget {
       otherParentName: otherParentName,
       myParentName: myParentName,
     );
-    // Nieuwe semantiek: we tonen niet langer de volledige startdatum,
-    // maar leunen op de vervaldag-van-de-maand. Gepauzeerde masters
-    // tonen bewust géén dag/datum — alleen oudernaam en het dot-puntje
-    // verraadt de pauze-status.
-    final dayOfMonth = startDate?.day;
-    final subtitleText = isPaused
-        ? parentLabel
-        : (dayOfMonth != null
-              ? '$parentLabel · Op de ${dayOfMonth}e'
-              : parentLabel);
+    // Nieuwe semantiek: actieve masters tonen de eerstvolgende concrete
+    // vervaldatum (pure display-afleiding uit `dueDayOfMonth` +
+    // `materializeFromDate`, met dezelfde clamp als de runner).
+    // Gepauzeerde masters tonen bewust géén dag/datum — alleen oudernaam
+    // en het dot-puntje verraadt de pauze-status.
+    final dueDayRaw = data['dueDayOfMonth'];
+    int? dueDay;
+    if (dueDayRaw is int) {
+      dueDay = dueDayRaw;
+    } else if (dueDayRaw is num) {
+      dueDay = dueDayRaw.toInt();
+    }
+    final matFromTs = data['materializeFromDate'];
+    final materializeFromDate = matFromTs is Timestamp
+        ? matFromTs.toDate()
+        : null;
+    // Voor actieve masters is de eerstvolgende concrete vervaldatum
+    // afhankelijk van welke periodes al zijn gematerialiseerd. Zonder
+    // die context zou `Volgende op …` op de dag van materialisatie nog
+    // steeds vandaag tonen terwijl de echte expense-instance van vandaag
+    // al bestaat. We wrappen de subtitle daarom in een smalle per-master
+    // stream op `expenses where recurringExpenseId == doc.id` en skippen
+    // in de helper de al bestaande periodKeys. Gepauzeerde masters
+    // tonen alleen de oudernaam (geen datum, geen stream).
+    final Widget subtitleWidget = isPaused
+        ? Text(
+            parentLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: onSurface(context, a68)),
+          )
+        : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('households/$householdId/expenses')
+                .where('recurringExpenseId', isEqualTo: doc.id)
+                .snapshots(),
+            builder: (context, exSnap) {
+              final periodKeys = <String>{};
+              if (exSnap.hasData) {
+                for (final d in exSnap.data!.docs) {
+                  final pk = d.data()['periodKey'];
+                  if (pk is String && pk.isNotEmpty) {
+                    periodKeys.add(pk);
+                  }
+                }
+              }
+              final nextDue = _recurringNextConcreteDueDate(
+                status: status,
+                dueDayOfMonth: dueDay,
+                startDate: startDate,
+                materializeFromDate: materializeFromDate,
+                now: DateTime.now(),
+                existingPeriodKeys: periodKeys,
+              );
+              final text = nextDue != null
+                  ? '$parentLabel · Volgende op ${_formatRecurringShortDateNl(nextDue)}'
+                  : parentLabel;
+              return Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              );
+            },
+          );
     final statusDotColor = _recurringStatusDotColor(status);
 
     final cs = Theme.of(context).colorScheme;
@@ -11439,16 +11633,7 @@ class _RecurringMasterList extends StatelessWidget {
                   ? TextStyle(color: onSurface(context, a68))
                   : null,
             ),
-            subtitle: subtitleText.isEmpty
-                ? null
-                : Text(
-                    subtitleText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: isPaused
-                        ? TextStyle(color: onSurface(context, a68))
-                        : null,
-                  ),
+            subtitle: subtitleWidget,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -12002,6 +12187,11 @@ class _AddRecurringExpenseDialogState
         'currency': 'EUR',
         'childIds': selectedChildIds,
         'startDate': Timestamp.fromDate(_startDate),
+        // Terugkerende vervaldag van de maand. Bij create hard gekoppeld aan
+        // de dagcomponent van `startDate`; daarmee reproduceert de helper
+        // voor nieuwe masters exact het oude gedrag en staat het veld klaar
+        // om later los van `startDate` bewerkt te worden.
+        'dueDayOfMonth': _startDate.day,
         'cadence': 'monthly',
         'status': 'active',
         // Interne datumgrens voor de latere pause/hervat-runner. Bij create
