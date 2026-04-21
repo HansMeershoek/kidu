@@ -11777,6 +11777,10 @@ class _AddRecurringExpenseDialogState
         'startDate': Timestamp.fromDate(_startDate),
         'cadence': 'monthly',
         'status': 'active',
+        // Interne datumgrens voor de latere pause/hervat-runner. Bij create
+        // hard gekoppeld aan `startDate`; rules dwingen exacte gelijkheid af.
+        // Gedrag van runner en helper blijft in deze stap volledig ongewijzigd.
+        'materializeFromDate': Timestamp.fromDate(_startDate),
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),

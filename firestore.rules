@@ -270,6 +270,7 @@ service cloud.firestore {
           'startDate',
           'cadence',
           'status',
+          'materializeFromDate',
           'createdAt',
           'createdBy',
           'updatedAt'
@@ -287,6 +288,8 @@ service cloud.firestore {
         && request.resource.data.startDate >= request.time - duration.value(1, 'd')
         && request.resource.data.cadence == 'monthly'
         && request.resource.data.status == 'active'
+        && request.resource.data.materializeFromDate is timestamp
+        && request.resource.data.materializeFromDate == request.resource.data.startDate
         && request.resource.data.createdAt == request.time
         && (!('updatedAt' in request.resource.data)
             || request.resource.data.updatedAt == request.time);
@@ -304,6 +307,7 @@ service cloud.firestore {
           'amountCents',
           'childIds',
           'status',
+          'materializeFromDate',
           'updatedAt'
         ])
         && request.resource.data.updatedAt == request.time
@@ -318,6 +322,10 @@ service cloud.firestore {
             || (request.resource.data.childIds is list
                 && request.resource.data.childIds.size() >= 1
                 && request.resource.data.childIds.size() <= 7))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['materializeFromDate'])
+            || (request.resource.data.materializeFromDate is timestamp
+                && (!('materializeFromDate' in resource.data)
+                    || request.resource.data.materializeFromDate >= resource.data.materializeFromDate)))
         && request.resource.data.status in ['active', 'paused'];
 
       allow delete: if false;
