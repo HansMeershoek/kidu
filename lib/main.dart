@@ -11735,6 +11735,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
 class _RecurringMasterDetailPageState
     extends State<_RecurringMasterDetailPage> {
   bool _noteActionBusy = false;
+  bool _deleteActionBusy = false;
   // Cached once so rebuilds don't re-fetch child names.
   late final Future<List<String>> _childNamesFuture;
 
@@ -11748,6 +11749,120 @@ class _RecurringMasterDetailPageState
             widget.householdId,
             widget.childIds,
           );
+  }
+
+  /// Creator-only hard delete of the recurring master.
+  ///
+  /// Semantics (v1):
+  ///  * stops only the future monthly materializations
+  ///  * already-materialized expenses are intentionally left untouched
+  ///  * no soft delete, no reason, no status-history
+  ///
+  /// Cleanup order matters because the privateNotes and changes rules rely
+  /// on `isRecurringMasterCreator` which resolves against the master doc:
+  ///   1) delete all `changes` docs
+  ///   2) delete all `privateNotes` docs (iterate household members — the
+  ///      creator is allowed to clear any uid-slot under this master so no
+  ///      co-parent notes are left as orphans)
+  ///   3) delete the master doc itself (last)
+  void _showRecurringSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _onDeletePressed() async {
+    if (_deleteActionBusy) return;
+    if (!await _checkCanWriteNow()) {
+      if (mounted) {
+        _showRecurringSnackBar('Je bent offline, probeer het later opnieuw');
+      }
+      return;
+    }
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Maandelijkse uitgave verwijderen?'),
+        content: const Text(
+          'Toekomstige maandelijkse uitgaven stoppen. '
+          'Eerder aangemaakte uitgaven blijven bewaard.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuleren'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Verwijderen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // Flip the busy flag before the first Firestore delete. From this point
+    // on the stream-driven subsections of build() render from their cached
+    // snapshot instead of whatever the live streams emit, so co-parent
+    // deletions of changes/privateNotes/master are not visible as jank.
+    setState(() => _deleteActionBusy = true);
+    // Capture the messenger/navigator up-front: after the master is deleted
+    // we pop this page, and the detail widget's own context is no longer
+    // usable for showing a snackbar. The nearest ScaffoldMessenger above
+    // (MaterialApp's root messenger) survives the pop.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final masterRef = firestore.doc(
+        'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
+      );
+
+      // 1) changes
+      final changesSnap = await masterRef.collection('changes').get();
+      for (final d in changesSnap.docs) {
+        await d.reference.delete();
+      }
+
+      // 2) privateNotes — iterate household members so we also clean up
+      // any uid-slots written by co-parents. Delete of a non-existent doc
+      // is a safe no-op in Firestore when the rule permits it.
+      final membersSnap = await firestore
+          .collection('households/${widget.householdId}/members')
+          .get();
+      for (final m in membersSnap.docs) {
+        try {
+          await masterRef.collection('privateNotes').doc(m.id).delete();
+        } catch (_) {
+          // Silently ignore: slot may not exist or a transient perm hiccup
+          // on a single slot should not block the master delete. The master
+          // delete below is the authoritative failure surface.
+        }
+      }
+
+      // 3) master (last, so the rules above still resolve)
+      await masterRef.delete();
+
+      if (!mounted) return;
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Maandelijkse uitgave verwijderd.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _deleteActionBusy = false);
+      _showRecurringSnackBar(
+        mapUserFacingError(
+          e,
+          fallback: 'Verwijderen mislukt. Probeer opnieuw.',
+        ),
+      );
+      return;
+    }
+    if (mounted) {
+      setState(() => _deleteActionBusy = false);
+    }
   }
 
   @override
@@ -11931,6 +12046,26 @@ class _RecurringMasterDetailPageState
                                 hasNoteLive
                                     ? 'Notitie wijzigen'
                                     : 'Notitie toevoegen',
+                                style: textTheme.bodyMedium,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: TextButton.icon(
+                              onPressed: _deleteActionBusy
+                                  ? null
+                                  : _onDeletePressed,
+                              style: TextButton.styleFrom(
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.error,
+                              ),
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 18,
+                              ),
+                              label: Text(
+                                'Verwijderen',
                                 style: textTheme.bodyMedium,
                               ),
                             ),
