@@ -278,6 +278,55 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
   }
 }
 
+// ── Shared expense-list sorting helpers (used by Dashboard and Logboek) ─────
+
+/// Stabiele client-side sorteer-comparator voor expense-docs.
+///
+/// Primair op `createdAt` desc. Voor gematerialiseerde recurring-instances
+/// is `createdAt` semantisch vastgezet op de due-datum 00:00 lokale maker-
+/// tijd, dus meerdere instances op dezelfde due-datum botsen hier bewust.
+/// Als secundaire as gebruiken we `materializedAt` desc met fallback naar
+/// `createdAt`: dat is het echte serverside materialisatie-moment en
+/// breekt zo ties tussen instances op dezelfde due-datum. Voor handmatige
+/// expenses (zonder `materializedAt`) valt de secundaire as samen met
+/// `createdAt`, wat geen effect heeft omdat hun `createdAt` al het echte
+/// schrijfmoment is. Als uiterste stabiele tie-break `doc.id` asc.
+int _compareExpenseDocsStable(
+  QueryDocumentSnapshot<Map<String, dynamic>> a,
+  QueryDocumentSnapshot<Map<String, dynamic>> b,
+) {
+  final da = a.data();
+  final db = b.data();
+
+  final aCreatedAt = da['createdAt'];
+  final bCreatedAt = db['createdAt'];
+  final aCreatedTs = aCreatedAt is Timestamp ? aCreatedAt : null;
+  final bCreatedTs = bCreatedAt is Timestamp ? bCreatedAt : null;
+  if (aCreatedTs != null && bCreatedTs != null) {
+    final primary = bCreatedTs.compareTo(aCreatedTs);
+    if (primary != 0) return primary;
+  } else if (aCreatedTs != null) {
+    return -1;
+  } else if (bCreatedTs != null) {
+    return 1;
+  }
+
+  final aMat = da['materializedAt'];
+  final bMat = db['materializedAt'];
+  final aSecondary = aMat is Timestamp ? aMat : aCreatedTs;
+  final bSecondary = bMat is Timestamp ? bMat : bCreatedTs;
+  if (aSecondary != null && bSecondary != null) {
+    final secondary = bSecondary.compareTo(aSecondary);
+    if (secondary != 0) return secondary;
+  } else if (aSecondary != null) {
+    return -1;
+  } else if (bSecondary != null) {
+    return 1;
+  }
+
+  return a.id.compareTo(b.id);
+}
+
 // ── Shared private-note helpers (used by Dashboard and Logboek) ──────────────
 
 /// Returns true when there is a live server connection for writing.
@@ -528,8 +577,39 @@ Future<void> main() async {
   runApp(const KiDuApp());
 }
 
-class KiDuApp extends StatelessWidget {
+class KiDuApp extends StatefulWidget {
   const KiDuApp({super.key});
+
+  @override
+  State<KiDuApp> createState() => _KiDuAppState();
+}
+
+class _KiDuAppState extends State<KiDuApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Cold-start trigger: eerst de eerste frame laten renderen en daarna
+    // via dezelfde centrale runner materialisatie proberen. De runner is
+    // zelf defensive op "geen user" / "geen household", dus veilig als
+    // auth-restore op dit moment nog niet helemaal klaar mocht zijn.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_RecurringMaterializationRunner.run());
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_RecurringMaterializationRunner.run());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4421,7 +4501,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                           );
                                         }
 
-                                        final docs = effectiveSnap.docs;
+                                        final docs =
+                                            List<
+                                              QueryDocumentSnapshot<
+                                                Map<String, dynamic>
+                                              >
+                                            >.of(effectiveSnap.docs)
+                                              ..sort(_compareExpenseDocsStable);
                                         final visibleDocs = docs.take(6).toList(
                                           growable: false,
                                         );
@@ -11208,7 +11294,10 @@ class _LogboekPageState extends State<_LogboekPage>
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs = snap.data!.docs;
+        final docs =
+            List<QueryDocumentSnapshot<Map<String, dynamic>>>.of(
+              snap.data!.docs,
+            )..sort(_compareExpenseDocsStable);
         if (docs.isEmpty) {
           return const Align(
             alignment: Alignment.topLeft,
@@ -12316,8 +12405,11 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
     // Snapshot-velden voor de expense-instance. Volgt exact de create-
     // rules voor recurring-linked expenses (`hasOnly`): title, amountCents,
     // currency, createdAt, createdBy, childIds, recurringExpenseId,
-    // periodKey. createdAt wordt bewust op de due-datum gezet, niet op het
-    // moment van materialiseren.
+    // periodKey, materializedAt. createdAt wordt bewust op de due-datum
+    // gezet, niet op het moment van materialiseren. `materializedAt` legt
+    // aanvullend het echte serverside materialisatie-moment vast en dient
+    // later als secundaire sorteer-as; `createdAt` blijft onveranderd de
+    // semantische due-datum 00:00 lokale maker-tijd.
     final data = <String, dynamic>{
       'amountCents': plan.amountCents,
       'currency': plan.currency,
@@ -12327,6 +12419,7 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
       if (plan.childIds.isNotEmpty) 'childIds': plan.childIds,
       'recurringExpenseId': plan.recurringExpenseId,
       'periodKey': plan.periodKey,
+      'materializedAt': FieldValue.serverTimestamp(),
     };
 
     // Create-only write via transactie: we schrijven alleen als het
@@ -12417,6 +12510,136 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
     copiedNoteExpenseIds: List<String>.unmodifiable(copiedNote),
     failedNoteCopyExpenseIds: List<String>.unmodifiable(failedNoteCopy),
   );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Centrale recurring-materialisatie-runner
+//
+// Eén plek die bepaalt wanneer `_materializeRecurringMasterOnce` echt live
+// draait. Gekoppeld aan:
+//  * cold start (post-frame callback in KiDuApp),
+//  * app resume (WidgetsBindingObserver.didChangeAppLifecycleState),
+//  * direct na succesvolle save van een nieuwe recurring master met
+//    startdatum == vandaag (in _AddRecurringExpenseDialog).
+//
+// Dedup/serialisatie: zolang een run onderweg is hergebruiken we dezelfde
+// Future, en een korte _cooldown voorkomt dat twee triggers vlak na elkaar
+// (bv. resume + post-frame, of save + resume) meteen opnieuw werk doen.
+// De runner zelf toont geen UI: geen snackbar, geen loading, geen badge.
+// ────────────────────────────────────────────────────────────────────────────
+class _RecurringMaterializationRunner {
+  static Future<void>? _inFlight;
+  static DateTime? _lastRunAt;
+
+  /// Kleine dedup-venster voor snel opeenvolgende triggers.
+  static const Duration _cooldown = Duration(seconds: 2);
+
+  /// Draait één materialisatie-ronde voor de huidige ingelogde maker.
+  /// Meerdere gelijktijdige aanroepen delen dezelfde onderliggende Future.
+  static Future<void> run() {
+    final existing = _inFlight;
+    if (existing != null) return existing;
+
+    final last = _lastRunAt;
+    if (last != null && DateTime.now().difference(last) < _cooldown) {
+      return Future<void>.value();
+    }
+
+    final future = _runOnce();
+    _inFlight = future;
+    return future.whenComplete(() {
+      _inFlight = null;
+      _lastRunAt = DateTime.now();
+    });
+  }
+
+  static Future<void> _runOnce() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final uid = user.uid;
+    final firestore = FirebaseFirestore.instance;
+
+    String householdId = '';
+    try {
+      final userSnap = await firestore.doc('users/$uid').get();
+      householdId = ((userSnap.data()?['householdId'] as String?) ?? '').trim();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Recurring runner: read user doc failed: $e');
+      }
+      return;
+    }
+    if (householdId.isEmpty) return;
+
+    // Smal gescoped op maker + active. De creator-only en status-check
+    // zitten óók hard in `_materializeRecurringMasterOnce`; deze where()
+    // voorkomt dat we masters van de co-parent onnodig binnenhalen.
+    QuerySnapshot<Map<String, dynamic>> masters;
+    try {
+      masters = await firestore
+          .collection('households/$householdId/recurringExpenses')
+          .where('createdBy', isEqualTo: uid)
+          .where('status', isEqualTo: 'active')
+          .get();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Recurring runner: read masters failed: $e');
+      }
+      return;
+    }
+
+    final now = DateTime.now();
+
+    for (final doc in masters.docs) {
+      final data = doc.data();
+      final startTs = data['startDate'];
+      if (startTs is! Timestamp) continue;
+      final rawStart = startTs.toDate();
+      final startDate = DateTime(rawStart.year, rawStart.month, rawStart.day);
+
+      final title = (data['title'] as String?)?.trim() ?? '';
+      final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
+      final currency = ((data['currency'] as String?) ?? 'EUR').trim();
+      final childIdsRaw = data['childIds'];
+      final childIds = childIdsRaw is List
+          ? childIdsRaw.whereType<String>().toList(growable: false)
+          : const <String>[];
+      final status = ((data['status'] as String?) ?? '').trim();
+      final createdBy = ((data['createdBy'] as String?) ?? '').trim();
+
+      // Tweede verdediging: maker-only en active-only. De where() hierboven
+      // dekt dit al, maar we vertrouwen nooit blind op query-resultaten.
+      if (createdBy != uid) continue;
+      if (status != 'active') continue;
+
+      final master = _RecurringMasterInput(
+        masterId: doc.id,
+        title: title,
+        amountCents: amountCents,
+        currency: currency,
+        childIds: childIds,
+        startDate: startDate,
+        status: status,
+        createdBy: createdBy,
+      );
+
+      try {
+        await _materializeRecurringMasterOnce(
+          householdId: householdId,
+          uid: uid,
+          master: master,
+          now: now,
+        );
+      } catch (e) {
+        // Per-master fouten mogen de rest van de run niet stuk maken.
+        if (kDebugMode) {
+          debugPrint(
+            'Recurring runner: materialize ${doc.id} failed: $e',
+          );
+        }
+      }
+    }
+  }
 }
 
 class _TerugkerendeKostenPage extends StatefulWidget {
@@ -13550,6 +13773,15 @@ class _AddRecurringExpenseDialogState
     }
 
     if (!mounted) return;
+    // Als de startdatum vandaag is, moet de periode-van-nu niet pas bij
+    // een volgende lifecycle-trigger materialiseren. Dezelfde centrale
+    // runner wordt hergebruikt; geen aparte tweede materialisatielogica.
+    // Dedup in de runner vangt samenloop met cold-start/resume netjes op.
+    if (_startDate.year == today.year &&
+        _startDate.month == today.month &&
+        _startDate.day == today.day) {
+      unawaited(_RecurringMaterializationRunner.run());
+    }
     Navigator.of(context).pop(true);
   }
 
