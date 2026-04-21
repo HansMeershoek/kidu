@@ -337,7 +337,14 @@ service cloud.firestore {
                     || request.resource.data.materializeFromDate >= resource.data.materializeFromDate)))
         && request.resource.data.status in ['active', 'paused'];
 
-      allow delete: if false;
+      // Creator-only hard delete of the recurring master.
+      // Allowed from both 'active' and 'paused'. Stops only future monthly
+      // materializations; already-materialized expenses are intentionally
+      // NOT deleted by this rule (expense delete stays disallowed below).
+      allow delete: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.auth.uid == resource.data.createdBy
+        && resource.data.status in ['active', 'paused'];
     }
 
     match /households/{householdId}/recurringExpenses/{recurringId}/changes/{changeId} {
@@ -428,7 +435,14 @@ service cloud.firestore {
                 && request.resource.data.toChildIds.size() <= 7
                 && request.resource.data.fromChildIds != request.resource.data.toChildIds));
 
-      allow update, delete: if false;
+      allow update: if false;
+
+      // Creator-only delete, solely for cleanup when the recurring master
+      // is being deleted. Must run while the master still exists because
+      // isRecurringMasterCreator resolves against the master document.
+      allow delete: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && isRecurringMasterCreator(householdId, recurringId);
     }
 
     match /households/{householdId}/recurringExpenses/{recurringId}/privateNotes/{uid} {
@@ -463,8 +477,14 @@ service cloud.firestore {
         && request.resource.data.note.size() <= 180
         && request.resource.data.updatedAt == request.time;
 
+      // Delete is deliberately broader than get/update: the creator of the
+      // recurring master must be able to clean up ALL uid-slots under this
+      // master (not only their own) when deleting the master, otherwise
+      // privateNotes written by co-parents remain as orphans once the
+      // parent master is removed. Still creator-only, still scoped to the
+      // household, and still requires the master to exist (so this must
+      // run BEFORE the master itself is deleted).
       allow delete: if isSignedIn()
-        && request.auth.uid == uid
         && isHouseholdMember(householdId)
         && isRecurringMasterCreator(householdId, recurringId);
     }

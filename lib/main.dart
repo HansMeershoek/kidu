@@ -13453,9 +13453,23 @@ class _RecurringMasterDetailPageState
     extends State<_RecurringMasterDetailPage> {
   bool _noteActionBusy = false;
   bool _pauseActionBusy = false;
+  bool _deleteActionBusy = false;
   late final Future<List<_ChildItem>> _recurringEditChildrenFuture;
   List<String> _memoChildIdsForNames = const [];
   Future<List<String>>? _memoChildNamesFuture;
+
+  // Last-known stable snapshot data for the stream-driven sections of the
+  // detail. These are updated on every healthy rebuild while the page is
+  // idle, and read-only during a delete. This is the "freeze" that keeps
+  // the screen visually calm while we tear down changes / privateNotes /
+  // master: the live streams keep firing (and will briefly emit empty or
+  // error snapshots as docs disappear), but the builders render from the
+  // cache so the user does not see the note flash back to "Nog geen
+  // notitie." or the history list collapse under their finger.
+  Map<String, dynamic>? _lastMasterData;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>? _lastChangesDocs;
+  Map<String, dynamic>? _lastNoteData;
+  bool _hasNoteCache = false;
 
   @override
   void initState() {
@@ -13630,6 +13644,113 @@ class _RecurringMasterDetailPageState
     }
   }
 
+  /// Creator-only hard delete of the recurring master.
+  ///
+  /// Semantics (v1):
+  ///  * stops only the future monthly materializations
+  ///  * already-materialized expenses are intentionally left untouched
+  ///  * no soft delete, no reason, no status-history
+  ///
+  /// Cleanup order matters because the privateNotes and changes rules rely
+  /// on `isRecurringMasterCreator` which resolves against the master doc:
+  ///   1) delete all `changes` docs
+  ///   2) delete all `privateNotes` docs (iterate household members — the
+  ///      creator is allowed to clear any uid-slot under this master so no
+  ///      co-parent notes are left as orphans)
+  ///   3) delete the master doc itself (last)
+  Future<void> _onDeletePressed() async {
+    if (_deleteActionBusy) return;
+    if (!await _checkCanWriteNow()) {
+      if (mounted) {
+        _showRecurringSnackBar('Je bent offline, probeer het later opnieuw');
+      }
+      return;
+    }
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Maandelijkse uitgave verwijderen?'),
+        content: const Text(
+          'Toekomstige maandelijkse uitgaven stoppen. '
+          'Eerder aangemaakte uitgaven blijven bewaard.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuleren'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Verwijderen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    // Flip the busy flag before the first Firestore delete. From this point
+    // on the stream-driven subsections of build() render from their cached
+    // snapshot instead of whatever the live streams emit, so co-parent
+    // deletions of changes/privateNotes/master are not visible as jank.
+    setState(() => _deleteActionBusy = true);
+    // Capture the messenger/navigator up-front: after the master is deleted
+    // we pop this page, and the detail widget's own context is no longer
+    // usable for showing a snackbar. The nearest ScaffoldMessenger above
+    // (MaterialApp's root messenger) survives the pop.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final masterRef = firestore.doc(
+        'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
+      );
+
+      // 1) changes
+      final changesSnap = await masterRef.collection('changes').get();
+      for (final d in changesSnap.docs) {
+        await d.reference.delete();
+      }
+
+      // 2) privateNotes — iterate household members so we also clean up
+      // any uid-slots written by co-parents. Delete of a non-existent doc
+      // is a safe no-op in Firestore when the rule permits it.
+      final membersSnap = await firestore
+          .collection('households/${widget.householdId}/members')
+          .get();
+      for (final m in membersSnap.docs) {
+        try {
+          await masterRef.collection('privateNotes').doc(m.id).delete();
+        } catch (_) {
+          // Silently ignore: slot may not exist or a transient perm hiccup
+          // on a single slot should not block the master delete. The master
+          // delete below is the authoritative failure surface.
+        }
+      }
+
+      // 3) master (last, so the rules above still resolve)
+      await masterRef.delete();
+
+      if (!mounted) return;
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Maandelijkse uitgave verwijderd.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _deleteActionBusy = false);
+      _showRecurringSnackBar(
+        mapUserFacingError(
+          e,
+          fallback: 'Verwijderen mislukt. Probeer opnieuw.',
+        ),
+      );
+      return;
+    }
+    if (mounted) {
+      setState(() => _deleteActionBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -13659,7 +13780,18 @@ class _RecurringMasterDetailPageState
                   )
                   .snapshots(),
               builder: (context, masterSnap) {
-                final data = masterSnap.data?.data();
+                // While idle, keep refreshing the cache from the live
+                // stream. While a delete is in flight we ignore whatever
+                // the stream emits (it will go empty when the master doc
+                // is removed in step 3) and keep rendering on the last
+                // healthy snapshot so the layout does not collapse.
+                final liveData = masterSnap.data?.data();
+                if (!_deleteActionBusy && liveData != null) {
+                  _lastMasterData = liveData;
+                }
+                final data = _deleteActionBusy
+                    ? (_lastMasterData ?? liveData)
+                    : (liveData ?? _lastMasterData);
                 final title = ((data?['title'] as String?) ?? widget.title)
                     .trim();
                 final amountCents =
@@ -13797,13 +13929,27 @@ class _RecurringMasterDetailPageState
                           .orderBy('editedAt', descending: true)
                           .snapshots(),
                       builder: (context, histSnap) {
-                        if (histSnap.hasError) {
+                        // Mirror the master-doc freeze: update the cache
+                        // while idle, render the last healthy list while
+                        // deleting. Without this the section silently
+                        // empties out one doc at a time during cleanup.
+                        List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                            histDocs;
+                        if (_deleteActionBusy) {
+                          histDocs = _lastChangesDocs ??
+                              (histSnap.hasData && !histSnap.hasError
+                                  ? histSnap.data!.docs
+                                  : const []);
+                        } else {
+                          if (histSnap.hasError || !histSnap.hasData) {
+                            return const SizedBox.shrink();
+                          }
+                          histDocs = histSnap.data!.docs;
+                          _lastChangesDocs = histDocs;
+                        }
+                        if (histDocs.isEmpty) {
                           return const SizedBox.shrink();
                         }
-                        if (!histSnap.hasData || histSnap.data!.docs.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        final histDocs = histSnap.data!.docs;
                         String editorLabel(String? editedByUid) {
                           final e = editedByUid?.trim() ?? '';
                           if (e.isEmpty) return 'Co-parent';
@@ -13964,7 +14110,22 @@ class _RecurringMasterDetailPageState
                             )
                             .snapshots(),
                         builder: (context, snap) {
-                          final nd = snap.data?.data();
+                          // Freeze the note section on its last healthy
+                          // data during delete: the privateNotes doc gets
+                          // removed in step 2 and would otherwise flash
+                          // back to "Nog geen notitie." right under the
+                          // user's thumb. We cache both the raw data and
+                          // the "has-snapshot" bit so the first frame
+                          // after delete confirmation never regresses.
+                          if (!_deleteActionBusy && snap.hasData) {
+                            _lastNoteData = snap.data?.data();
+                            _hasNoteCache = true;
+                          }
+                          final Map<String, dynamic>? nd = _deleteActionBusy
+                              ? (_hasNoteCache
+                                    ? _lastNoteData
+                                    : snap.data?.data())
+                              : snap.data?.data();
                           final note =
                               (nd?['note'] as String?)?.trim() ?? '';
                           final hasNoteLive = note.isNotEmpty;
@@ -14070,6 +14231,27 @@ class _RecurringMasterDetailPageState
                                     status == 'paused'
                                         ? 'Hervatten'
                                         : 'Pauzeren',
+                                    style: textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: TextButton.icon(
+                                  onPressed: _deleteActionBusy
+                                      ? null
+                                      : _onDeletePressed,
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.error,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    'Verwijderen',
                                     style: textTheme.bodyMedium,
                                   ),
                                 ),
