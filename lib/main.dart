@@ -6370,6 +6370,40 @@ class _ExpenseDetailPage extends StatefulWidget {
     return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
   }
 
+  /// Read-only line: [createdBy] share vs co-parent, from snapshot bps; legacy
+  /// or invalid data → 50/50. Labels from [paidByName] / [otherParentName] with
+  /// role fallbacks.
+  static String _formatParentSplitInfoLine(
+    Map<String, dynamic>? ed,
+    String fallbackCreatedBy, {
+    required String paidByName,
+    String? otherParentName,
+    required String viewerUid,
+  }) {
+    final createdBy =
+        ((ed?['createdBy'] as String?)?.trim() ?? fallbackCreatedBy).trim();
+    final v = viewerUid.trim();
+    final o = (otherParentName ?? '').trim();
+    final betalerLabel =
+        paidByName.trim().isNotEmpty ? paidByName.trim() : 'Betaler';
+    final coLabel =
+        v == createdBy
+            ? (o.isNotEmpty ? o : 'Co-ouder')
+            : 'Co-ouder';
+    if (ed == null || createdBy.isEmpty) {
+      return '$betalerLabel 50% · $coLabel 50%';
+    }
+    final snap = ParentSplitSnapshot.tryReadFromExpense(ed);
+    if (snap == null || !snap.participantUids.contains(createdBy)) {
+      return '$betalerLabel 50% · $coLabel 50%';
+    }
+    final betalerBps = createdBy == snap.participantUids[0]
+        ? snap.share0Bps
+        : snap.share1Bps;
+    final pBet = betalerBps ~/ 100;
+    return '$betalerLabel $pBet% · $coLabel ${100 - pBet}%';
+  }
+
   static String _prefillAmountForEdit(int cents) {
     final euros = cents ~/ 100;
     final rem = cents % 100;
@@ -7733,21 +7767,54 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final currentChildIds =
                           (ed?['childIds'] as List?)?.whereType<String>().toList() ??
                           widget.childIds;
+                      final line = _ExpenseDetailPage._formatParentSplitInfoLine(
+                        ed,
+                        widget.createdByUid,
+                        paidByName: widget.paidByName,
+                        otherParentName: widget.otherParentName,
+                        viewerUid: widget.uid,
+                      );
+                      final splitLine = Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 2),
+                        child: Text(
+                          line,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: onSurface(context, a60),
+                            height: 1.25,
+                          ),
+                        ),
+                      );
                       if (currentChildIds.isEmpty) {
-                        return const SizedBox.shrink();
+                        return splitLine;
                       }
                       final initialChildNames = _initialChildNamesFor(
                         currentChildIds,
                       );
                       if (initialChildNames != null) {
-                        return _buildChildTile(initialChildNames);
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            splitLine,
+                            _buildChildTile(initialChildNames),
+                          ],
+                        );
                       }
-                      return FutureBuilder<List<String>>(
-                        future: _childNamesFutureFor(currentChildIds),
-                        builder: (context, snap) {
-                          if (!snap.hasData) return const SizedBox.shrink();
-                          return _buildChildTile(snap.data!);
-                        },
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          splitLine,
+                          FutureBuilder<List<String>>(
+                            future: _childNamesFutureFor(currentChildIds),
+                            builder: (context, snap) {
+                              if (!snap.hasData) {
+                                return const SizedBox.shrink();
+                              }
+                              return _buildChildTile(snap.data!);
+                            },
+                          ),
+                        ],
                       );
                     },
                   ),
