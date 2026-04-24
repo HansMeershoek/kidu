@@ -16,6 +16,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
+import 'split/household_split_settings_page.dart';
+import 'split/household_split_settings_repository.dart';
+import 'split/parent_split.dart';
 
 // ------------------------------------------------------------
 // Color/alpha helpers (single-file)
@@ -1062,6 +1065,13 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       if (widget.fromSettings) {
         Navigator.of(context).pop();
       } else {
+        try {
+          await _kiduEnsureHouseholdForCurrentUserIfNeeded();
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('Household bootstrap after profile name: $e');
+          }
+        }
         final userSnap = await FirebaseFirestore.instance
             .doc('users/$uid')
             .get();
@@ -1529,6 +1539,57 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+}
+
+/// Creates `households/{id}` + `members/{uid}` and sets `users/{uid}.householdId`
+/// when still missing. No-op if [householdId] already exists. Throws on Firestore
+/// transaction failure.
+Future<void> _kiduEnsureHouseholdForCurrentUserIfNeeded() async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) {
+    return;
+  }
+
+  final firestore = FirebaseFirestore.instance;
+  final userRef = firestore.doc('users/$uid');
+
+  final result = await firestore.runTransaction<Map<String, dynamic>>((
+    transaction,
+  ) async {
+    final userSnap = await transaction.get(userRef);
+    final userData = userSnap.data();
+    final existingHouseholdId = (userData?['householdId'] as String?)?.trim();
+
+    if (existingHouseholdId != null && existingHouseholdId.isNotEmpty) {
+      return {'alreadyExists': true, 'householdId': existingHouseholdId};
+    }
+
+    final householdRef = firestore.collection('households').doc();
+    transaction.set(householdRef, {
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdBy': uid,
+      'name': 'KiDu Household',
+      'isConnected': false,
+    });
+
+    final memberRef = householdRef.collection('members').doc(uid);
+    transaction.set(memberRef, {
+      'role': 'parent',
+      'joinedAt': FieldValue.serverTimestamp(),
+    });
+
+    transaction.set(userRef, {
+      'householdId': householdRef.id,
+      'setupCompletedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    return {'alreadyExists': false, 'householdId': householdRef.id};
+  });
+
+  final alreadyExists = result['alreadyExists'] == true;
+  if (alreadyExists) {
+    return;
   }
 }
 
@@ -2274,6 +2335,31 @@ class _DashboardPageState extends State<DashboardPage> {
                               );
                             },
                           ),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.standard,
+                            leading: Icon(
+                              Icons.percent_outlined,
+                              size: 18,
+                              color: onSurface(context, a50),
+                            ),
+                            title: Text(
+                              'Standaardverdeling',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(rootContext).push(
+                                MaterialPageRoute(
+                                  builder: (_) => HouseholdSplitSettingsPage(
+                                    householdId: householdId,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         const SizedBox(height: 16),
                         Text(
                           'Info',
@@ -2479,6 +2565,33 @@ class _DashboardPageState extends State<DashboardPage> {
         'createdBy': uid,
         if (childIds != null && childIds.isNotEmpty) 'childIds': childIds,
       };
+
+      // Parent-split snapshot for this NEW expense. Stale / invalid
+      // household settings produce an EXPLICIT neutral 50/50 snapshot
+      // for the actual 2 members (old bps is never reapplied to a
+      // different uid). Solo / >2-member households receive no
+      // snapshot and fall through to legacy 50/50 in the dashboard.
+      try {
+        final memberSnap = await FirebaseFirestore.instance
+            .collection('households/$householdId/members')
+            .get();
+        final memberUids = memberSnap.docs.map((d) => d.id).toSet();
+        final defaults = await HouseholdSplitSettingsRepository().load(
+          householdId,
+        );
+        final snapshot = buildSnapshotForNewExpense(
+          defaults: defaults,
+          currentMemberUids: memberUids,
+        );
+        if (snapshot != null) {
+          data.addAll(snapshot.toExpenseFields());
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Split snapshot skipped (legacy 50/50 fallback): $e');
+        }
+      }
+
       final ref = await FirebaseFirestore.instance
           .collection('households/$householdId/expenses')
           .add(data);
@@ -3292,48 +3405,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!silent) setState(() => _setupBusy = true);
 
     try {
-      final firestore = FirebaseFirestore.instance;
-      final userRef = firestore.doc('users/$uid');
-
-      final result = await firestore.runTransaction<Map<String, dynamic>>((
-        transaction,
-      ) async {
-        final userSnap = await transaction.get(userRef);
-        final userData = userSnap.data();
-        final existingHouseholdId = (userData?['householdId'] as String?)
-            ?.trim();
-
-        if (existingHouseholdId != null && existingHouseholdId.isNotEmpty) {
-          return {'alreadyExists': true, 'householdId': existingHouseholdId};
-        }
-
-        final householdRef = firestore.collection('households').doc();
-        transaction.set(householdRef, {
-          'createdAt': FieldValue.serverTimestamp(),
-          'createdBy': uid,
-          'name': 'KiDu Household',
-          'isConnected': false,
-        });
-
-        final memberRef = householdRef.collection('members').doc(uid);
-        transaction.set(memberRef, {
-          'role': 'parent',
-          'joinedAt': FieldValue.serverTimestamp(),
-        });
-
-        transaction.set(userRef, {
-          'householdId': householdRef.id,
-          'setupCompletedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        return {'alreadyExists': false, 'householdId': householdRef.id};
-      });
-
-      final alreadyExists = result['alreadyExists'] == true;
-
-      if (alreadyExists) {
-        return;
-      }
+      await _kiduEnsureHouseholdForCurrentUserIfNeeded();
     } catch (e) {
       if (kDebugMode) debugPrint('Start setup error: $e');
       if (silent) {
@@ -4540,6 +4612,16 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                         var totalCents = 0;
                                         var myPaidCents = 0;
+                                        // Split the balance into two
+                                        // buckets: legacy (no snapshot)
+                                        // keeps the existing half-floor
+                                        // with deterministic remainder
+                                        // rule; snapshot expenses add
+                                        // per-expense
+                                        // (myPaid − myFairShare).
+                                        var legacyTotalCents = 0;
+                                        var legacyMyPaidCents = 0;
+                                        var snapshotBalanceCents = 0;
                                         for (final d in docs) {
                                           final e = d.data();
                                           final amountCents =
@@ -4550,23 +4632,53 @@ class _DashboardPageState extends State<DashboardPage> {
                                           final createdBy =
                                               (e['createdBy'] as String?)
                                                   ?.trim();
+                                          final myPaidForDoc =
+                                              (createdBy == user.uid)
+                                              ? amountCents
+                                              : 0;
                                           if (createdBy == user.uid) {
                                             myPaidCents += amountCents;
+                                          }
+                                          final snap =
+                                              ParentSplitSnapshot.tryReadFromExpense(
+                                                e,
+                                              );
+                                          if (snap == null ||
+                                              !snap.participantUids.contains(
+                                                user.uid,
+                                              )) {
+                                            legacyTotalCents += amountCents;
+                                            legacyMyPaidCents += myPaidForDoc;
+                                          } else {
+                                            final myShare = snap
+                                                .fairShareCentsFor(
+                                                  user.uid,
+                                                  amountCents,
+                                                );
+                                            snapshotBalanceCents +=
+                                                (myPaidForDoc - myShare);
                                           }
                                         }
                                         final otherPaidCents =
                                             totalCents - myPaidCents;
-                                        final halfFloor = totalCents ~/ 2;
-                                        final remainder = totalCents % 2;
-                                        final expectedMy =
-                                            halfFloor +
-                                            ((remainder == 1 &&
-                                                    myPaidCents <
-                                                        otherPaidCents)
+                                        final legacyOtherPaidCents =
+                                            legacyTotalCents -
+                                            legacyMyPaidCents;
+                                        final legacyHalfFloor =
+                                            legacyTotalCents ~/ 2;
+                                        final legacyRemainder =
+                                            legacyTotalCents % 2;
+                                        final legacyExpectedMy =
+                                            legacyHalfFloor +
+                                            ((legacyRemainder == 1 &&
+                                                    legacyMyPaidCents <
+                                                        legacyOtherPaidCents)
                                                 ? 1
                                                 : 0);
                                         final rawBalanceCents =
-                                            myPaidCents - expectedMy;
+                                            (legacyMyPaidCents -
+                                                legacyExpectedMy) +
+                                            snapshotBalanceCents;
                                         final balanceCents =
                                             rawBalanceCents +
                                             _totalPaidByMe -
@@ -12603,6 +12715,29 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
   );
   if (plans.isEmpty) return emptyResult;
 
+  // Parent-split snapshot for this materialization run. Same contract
+  // as manual expense creation: 2-member household → always a snapshot
+  // (from valid settings, or an explicit neutral 50/50 if settings are
+  // missing/invalid/stale). Other member counts → null → plans are
+  // written WITHOUT snapshot fields (legacy 50/50 in dashboard).
+  ParentSplitSnapshot? materializationSnapshot;
+  try {
+    final memberSnap = await firestore
+        .collection('households/$householdId/members')
+        .get();
+    final memberUids = memberSnap.docs.map((d) => d.id).toSet();
+    final defaults = await HouseholdSplitSettingsRepository().load(householdId);
+    materializationSnapshot = buildSnapshotForNewExpense(
+      defaults: defaults,
+      currentMemberUids: memberUids,
+    );
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('Recurring materialize: snapshot skipped: $e');
+    }
+    materializationSnapshot = null;
+  }
+
   // Master-note éénmalig inlezen; lege/ontbrekende note → geen kopie.
   String? masterNote;
   try {
@@ -12670,6 +12805,8 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
       'recurringExpenseId': plan.recurringExpenseId,
       'periodKey': plan.periodKey,
       'materializedAt': FieldValue.serverTimestamp(),
+      if (materializationSnapshot != null)
+        ...materializationSnapshot.toExpenseFields(),
     };
 
     // Create-only write via transactie: we schrijven alleen als het

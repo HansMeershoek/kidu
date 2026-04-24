@@ -209,7 +209,9 @@ service cloud.firestore {
           'childIds',
           'recurringExpenseId',
           'periodKey',
-          'materializedAt'
+          'materializedAt',
+          'parentSplitParticipantUids',
+          'parentSplit0ShareBps'
         ])
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents > 0
@@ -221,6 +223,26 @@ service cloud.firestore {
             || request.resource.data.childIds == null
             || (request.resource.data.childIds is list
                 && request.resource.data.childIds.size() <= 7))
+        // Parent-split snapshot: both fields together, or neither. Never
+        // 0/100, always two distinct member-uids. Snapshot is immutable
+        // because the expense update-rule below does not allow these
+        // fields in its affectedKeys() hasOnly list.
+        && (('parentSplitParticipantUids' in request.resource.data)
+            == ('parentSplit0ShareBps' in request.resource.data))
+        && (!('parentSplitParticipantUids' in request.resource.data)
+            || (request.resource.data.parentSplitParticipantUids is list
+                && request.resource.data.parentSplitParticipantUids.size() == 2
+                && request.resource.data.parentSplitParticipantUids[0] is string
+                && request.resource.data.parentSplitParticipantUids[1] is string
+                && request.resource.data.parentSplitParticipantUids[0].size() > 0
+                && request.resource.data.parentSplitParticipantUids[1].size() > 0
+                && request.resource.data.parentSplitParticipantUids[0]
+                   != request.resource.data.parentSplitParticipantUids[1]
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[0]))
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[1]))
+                && request.resource.data.parentSplit0ShareBps is int
+                && request.resource.data.parentSplit0ShareBps >= 100
+                && request.resource.data.parentSplit0ShareBps <= 9900))
         && (!('materializedAt' in request.resource.data)
             || request.resource.data.materializedAt is timestamp)
         && (('recurringExpenseId' in request.resource.data)
@@ -623,6 +645,40 @@ service cloud.firestore {
         && isHouseholdMember(householdId)
         && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
         && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid;
+    }
+
+    // Household-wide default split for NEW expenses only. Read by any
+    // member; written by any member. `share0Bps` MUST stay strictly
+    // inside [100..9900] — 0 or 10000 (everything on one parent) is
+    // intentionally disallowed for v1. Both uids must currently exist
+    // as household members. Document is immutable-by-omission: delete
+    // is disallowed, only create/update with strict hasOnly.
+    match /households/{householdId}/settings/defaults {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+
+      allow create, update: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && request.resource.data.keys().hasOnly([
+          'share0Uid',
+          'share1Uid',
+          'share0Bps',
+          'updatedAt',
+          'updatedBy'
+        ])
+        && request.resource.data.share0Uid is string
+        && request.resource.data.share1Uid is string
+        && request.resource.data.share0Uid.size() > 0
+        && request.resource.data.share1Uid.size() > 0
+        && request.resource.data.share0Uid != request.resource.data.share1Uid
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.share0Uid))
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.share1Uid))
+        && request.resource.data.share0Bps is int
+        && request.resource.data.share0Bps >= 100
+        && request.resource.data.share0Bps <= 9900
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
     }
   }
 }
