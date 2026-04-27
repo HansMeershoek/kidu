@@ -1024,10 +1024,11 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(content: Text(message), duration: duration ?? const Duration(seconds: 4)),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: duration ?? const Duration(seconds: 4),
+      ),
     );
   }
 
@@ -1338,9 +1339,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         duration: duration ?? const Duration(seconds: 4),
@@ -1798,9 +1797,7 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         duration: duration ?? const Duration(seconds: 4),
@@ -2742,7 +2739,12 @@ class _DashboardPageState extends State<DashboardPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  0,
+                                ),
                                 child: Center(
                                   child: Container(
                                     width: 36,
@@ -2757,7 +2759,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  0,
+                                ),
                                 child: Text(
                                   'Selectie',
                                   style: Theme.of(context).textTheme.titleMedium
@@ -2776,7 +2783,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                     0,
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       TextButton(
                                         onPressed: () => setLocalState(() {
@@ -2805,11 +2813,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                             opacity: selectedCount == 0 ? 1 : 0,
                                             child: Text(
                                               'Selecteer minimaal 1 kind om verder te gaan',
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall?.copyWith(
-                                                color: onSurface(context, a68),
-                                              ),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: onSurface(
+                                                      context,
+                                                      a68,
+                                                    ),
+                                                  ),
                                             ),
                                           ),
                                         ),
@@ -3020,9 +3032,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   : allChildIds;
               final screenW = MediaQuery.sizeOf(context).width;
               final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
-              final subtleErrorHintStyle = Theme.of(context)
-                  .textTheme
-                  .bodySmall
+              final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
                   ?.copyWith(
                     color: Theme.of(
                       context,
@@ -3069,299 +3079,332 @@ class _DashboardPageState extends State<DashboardPage> {
                       child: SizedBox(
                         width: dialogW,
                         child: AlertDialog(
-                    title: const Text('Nieuwe uitgave'),
-                    content: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.55,
-                      ),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextField(
-                              controller: titleController,
-                              focusNode: titleFocusNode,
-                              autofocus: true,
-                              textCapitalization: TextCapitalization.sentences,
-                              textInputAction: TextInputAction.next,
-                              maxLength: _kAddExpenseTitleMaxLength,
-                              onTap: () {
-                                if (titleHasError) {
-                                  setLocalState(() => titleHasError = false);
-                                }
-                              },
-                              onChanged: (_) {
-                                if (titleHasError) {
-                                  setLocalState(() => titleHasError = false);
-                                }
-                              },
-                              buildCounter:
-                                  (
-                                    context, {
-                                    required int currentLength,
-                                    required bool isFocused,
-                                    required int? maxLength,
-                                  }) => null,
-                              decoration: InputDecoration(
-                                labelText: 'Titel',
-                                floatingLabelBehavior:
-                                    FloatingLabelBehavior.always,
-                                border: OutlineInputBorder(),
-                                hintText: titleHasError ? 'Vul een titel in' : null,
-                                hintStyle: titleHasError
-                                    ? subtleErrorHintStyle
-                                    : null,
-                              ),
+                          title: const Text('Nieuwe uitgave'),
+                          content: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight:
+                                  MediaQuery.of(context).size.height * 0.55,
                             ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: amountController,
-                              focusNode: amountFocusNode,
-                              style: amountHasError
-                                  ? subtleErrorInputStyle
-                                  : null,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              onTap: () {
-                                if (amountHasError) {
-                                  setLocalState(() => amountHasError = false);
-                                }
-                              },
-                              onChanged: (value) {
-                                final trimmed = value.trim();
-                                final parsed = _tryParseEurToCents(value);
-                                final nextHasError =
-                                    trimmed.isNotEmpty &&
-                                    (parsed == null || parsed <= 0);
-                                if (amountHasError != nextHasError) {
-                                  setLocalState(
-                                    () => amountHasError = nextHasError,
-                                  );
-                                }
-                              },
-                              decoration: InputDecoration(
-                                labelText: 'Bedrag (EUR)',
-                                floatingLabelBehavior:
-                                    FloatingLabelBehavior.always,
-                                border: OutlineInputBorder(),
-                                hintText: amountHasError
-                                    ? 'Vul een geldig bedrag in'
-                                    : 'Bijv. 12,34',
-                                hintStyle: amountHasError
-                                    ? subtleErrorHintStyle
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: noteController,
-                              textCapitalization: TextCapitalization.sentences,
-                              maxLength: 180,
-                              textInputAction: TextInputAction.done,
-                              decoration: const InputDecoration(
-                                labelText: 'Notitie (optioneel)',
-                                floatingLabelBehavior:
-                                    FloatingLabelBehavior.always,
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            // Child selection stays out of the main dialog for
-                            // 2+ children so the form remains compact.
-                            if (children.length > 1) ...[
-                              const SizedBox(height: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            child: SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    'Voor:',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.labelMedium,
+                                  TextField(
+                                    controller: titleController,
+                                    focusNode: titleFocusNode,
+                                    autofocus: true,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    textInputAction: TextInputAction.next,
+                                    maxLength: _kAddExpenseTitleMaxLength,
+                                    onTap: () {
+                                      if (titleHasError) {
+                                        setLocalState(
+                                          () => titleHasError = false,
+                                        );
+                                      }
+                                    },
+                                    onChanged: (_) {
+                                      if (titleHasError) {
+                                        setLocalState(
+                                          () => titleHasError = false,
+                                        );
+                                      }
+                                    },
+                                    buildCounter:
+                                        (
+                                          context, {
+                                          required int currentLength,
+                                          required bool isFocused,
+                                          required int? maxLength,
+                                        }) => null,
+                                    decoration: InputDecoration(
+                                      labelText: 'Titel',
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
+                                      border: OutlineInputBorder(),
+                                      hintText: titleHasError
+                                          ? 'Vul een titel in'
+                                          : null,
+                                      hintStyle: titleHasError
+                                          ? subtleErrorHintStyle
+                                          : null,
+                                    ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          childSelectionSummary,
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: amountController,
+                                    focusNode: amountFocusNode,
+                                    style: amountHasError
+                                        ? subtleErrorInputStyle
+                                        : null,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    onTap: () {
+                                      if (amountHasError) {
+                                        setLocalState(
+                                          () => amountHasError = false,
+                                        );
+                                      }
+                                    },
+                                    onChanged: (value) {
+                                      final trimmed = value.trim();
+                                      final parsed = _tryParseEurToCents(value);
+                                      final nextHasError =
+                                          trimmed.isNotEmpty &&
+                                          (parsed == null || parsed <= 0);
+                                      if (amountHasError != nextHasError) {
+                                        setLocalState(
+                                          () => amountHasError = nextHasError,
+                                        );
+                                      }
+                                    },
+                                    decoration: InputDecoration(
+                                      labelText: 'Bedrag (EUR)',
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
+                                      border: OutlineInputBorder(),
+                                      hintText: amountHasError
+                                          ? 'Vul een geldig bedrag in'
+                                          : 'Bijv. 12,34',
+                                      hintStyle: amountHasError
+                                          ? subtleErrorHintStyle
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: noteController,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    maxLength: 180,
+                                    textInputAction: TextInputAction.done,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Notitie (optioneel)',
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  // Child selection stays out of the main dialog for
+                                  // 2+ children so the form remains compact.
+                                  if (children.length > 1) ...[
+                                    const SizedBox(height: 12),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Voor:',
                                           style: Theme.of(
                                             context,
-                                          ).textTheme.bodyMedium,
+                                          ).textTheme.labelMedium,
                                         ),
-                                      ),
-                                      TextButton(
-                                        onPressed: saving
-                                            ? null
-                                            : () async {
-                                                FocusManager.instance.primaryFocus
-                                                    ?.unfocus();
-                                                final pickedChildIds =
-                                                    await _openAddExpenseChildSelectionDialog(
-                                                      children: children,
-                                                      initialSelectedChildIds:
-                                                          hasCustomChildSelection
-                                                          ? customSelectedChildIds
-                                                          : const <String>[],
-                                                    );
-                                                if (pickedChildIds == null ||
-                                                    !context.mounted) {
-                                                  return;
-                                                }
-                                                setLocalState(() {
-                                                  if (pickedChildIds.length ==
-                                                      children.length) {
-                                                    hasCustomChildSelection =
-                                                        false;
-                                                    customSelectedChildIds = [];
-                                                  } else {
-                                                    hasCustomChildSelection =
-                                                        true;
-                                                    customSelectedChildIds =
-                                                        pickedChildIds;
-                                                  }
-                                                });
-                                              },
-                                        style: TextButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                childSelectionSummary,
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.bodyMedium,
+                                              ),
+                                            ),
+                                            TextButton(
+                                              onPressed: saving
+                                                  ? null
+                                                  : () async {
+                                                      FocusManager
+                                                          .instance
+                                                          .primaryFocus
+                                                          ?.unfocus();
+                                                      final pickedChildIds =
+                                                          await _openAddExpenseChildSelectionDialog(
+                                                            children: children,
+                                                            initialSelectedChildIds:
+                                                                hasCustomChildSelection
+                                                                ? customSelectedChildIds
+                                                                : const <
+                                                                    String
+                                                                  >[],
+                                                          );
+                                                      if (pickedChildIds ==
+                                                              null ||
+                                                          !context.mounted) {
+                                                        return;
+                                                      }
+                                                      setLocalState(() {
+                                                        if (pickedChildIds
+                                                                .length ==
+                                                            children.length) {
+                                                          hasCustomChildSelection =
+                                                              false;
+                                                          customSelectedChildIds =
+                                                              [];
+                                                        } else {
+                                                          hasCustomChildSelection =
+                                                              true;
+                                                          customSelectedChildIds =
+                                                              pickedChildIds;
+                                                        }
+                                                      });
+                                                    },
+                                              style: TextButton.styleFrom(
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                    ),
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              ),
+                                              child: const Text('Selectie'),
+                                            ),
+                                          ],
                                         ),
-                                        child: const Text('Selectie'),
-                                      ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: saving
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        child: const Text('Annuleren'),
-                      ),
-                      ElevatedButton(
-                        onPressed: saving
-                            ? null
-                            : () async {
-                                final title = titleController.text.trim();
-                                final amountCents = _tryParseEurToCents(
-                                  amountController.text,
-                                );
-                                final titleInvalid = title.isEmpty;
-                                final amountInvalid =
-                                    amountCents == null || amountCents <= 0;
-                                if (titleInvalid || amountInvalid) {
-                                  setLocalState(() {
-                                    titleHasError = titleInvalid;
-                                    amountHasError = amountInvalid;
-                                  });
-                                  if (titleInvalid) {
-                                    titleFocusNode.requestFocus();
-                                  } else if (amountInvalid) {
-                                    amountFocusNode.requestFocus();
-                                  }
-                                  return;
-                                }
-                                if (effectiveSelectedChildIds.isEmpty) {
-                                  _showSnackBar('Selecteer minimaal één kind.');
-                                  return;
-                                }
-
-                                setLocalState(() => saving = true);
-                                if (!await _checkCanWriteNow()) {
-                                  _showSnackBar(
-                                    'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
-                                  );
-                                  if (context.mounted) {
-                                    setLocalState(() => saving = false);
-                                  }
-                                  return;
-                                }
-                                try {
-                                  final savedAt = DateTime.now();
-                                  final createResult = await _createExpense(
-                                    householdId: householdId,
-                                    title: title,
-                                    amountCents: amountCents,
-                                    note: noteController.text.trim().isEmpty
-                                        ? null
-                                        : noteController.text.trim(),
-                                    coparentNameForPendingMessage: coparentName,
-                                    childIds: effectiveSelectedChildIds,
-                                  );
-                                  if (mounted && createResult != null) {
-                                    setState(() {
-                                      _pendingExpenseRowFallback =
-                                          _PendingExpenseRowFallback(
-                                            expenseId: createResult.expenseId,
-                                            savedAt: savedAt,
-                                            note:
-                                                createResult.noteForRowFallback,
-                                          );
-                                    });
-                                    pendingSuccessSnackBarMessage =
-                                        createResult.successSnackBarMessage;
-                                  }
-                                  if (context.mounted) {
-                                    await Future<void>.delayed(
-                                      const Duration(milliseconds: 150),
-                                    );
-                                    if (context.mounted) {
-                                      Navigator.of(context).pop();
-                                    }
-                                  }
-                                } catch (e) {
-                                  debugPrint(
-                                    'Create expense (dialog) error: $e',
-                                  );
-                                  _showSnackBar(
-                                    mapUserFacingError(
-                                      e,
-                                      fallback:
-                                          'Opslaan mislukt. Probeer opnieuw.',
-                                    ),
-                                  );
-                                } finally {
-                                  if (context.mounted) {
-                                    setLocalState(() => saving = false);
-                                  }
-                                }
-                              },
-                        child: SizedBox(
-                          width: 82,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              const Text('Opslaan'),
-                              if (saving)
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimary,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                          actions: [
+                            TextButton(
+                              onPressed: saving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              child: const Text('Annuleren'),
+                            ),
+                            ElevatedButton(
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      final title = titleController.text.trim();
+                                      final amountCents = _tryParseEurToCents(
+                                        amountController.text,
+                                      );
+                                      final titleInvalid = title.isEmpty;
+                                      final amountInvalid =
+                                          amountCents == null ||
+                                          amountCents <= 0;
+                                      if (titleInvalid || amountInvalid) {
+                                        setLocalState(() {
+                                          titleHasError = titleInvalid;
+                                          amountHasError = amountInvalid;
+                                        });
+                                        if (titleInvalid) {
+                                          titleFocusNode.requestFocus();
+                                        } else if (amountInvalid) {
+                                          amountFocusNode.requestFocus();
+                                        }
+                                        return;
+                                      }
+                                      if (effectiveSelectedChildIds.isEmpty) {
+                                        _showSnackBar(
+                                          'Selecteer minimaal één kind.',
+                                        );
+                                        return;
+                                      }
+
+                                      setLocalState(() => saving = true);
+                                      if (!await _checkCanWriteNow()) {
+                                        _showSnackBar(
+                                          'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
+                                        );
+                                        if (context.mounted) {
+                                          setLocalState(() => saving = false);
+                                        }
+                                        return;
+                                      }
+                                      try {
+                                        final savedAt = DateTime.now();
+                                        final createResult =
+                                            await _createExpense(
+                                              householdId: householdId,
+                                              title: title,
+                                              amountCents: amountCents,
+                                              note:
+                                                  noteController.text
+                                                      .trim()
+                                                      .isEmpty
+                                                  ? null
+                                                  : noteController.text.trim(),
+                                              coparentNameForPendingMessage:
+                                                  coparentName,
+                                              childIds:
+                                                  effectiveSelectedChildIds,
+                                            );
+                                        if (mounted && createResult != null) {
+                                          setState(() {
+                                            _pendingExpenseRowFallback =
+                                                _PendingExpenseRowFallback(
+                                                  expenseId:
+                                                      createResult.expenseId,
+                                                  savedAt: savedAt,
+                                                  note: createResult
+                                                      .noteForRowFallback,
+                                                );
+                                          });
+                                          pendingSuccessSnackBarMessage =
+                                              createResult
+                                                  .successSnackBarMessage;
+                                        }
+                                        if (context.mounted) {
+                                          await Future<void>.delayed(
+                                            const Duration(milliseconds: 150),
+                                          );
+                                          if (context.mounted) {
+                                            Navigator.of(context).pop();
+                                          }
+                                        }
+                                      } catch (e) {
+                                        debugPrint(
+                                          'Create expense (dialog) error: $e',
+                                        );
+                                        _showSnackBar(
+                                          mapUserFacingError(
+                                            e,
+                                            fallback:
+                                                'Opslaan mislukt. Probeer opnieuw.',
+                                          ),
+                                        );
+                                      } finally {
+                                        if (context.mounted) {
+                                          setLocalState(() => saving = false);
+                                        }
+                                      }
+                                    },
+                              child: SizedBox(
+                                width: 82,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    const Text('Opslaan'),
+                                    if (saving)
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -4410,16 +4453,13 @@ class _DashboardPageState extends State<DashboardPage> {
                             onPressed: () => Navigator.of(context).push<void>(
                               PageRouteBuilder<void>(
                                 pageBuilder:
-                                    (
-                                      context,
-                                      animation,
-                                      secondaryAnimation,
-                                    ) => _LogboekPage(
-                                      householdId: householdIdStr,
-                                      uid: user.uid,
-                                      myName: myName,
-                                      otherName: otherName,
-                                    ),
+                                    (context, animation, secondaryAnimation) =>
+                                        _LogboekPage(
+                                          householdId: householdIdStr,
+                                          uid: user.uid,
+                                          myName: myName,
+                                          otherName: otherName,
+                                        ),
                                 transitionDuration: const Duration(
                                   milliseconds: 180,
                                 ),
@@ -4510,9 +4550,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   final noChildrenSnackBarController =
                                                       messenger.showSnackBar(
                                                         SnackBar(
-                                                          duration: const Duration(
-                                                            seconds: 5,
-                                                          ),
+                                                          duration:
+                                                              const Duration(
+                                                                seconds: 5,
+                                                              ),
                                                           content: const Text(
                                                             'Voeg eerst een kind toe om een uitgave te registreren.',
                                                           ),
@@ -4638,26 +4679,24 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                         final docs =
                                             List<
-                                              QueryDocumentSnapshot<
-                                                Map<String, dynamic>
-                                              >
-                                            >.of(effectiveSnap.docs)
+                                                QueryDocumentSnapshot<
+                                                  Map<String, dynamic>
+                                                >
+                                              >.of(effectiveSnap.docs)
                                               ..sort(_compareExpenseDocsStable);
-                                        final visibleDocs = docs.take(6).toList(
-                                          growable: false,
-                                        );
-                                        final visibleOwnExpenseIds =
-                                            visibleDocs
-                                                .where(
-                                                  (d) =>
-                                                      ((d
-                                                                  .data()['createdBy']
-                                                              as String?)
-                                                          ?.trim()) ==
-                                                      user.uid,
-                                                )
-                                                .map((d) => d.id)
-                                                .toList(growable: false);
+                                        final visibleDocs = docs
+                                            .take(6)
+                                            .toList(growable: false);
+                                        final visibleOwnExpenseIds = visibleDocs
+                                            .where(
+                                              (d) =>
+                                                  ((d.data()['createdBy']
+                                                          as String?)
+                                                      ?.trim()) ==
+                                                  user.uid,
+                                            )
+                                            .map((d) => d.id)
+                                            .toList(growable: false);
 
                                         var totalCents = 0;
                                         var myPaidCents = 0;
@@ -4772,10 +4811,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                           _DashboardSecondaryMetadata
                                         >(
                                           future: secondaryMetadataFuture,
-                                          builder: (
-                                            context,
-                                            secondaryMetaSnapshot,
-                                          ) {
+                                          builder: (context, secondaryMetaSnapshot) {
                                             final secondaryMetadataScopeKey =
                                                 '$householdIdStr|$otherUid';
                                             final secondaryMetadata =
@@ -4818,7 +4854,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 pendingInCents > 0) {
                                               visibleStatusText =
                                                   '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
-                                            } else if (pendingOutCents != null &&
+                                            } else if (pendingOutCents !=
+                                                    null &&
                                                 pendingOutCents > 0) {
                                               visibleStatusText =
                                                   '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
@@ -4839,489 +4876,134 @@ class _DashboardPageState extends State<DashboardPage> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.stretch,
                                               children: [
-                                            if (lastActivityText != null) ...[
-                                              Text(
-                                                lastActivityText,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall
-                                                    ?.copyWith(
-                                                      color: onSurface(
-                                                        context,
-                                                        a50,
-                                                      ),
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                            ],
-                                            KiduCard(
-                                              padding: EdgeInsets.zero,
-                                              child: Material(
-                                                type: MaterialType.transparency,
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                      _DashboardPageState
-                                                          ._cardRadius,
-                                                    ),
-                                                child: InkWell(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        _DashboardPageState
-                                                            ._cardRadius,
-                                                      ),
-                                                  highlightColor:
-                                                      Theme.of(context)
-                                                          .colorScheme
-                                                          .primary
-                                                          .withValues(
-                                                            alpha: 0.10,
+                                                if (lastActivityText !=
+                                                    null) ...[
+                                                  Text(
+                                                    lastActivityText,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: onSurface(
+                                                            context,
+                                                            a50,
                                                           ),
-                                                  splashColor: Theme.of(context)
-                                                      .colorScheme
-                                                      .primary
-                                                      .withValues(alpha: 0.08),
-                                                  onTap: () {
-                                                    if (_pendingIncoming !=
-                                                            null &&
-                                                        _pendingIncomingId !=
-                                                            null) {
-                                                      final inPayment =
-                                                          _pendingIncoming!;
-                                                      final inId =
-                                                          _pendingIncomingId!;
-                                                      final inCents =
-                                                          (inPayment['amountCents']
-                                                                  as num?)
-                                                              ?.toInt() ??
-                                                          0;
-                                                      showModalBottomSheet<
-                                                        void
-                                                      >(
-                                                        context: context,
-                                                        isScrollControlled:
-                                                            true,
-                                                        shape: const RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius.vertical(
-                                                                top:
-                                                                    Radius.circular(
-                                                                      20,
-                                                                    ),
-                                                              ),
                                                         ),
-                                                        builder: (sheetCtx) {
-                                                          return SafeArea(
-                                                            child: Padding(
-                                                              padding:
-                                                                  const EdgeInsets.fromLTRB(
-                                                                    24,
-                                                                    20,
-                                                                    24,
-                                                                    28,
-                                                                  ),
-                                                              child: Column(
-                                                                mainAxisSize:
-                                                                    MainAxisSize
-                                                                        .min,
-                                                                crossAxisAlignment:
-                                                                    CrossAxisAlignment
-                                                                        .stretch,
-                                                                children: [
-                                                                  Center(
-                                                                    child: Container(
-                                                                      width: 36,
-                                                                      height: 4,
-                                                                      decoration: BoxDecoration(
-                                                                        color: Theme.of(
-                                                                          context,
-                                                                        ).colorScheme.outlineVariant,
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(
-                                                                              2,
-                                                                            ),
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 20,
-                                                                  ),
-                                                                  Text(
-                                                                    'Ontvangst bevestigen',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .titleMedium
-                                                                        ?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w700,
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 16,
-                                                                  ),
-                                                                  Text(
-                                                                    'Betaling gemeld door $otherName',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodyMedium
-                                                                        ?.copyWith(
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a84,
-                                                                          ),
-                                                                          height:
-                                                                              1.4,
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 4,
-                                                                  ),
-                                                                  Text(
-                                                                    _formatEur(
-                                                                      inCents,
-                                                                    ),
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .titleSmall
-                                                                        ?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w600,
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a84,
-                                                                          ),
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 20,
-                                                                  ),
-                                                                  FilledButton(
-                                                                    onPressed: () {
-                                                                      Navigator.of(
-                                                                        sheetCtx,
-                                                                      ).pop();
-                                                                      showDialog<bool>(
-                                                                        context:
-                                                                            context,
-                                                                        builder:
-                                                                            (
-                                                                              dialogCtx,
-                                                                            ) => AlertDialog(
-                                                                              title: const Text(
-                                                                                'Ontvangst bevestigen',
-                                                                              ),
-                                                                              content: Text(
-                                                                                'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
-                                                                              ),
-                                                                              actions: [
-                                                                                TextButton(
-                                                                                  onPressed: () =>
-                                                                                      Navigator.of(
-                                                                                        dialogCtx,
-                                                                                      ).pop(
-                                                                                        false,
-                                                                                      ),
-                                                                                  child: const Text(
-                                                                                    'Annuleren',
-                                                                                  ),
-                                                                                ),
-                                                                                FilledButton(
-                                                                                  onPressed: () =>
-                                                                                      Navigator.of(
-                                                                                        dialogCtx,
-                                                                                      ).pop(
-                                                                                        true,
-                                                                                      ),
-                                                                                  child: const Text(
-                                                                                    'Bevestigen',
-                                                                                  ),
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                      ).then((
-                                                                        confirmed,
-                                                                      ) async {
-                                                                        if (confirmed ==
-                                                                            true) {
-                                                                          try {
-                                                                            await FirebaseFirestore.instance
-                                                                                .doc(
-                                                                                  'households/$householdIdStr/payments/$inId',
-                                                                                )
-                                                                                .update({
-                                                                                  'status': 'confirmed',
-                                                                                  'confirmedAt': FieldValue.serverTimestamp(),
-                                                                                  'confirmedBy': user.uid,
-                                                                                });
-                                                                            _showSnackBar(
-                                                                              'Ontvangst bevestigd.',
-                                                                            );
-                                                                          } catch (
-                                                                            e
-                                                                          ) {
-                                                                            if (kDebugMode) {
-                                                                              debugPrint(
-                                                                                'Payment confirm error: $e',
-                                                                              );
-                                                                            }
-                                                                            _showSnackBar(
-                                                                              mapUserFacingError(
-                                                                                e,
-                                                                                fallback: 'Bevestiging kon niet worden opgeslagen.',
-                                                                              ),
-                                                                            );
-                                                                          }
-                                                                        }
-                                                                      });
-                                                                    },
-                                                                    child: const Text(
-                                                                      'Ontvangst bevestigen',
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          );
-                                                        },
-                                                      );
-                                                      return;
-                                                    }
-
-                                                    if (_pendingOutgoing !=
-                                                        null) {
-                                                      final outPayment =
-                                                          _pendingOutgoing!;
-                                                      final outCents =
-                                                          (outPayment['amountCents']
-                                                                  as num?)
-                                                              ?.toInt() ??
-                                                          0;
-                                                      showModalBottomSheet<
-                                                        void
-                                                      >(
-                                                        context: context,
-                                                        shape: const RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius.vertical(
-                                                                top:
-                                                                    Radius.circular(
-                                                                      20,
-                                                                    ),
-                                                              ),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                ],
+                                                KiduCard(
+                                                  padding: EdgeInsets.zero,
+                                                  child: Material(
+                                                    type: MaterialType
+                                                        .transparency,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          _DashboardPageState
+                                                              ._cardRadius,
                                                         ),
-                                                        builder: (sheetCtx) {
-                                                          return SafeArea(
-                                                            child: Padding(
-                                                              padding:
-                                                                  const EdgeInsets.fromLTRB(
-                                                                    24,
-                                                                    20,
-                                                                    24,
-                                                                    28,
-                                                                  ),
-                                                              child: Column(
-                                                                mainAxisSize:
-                                                                    MainAxisSize
-                                                                        .min,
-                                                                crossAxisAlignment:
-                                                                    CrossAxisAlignment
-                                                                        .stretch,
-                                                                children: [
-                                                                  Center(
-                                                                    child: Container(
-                                                                      width: 36,
-                                                                      height: 4,
-                                                                      decoration: BoxDecoration(
-                                                                        color: Theme.of(
-                                                                          context,
-                                                                        ).colorScheme.outlineVariant,
-                                                                        borderRadius:
-                                                                            BorderRadius.circular(
-                                                                              2,
-                                                                            ),
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 20,
-                                                                  ),
-                                                                  Text(
-                                                                    'Betaling melden',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .titleMedium
-                                                                        ?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w700,
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 16,
-                                                                  ),
-                                                                  Text(
-                                                                    'Betaling gemeld',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodyMedium
-                                                                        ?.copyWith(
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a84,
-                                                                          ),
-                                                                          height:
-                                                                              1.4,
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 4,
-                                                                  ),
-                                                                  Text(
-                                                                    '${_formatEur(outCents)} aan $otherName',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .titleSmall
-                                                                        ?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w600,
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a84,
-                                                                          ),
-                                                                        ),
-                                                                  ),
-                                                                  const SizedBox(
-                                                                    height: 8,
-                                                                  ),
-                                                                  Text(
-                                                                    'Wacht op bevestiging door $otherName',
-                                                                    style: Theme.of(context)
-                                                                        .textTheme
-                                                                        .bodySmall
-                                                                        ?.copyWith(
-                                                                          color: onSurface(
-                                                                            context,
-                                                                            a62,
-                                                                          ),
-                                                                          height:
-                                                                              1.4,
-                                                                        ),
-                                                                  ),
-                                                                ],
+                                                    child: InkWell(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            _DashboardPageState
+                                                                ._cardRadius,
+                                                          ),
+                                                      highlightColor:
+                                                          Theme.of(context)
+                                                              .colorScheme
+                                                              .primary
+                                                              .withValues(
+                                                                alpha: 0.10,
                                                               ),
-                                                            ),
-                                                          );
-                                                        },
-                                                      );
-                                                      return;
-                                                    }
-
-                                                    final amountCtrl =
-                                                        TextEditingController(
-                                                          text:
-                                                              '${absBalance ~/ 100},${(absBalance % 100).toString().padLeft(2, '0')}',
-                                                        );
-                                                    int? enteredCents =
-                                                        absBalance;
-                                                    showModalBottomSheet<void>(
-                                                      context: context,
-                                                      isScrollControlled: true,
-                                                      shape: const RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.vertical(
-                                                              top:
-                                                                  Radius.circular(
-                                                                    20,
-                                                                  ),
-                                                            ),
-                                                      ),
-                                                      builder: (sheetCtx) {
-                                                        return StatefulBuilder(
-                                                          builder: (_, setSheetState) {
-                                                            final isValid =
-                                                                enteredCents !=
-                                                                    null &&
-                                                                enteredCents! >
-                                                                    0;
-                                                            final bottomInset =
-                                                                MediaQuery.of(
-                                                                      sheetCtx,
-                                                                    )
-                                                                    .viewInsets
-                                                                    .bottom;
-                                                            return SafeArea(
-                                                              child: Padding(
-                                                                padding:
-                                                                    EdgeInsets.fromLTRB(
-                                                                      24,
-                                                                      20,
-                                                                      24,
-                                                                      28 +
-                                                                          bottomInset,
-                                                                    ),
-                                                                child: Column(
-                                                                  mainAxisSize:
-                                                                      MainAxisSize
-                                                                          .min,
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .stretch,
-                                                                  children: [
-                                                                    Center(
-                                                                      child: Container(
-                                                                        width:
-                                                                            36,
-                                                                        height:
-                                                                            4,
-                                                                        decoration: BoxDecoration(
-                                                                          color: Theme.of(
-                                                                            context,
-                                                                          ).colorScheme.outlineVariant,
-                                                                          borderRadius:
-                                                                              BorderRadius.circular(
-                                                                                2,
-                                                                              ),
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                      height:
+                                                      splashColor:
+                                                          Theme.of(context)
+                                                              .colorScheme
+                                                              .primary
+                                                              .withValues(
+                                                                alpha: 0.08,
+                                                              ),
+                                                      onTap: () {
+                                                        if (_pendingIncoming !=
+                                                                null &&
+                                                            _pendingIncomingId !=
+                                                                null) {
+                                                          final inPayment =
+                                                              _pendingIncoming!;
+                                                          final inId =
+                                                              _pendingIncomingId!;
+                                                          final inCents =
+                                                              (inPayment['amountCents']
+                                                                      as num?)
+                                                                  ?.toInt() ??
+                                                              0;
+                                                          showModalBottomSheet<
+                                                            void
+                                                          >(
+                                                            context: context,
+                                                            isScrollControlled:
+                                                                true,
+                                                            shape: const RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.vertical(
+                                                                    top:
+                                                                        Radius.circular(
                                                                           20,
-                                                                    ),
-                                                                    Text(
-                                                                      balanceCents <
-                                                                              0
-                                                                          ? 'Betaling melden'
-                                                                          : 'Balans',
-                                                                      style: Theme.of(context)
-                                                                          .textTheme
-                                                                          .titleMedium
-                                                                          ?.copyWith(
-                                                                            fontWeight:
-                                                                                FontWeight.w700,
+                                                                        ),
+                                                                  ),
+                                                            ),
+                                                            builder: (sheetCtx) {
+                                                              return SafeArea(
+                                                                child: Padding(
+                                                                  padding:
+                                                                      const EdgeInsets.fromLTRB(
+                                                                        24,
+                                                                        20,
+                                                                        24,
+                                                                        28,
+                                                                      ),
+                                                                  child: Column(
+                                                                    mainAxisSize:
+                                                                        MainAxisSize
+                                                                            .min,
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .stretch,
+                                                                    children: [
+                                                                      Center(
+                                                                        child: Container(
+                                                                          width:
+                                                                              36,
+                                                                          height:
+                                                                              4,
+                                                                          decoration: BoxDecoration(
+                                                                            color: Theme.of(
+                                                                              context,
+                                                                            ).colorScheme.outlineVariant,
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              2,
+                                                                            ),
                                                                           ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                      height:
-                                                                          16,
-                                                                    ),
-                                                                    if (balanceCents ==
-                                                                        0)
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            20,
+                                                                      ),
                                                                       Text(
-                                                                        'Jullie zijn in balans',
+                                                                        'Ontvangst bevestigen',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
-                                                                            ).textTheme.bodyMedium?.copyWith(
-                                                                              color: onSurface(
-                                                                                context,
-                                                                                a62,
-                                                                              ),
-                                                                              height: 1.4,
+                                                                            ).textTheme.titleMedium?.copyWith(
+                                                                              fontWeight: FontWeight.w700,
                                                                             ),
-                                                                      )
-                                                                    else if (balanceCents >
-                                                                        0) ...[
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            16,
+                                                                      ),
                                                                       Text(
-                                                                        '$otherName is jou nog ${_formatEur(absBalance)} schuldig',
+                                                                        'Betaling gemeld door $otherName',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -5335,24 +5017,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       ),
                                                                       const SizedBox(
                                                                         height:
-                                                                            8,
+                                                                            4,
                                                                       ),
                                                                       Text(
-                                                                        '$otherName kan een betaling melden vanuit de app.',
-                                                                        style:
-                                                                            Theme.of(
-                                                                              context,
-                                                                            ).textTheme.bodySmall?.copyWith(
-                                                                              color: onSurface(
-                                                                                context,
-                                                                                a62,
-                                                                              ),
-                                                                              height: 1.4,
-                                                                            ),
-                                                                      ),
-                                                                    ] else ...[
-                                                                      Text(
-                                                                        'Open bedrag: ${_formatEur(absBalance)}',
+                                                                        _formatEur(
+                                                                          inCents,
+                                                                        ),
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -5366,10 +5036,213 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       ),
                                                                       const SizedBox(
                                                                         height:
+                                                                            20,
+                                                                      ),
+                                                                      FilledButton(
+                                                                        onPressed: () {
+                                                                          Navigator.of(
+                                                                            sheetCtx,
+                                                                          ).pop();
+                                                                          showDialog<
+                                                                                bool
+                                                                              >(
+                                                                                context: context,
+                                                                                builder:
+                                                                                    (
+                                                                                      dialogCtx,
+                                                                                    ) => AlertDialog(
+                                                                                      title: const Text(
+                                                                                        'Ontvangst bevestigen',
+                                                                                      ),
+                                                                                      content: Text(
+                                                                                        'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
+                                                                                      ),
+                                                                                      actions: [
+                                                                                        TextButton(
+                                                                                          onPressed: () =>
+                                                                                              Navigator.of(
+                                                                                                dialogCtx,
+                                                                                              ).pop(
+                                                                                                false,
+                                                                                              ),
+                                                                                          child: const Text(
+                                                                                            'Annuleren',
+                                                                                          ),
+                                                                                        ),
+                                                                                        FilledButton(
+                                                                                          onPressed: () =>
+                                                                                              Navigator.of(
+                                                                                                dialogCtx,
+                                                                                              ).pop(
+                                                                                                true,
+                                                                                              ),
+                                                                                          child: const Text(
+                                                                                            'Bevestigen',
+                                                                                          ),
+                                                                                        ),
+                                                                                      ],
+                                                                                    ),
+                                                                              )
+                                                                              .then((
+                                                                                confirmed,
+                                                                              ) async {
+                                                                                if (confirmed ==
+                                                                                    true) {
+                                                                                  try {
+                                                                                    await FirebaseFirestore.instance
+                                                                                        .doc(
+                                                                                          'households/$householdIdStr/payments/$inId',
+                                                                                        )
+                                                                                        .update(
+                                                                                          {
+                                                                                            'status': 'confirmed',
+                                                                                            'confirmedAt': FieldValue.serverTimestamp(),
+                                                                                            'confirmedBy': user.uid,
+                                                                                          },
+                                                                                        );
+                                                                                    _showSnackBar(
+                                                                                      'Ontvangst bevestigd.',
+                                                                                    );
+                                                                                  } catch (
+                                                                                    e
+                                                                                  ) {
+                                                                                    if (kDebugMode) {
+                                                                                      debugPrint(
+                                                                                        'Payment confirm error: $e',
+                                                                                      );
+                                                                                    }
+                                                                                    _showSnackBar(
+                                                                                      mapUserFacingError(
+                                                                                        e,
+                                                                                        fallback: 'Bevestiging kon niet worden opgeslagen.',
+                                                                                      ),
+                                                                                    );
+                                                                                  }
+                                                                                }
+                                                                              });
+                                                                        },
+                                                                        child: const Text(
+                                                                          'Ontvangst bevestigen',
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            },
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        if (_pendingOutgoing !=
+                                                            null) {
+                                                          final outPayment =
+                                                              _pendingOutgoing!;
+                                                          final outCents =
+                                                              (outPayment['amountCents']
+                                                                      as num?)
+                                                                  ?.toInt() ??
+                                                              0;
+                                                          showModalBottomSheet<
+                                                            void
+                                                          >(
+                                                            context: context,
+                                                            shape: const RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.vertical(
+                                                                    top:
+                                                                        Radius.circular(
+                                                                          20,
+                                                                        ),
+                                                                  ),
+                                                            ),
+                                                            builder: (sheetCtx) {
+                                                              return SafeArea(
+                                                                child: Padding(
+                                                                  padding:
+                                                                      const EdgeInsets.fromLTRB(
+                                                                        24,
+                                                                        20,
+                                                                        24,
+                                                                        28,
+                                                                      ),
+                                                                  child: Column(
+                                                                    mainAxisSize:
+                                                                        MainAxisSize
+                                                                            .min,
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .stretch,
+                                                                    children: [
+                                                                      Center(
+                                                                        child: Container(
+                                                                          width:
+                                                                              36,
+                                                                          height:
+                                                                              4,
+                                                                          decoration: BoxDecoration(
+                                                                            color: Theme.of(
+                                                                              context,
+                                                                            ).colorScheme.outlineVariant,
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              2,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            20,
+                                                                      ),
+                                                                      Text(
+                                                                        'Betaling melden',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.titleMedium?.copyWith(
+                                                                              fontWeight: FontWeight.w700,
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            16,
+                                                                      ),
+                                                                      Text(
+                                                                        'Betaling gemeld',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.bodyMedium?.copyWith(
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a84,
+                                                                              ),
+                                                                              height: 1.4,
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
                                                                             4,
                                                                       ),
                                                                       Text(
-                                                                        'Jij betaalt $otherName',
+                                                                        '${_formatEur(outCents)} aan $otherName',
+                                                                        style:
+                                                                            Theme.of(
+                                                                              context,
+                                                                            ).textTheme.titleSmall?.copyWith(
+                                                                              fontWeight: FontWeight.w600,
+                                                                              color: onSurface(
+                                                                                context,
+                                                                                a84,
+                                                                              ),
+                                                                            ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            8,
+                                                                      ),
+                                                                      Text(
+                                                                        'Wacht op bevestiging door $otherName',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -5378,565 +5251,775 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 context,
                                                                                 a62,
                                                                               ),
+                                                                              height: 1.4,
                                                                             ),
                                                                       ),
-                                                                      const SizedBox(
-                                                                        height:
-                                                                            16,
-                                                                      ),
-                                                                      TextField(
-                                                                        controller:
-                                                                            amountCtrl,
-                                                                        keyboardType: const TextInputType.numberWithOptions(
-                                                                          decimal:
-                                                                              true,
-                                                                        ),
-                                                                        decoration: InputDecoration(
-                                                                          labelText:
-                                                                              'Bedrag',
-                                                                          prefixText:
-                                                                              '€ ',
-                                                                          isDense:
-                                                                              true,
-                                                                          border:
-                                                                              const OutlineInputBorder(),
-                                                                          errorText:
-                                                                              amountCtrl.text.trim().isNotEmpty &&
-                                                                                  (enteredCents ==
-                                                                                          null ||
-                                                                                      enteredCents! <=
-                                                                                          0)
-                                                                              ? 'Voer een geldig bedrag in'
-                                                                              : null,
-                                                                        ),
-                                                                        onChanged: (val) {
-                                                                          setSheetState(() {
-                                                                            enteredCents = _tryParseEurToCents(
-                                                                              val,
-                                                                            );
-                                                                          });
-                                                                        },
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        height:
-                                                                            20,
-                                                                      ),
-                                                                      FilledButton(
-                                                                        onPressed:
-                                                                            isValid
-                                                                            ? () {
-                                                                                final paymentAmountCents = enteredCents!;
-                                                                                Navigator.of(
-                                                                                  sheetCtx,
-                                                                                ).pop();
-                                                                                showDialog<
-                                                                                      bool
-                                                                                    >(
-                                                                                      context: context,
-                                                                                      builder:
-                                                                                          (
-                                                                                            dialogCtx,
-                                                                                          ) => AlertDialog(
-                                                                                            title: const Text(
-                                                                                              'Betaling melden',
-                                                                                            ),
-                                                                                            content: Text(
-                                                                                              'Je meldt een betaling van ${_formatEur(enteredCents!)} aan $otherName. $otherName moet dit nog bevestigen.',
-                                                                                            ),
-                                                                                            actions: [
-                                                                                              TextButton(
-                                                                                                onPressed: () =>
-                                                                                                    Navigator.of(
-                                                                                                      dialogCtx,
-                                                                                                    ).pop(
-                                                                                                      false,
-                                                                                                    ),
-                                                                                                child: const Text(
-                                                                                                  'Annuleren',
-                                                                                                ),
-                                                                                              ),
-                                                                                              FilledButton(
-                                                                                                onPressed: () =>
-                                                                                                    Navigator.of(
-                                                                                                      dialogCtx,
-                                                                                                    ).pop(
-                                                                                                      true,
-                                                                                                    ),
-                                                                                                child: const Text(
-                                                                                                  'Melden',
-                                                                                                ),
-                                                                                              ),
-                                                                                            ],
-                                                                                          ),
-                                                                                    )
-                                                                                    .then(
-                                                                                      (
-                                                                                        confirmed,
-                                                                                      ) async {
-                                                                                        if (confirmed ==
-                                                                                            true) {
-                                                                                          try {
-                                                                                            await FirebaseFirestore.instance
-                                                                                                .collection(
-                                                                                                  'households/$householdIdStr/payments',
-                                                                                                )
-                                                                                                .add(
-                                                                                                  {
-                                                                                                    'amountCents': paymentAmountCents,
-                                                                                                    'currency': 'EUR',
-                                                                                                    'fromUserId': user.uid,
-                                                                                                    'toUserId': otherUid!,
-                                                                                                    'status': 'pending',
-                                                                                                    'createdAt': FieldValue.serverTimestamp(),
-                                                                                                    'createdBy': user.uid,
-                                                                                                    'confirmedAt': null,
-                                                                                                    'confirmedBy': null,
-                                                                                                  },
-                                                                                                );
-                                                                                            _showSnackBar(
-                                                                                              'Betaling gemeld — wacht op bevestiging.',
-                                                                                            );
-                                                                                          } catch (
-                                                                                            e
-                                                                                          ) {
-                                                                                            if (kDebugMode) {
-                                                                                              debugPrint(
-                                                                                                'Payment write error: $e',
-                                                                                              );
-                                                                                            }
-                                                                                            _showSnackBar(
-                                                                                              mapUserFacingError(
-                                                                                                e,
-                                                                                                fallback: 'Betaling kon niet worden gemeld.',
-                                                                                              ),
-                                                                                            );
-                                                                                          }
-                                                                                        }
-                                                                                      },
-                                                                                    );
-                                                                              }
-                                                                            : null,
-                                                                        child: const Text(
-                                                                          'Betaling melden',
-                                                                        ),
-                                                                      ),
                                                                     ],
-                                                                  ],
+                                                                  ),
                                                                 ),
-                                                              ),
+                                                              );
+                                                            },
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        final amountCtrl =
+                                                            TextEditingController(
+                                                              text:
+                                                                  '${absBalance ~/ 100},${(absBalance % 100).toString().padLeft(2, '0')}',
+                                                            );
+                                                        int? enteredCents =
+                                                            absBalance;
+                                                        showModalBottomSheet<
+                                                          void
+                                                        >(
+                                                          context: context,
+                                                          isScrollControlled:
+                                                              true,
+                                                          shape: const RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius.vertical(
+                                                                  top:
+                                                                      Radius.circular(
+                                                                        20,
+                                                                      ),
+                                                                ),
+                                                          ),
+                                                          builder: (sheetCtx) {
+                                                            return StatefulBuilder(
+                                                              builder: (_, setSheetState) {
+                                                                final isValid =
+                                                                    enteredCents !=
+                                                                        null &&
+                                                                    enteredCents! >
+                                                                        0;
+                                                                final bottomInset =
+                                                                    MediaQuery.of(
+                                                                          sheetCtx,
+                                                                        )
+                                                                        .viewInsets
+                                                                        .bottom;
+                                                                return SafeArea(
+                                                                  child: Padding(
+                                                                    padding:
+                                                                        EdgeInsets.fromLTRB(
+                                                                          24,
+                                                                          20,
+                                                                          24,
+                                                                          28 +
+                                                                              bottomInset,
+                                                                        ),
+                                                                    child: Column(
+                                                                      mainAxisSize:
+                                                                          MainAxisSize
+                                                                              .min,
+                                                                      crossAxisAlignment:
+                                                                          CrossAxisAlignment
+                                                                              .stretch,
+                                                                      children: [
+                                                                        Center(
+                                                                          child: Container(
+                                                                            width:
+                                                                                36,
+                                                                            height:
+                                                                                4,
+                                                                            decoration: BoxDecoration(
+                                                                              color: Theme.of(
+                                                                                context,
+                                                                              ).colorScheme.outlineVariant,
+                                                                              borderRadius: BorderRadius.circular(
+                                                                                2,
+                                                                              ),
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          height:
+                                                                              20,
+                                                                        ),
+                                                                        Text(
+                                                                          balanceCents <
+                                                                                  0
+                                                                              ? 'Betaling melden'
+                                                                              : 'Balans',
+                                                                          style:
+                                                                              Theme.of(
+                                                                                context,
+                                                                              ).textTheme.titleMedium?.copyWith(
+                                                                                fontWeight: FontWeight.w700,
+                                                                              ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          height:
+                                                                              16,
+                                                                        ),
+                                                                        if (balanceCents ==
+                                                                            0)
+                                                                          Text(
+                                                                            'Jullie zijn in balans',
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.bodyMedium?.copyWith(
+                                                                                  color: onSurface(
+                                                                                    context,
+                                                                                    a62,
+                                                                                  ),
+                                                                                  height: 1.4,
+                                                                                ),
+                                                                          )
+                                                                        else if (balanceCents >
+                                                                            0) ...[
+                                                                          Text(
+                                                                            '$otherName is jou nog ${_formatEur(absBalance)} schuldig',
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.bodyMedium?.copyWith(
+                                                                                  color: onSurface(
+                                                                                    context,
+                                                                                    a84,
+                                                                                  ),
+                                                                                  height: 1.4,
+                                                                                ),
+                                                                          ),
+                                                                          const SizedBox(
+                                                                            height:
+                                                                                8,
+                                                                          ),
+                                                                          Text(
+                                                                            '$otherName kan een betaling melden vanuit de app.',
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.bodySmall?.copyWith(
+                                                                                  color: onSurface(
+                                                                                    context,
+                                                                                    a62,
+                                                                                  ),
+                                                                                  height: 1.4,
+                                                                                ),
+                                                                          ),
+                                                                        ] else ...[
+                                                                          Text(
+                                                                            'Open bedrag: ${_formatEur(absBalance)}',
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.titleSmall?.copyWith(
+                                                                                  fontWeight: FontWeight.w600,
+                                                                                  color: onSurface(
+                                                                                    context,
+                                                                                    a84,
+                                                                                  ),
+                                                                                ),
+                                                                          ),
+                                                                          const SizedBox(
+                                                                            height:
+                                                                                4,
+                                                                          ),
+                                                                          Text(
+                                                                            'Jij betaalt $otherName',
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.bodySmall?.copyWith(
+                                                                                  color: onSurface(
+                                                                                    context,
+                                                                                    a62,
+                                                                                  ),
+                                                                                ),
+                                                                          ),
+                                                                          const SizedBox(
+                                                                            height:
+                                                                                16,
+                                                                          ),
+                                                                          TextField(
+                                                                            controller:
+                                                                                amountCtrl,
+                                                                            keyboardType: const TextInputType.numberWithOptions(
+                                                                              decimal: true,
+                                                                            ),
+                                                                            decoration: InputDecoration(
+                                                                              labelText: 'Bedrag',
+                                                                              prefixText: '€ ',
+                                                                              isDense: true,
+                                                                              border: const OutlineInputBorder(),
+                                                                              errorText:
+                                                                                  amountCtrl.text.trim().isNotEmpty &&
+                                                                                      (enteredCents ==
+                                                                                              null ||
+                                                                                          enteredCents! <=
+                                                                                              0)
+                                                                                  ? 'Voer een geldig bedrag in'
+                                                                                  : null,
+                                                                            ),
+                                                                            onChanged:
+                                                                                (
+                                                                                  val,
+                                                                                ) {
+                                                                                  setSheetState(
+                                                                                    () {
+                                                                                      enteredCents = _tryParseEurToCents(
+                                                                                        val,
+                                                                                      );
+                                                                                    },
+                                                                                  );
+                                                                                },
+                                                                          ),
+                                                                          const SizedBox(
+                                                                            height:
+                                                                                20,
+                                                                          ),
+                                                                          FilledButton(
+                                                                            onPressed:
+                                                                                isValid
+                                                                                ? () {
+                                                                                    final paymentAmountCents = enteredCents!;
+                                                                                    Navigator.of(
+                                                                                      sheetCtx,
+                                                                                    ).pop();
+                                                                                    showDialog<
+                                                                                          bool
+                                                                                        >(
+                                                                                          context: context,
+                                                                                          builder:
+                                                                                              (
+                                                                                                dialogCtx,
+                                                                                              ) => AlertDialog(
+                                                                                                title: const Text(
+                                                                                                  'Betaling melden',
+                                                                                                ),
+                                                                                                content: Text(
+                                                                                                  'Je meldt een betaling van ${_formatEur(enteredCents!)} aan $otherName. $otherName moet dit nog bevestigen.',
+                                                                                                ),
+                                                                                                actions: [
+                                                                                                  TextButton(
+                                                                                                    onPressed: () =>
+                                                                                                        Navigator.of(
+                                                                                                          dialogCtx,
+                                                                                                        ).pop(
+                                                                                                          false,
+                                                                                                        ),
+                                                                                                    child: const Text(
+                                                                                                      'Annuleren',
+                                                                                                    ),
+                                                                                                  ),
+                                                                                                  FilledButton(
+                                                                                                    onPressed: () =>
+                                                                                                        Navigator.of(
+                                                                                                          dialogCtx,
+                                                                                                        ).pop(
+                                                                                                          true,
+                                                                                                        ),
+                                                                                                    child: const Text(
+                                                                                                      'Melden',
+                                                                                                    ),
+                                                                                                  ),
+                                                                                                ],
+                                                                                              ),
+                                                                                        )
+                                                                                        .then(
+                                                                                          (
+                                                                                            confirmed,
+                                                                                          ) async {
+                                                                                            if (confirmed ==
+                                                                                                true) {
+                                                                                              try {
+                                                                                                await FirebaseFirestore.instance
+                                                                                                    .collection(
+                                                                                                      'households/$householdIdStr/payments',
+                                                                                                    )
+                                                                                                    .add(
+                                                                                                      {
+                                                                                                        'amountCents': paymentAmountCents,
+                                                                                                        'currency': 'EUR',
+                                                                                                        'fromUserId': user.uid,
+                                                                                                        'toUserId': otherUid!,
+                                                                                                        'status': 'pending',
+                                                                                                        'createdAt': FieldValue.serverTimestamp(),
+                                                                                                        'createdBy': user.uid,
+                                                                                                        'confirmedAt': null,
+                                                                                                        'confirmedBy': null,
+                                                                                                      },
+                                                                                                    );
+                                                                                                _showSnackBar(
+                                                                                                  'Betaling gemeld — wacht op bevestiging.',
+                                                                                                );
+                                                                                              } catch (
+                                                                                                e
+                                                                                              ) {
+                                                                                                if (kDebugMode) {
+                                                                                                  debugPrint(
+                                                                                                    'Payment write error: $e',
+                                                                                                  );
+                                                                                                }
+                                                                                                _showSnackBar(
+                                                                                                  mapUserFacingError(
+                                                                                                    e,
+                                                                                                    fallback: 'Betaling kon niet worden gemeld.',
+                                                                                                  ),
+                                                                                                );
+                                                                                              }
+                                                                                            }
+                                                                                          },
+                                                                                        );
+                                                                                  }
+                                                                                : null,
+                                                                            child: const Text(
+                                                                              'Betaling melden',
+                                                                            ),
+                                                                          ),
+                                                                        ],
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              },
                                                             );
                                                           },
                                                         );
                                                       },
-                                                    );
-                                                  },
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          16,
-                                                        ),
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .stretch,
-                                                      children: [
-                                                        Text(
-                                                          'Balans',
-                                                          style: Theme.of(context)
-                                                              .textTheme
-                                                              .titleMedium
-                                                              ?.copyWith(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
+                                                      child: Padding(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              16,
+                                                            ),
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .stretch,
+                                                          children: [
+                                                            Text(
+                                                              'Balans',
+                                                              style: Theme.of(context)
+                                                                  .textTheme
+                                                                  .titleMedium
+                                                                  ?.copyWith(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
+                                                                  ),
+                                                            ),
+                                                            // Compact summary: replace three separate rows.
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            _balanceRow(
+                                                              label:
+                                                                  'Totaal samen uitgegeven',
+                                                              value: _formatEur(
+                                                                totalCents,
                                                               ),
-                                                        ),
-                                                        // Compact summary: replace three separate rows.
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                        _balanceRow(
-                                                          label:
-                                                              'Totaal samen uitgegeven',
-                                                          value: _formatEur(
-                                                            totalCents,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                        Text(
-                                                          balanceBreakdownText ??
-                                                              ' ',
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: Theme.of(context)
-                                                              .textTheme
-                                                              .bodySmall
-                                                              ?.copyWith(
-                                                                color:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a62,
-                                                                    ),
-                                                                height: 1.3,
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            Text(
+                                                              balanceBreakdownText ??
+                                                                  ' ',
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: Theme.of(context)
+                                                                  .textTheme
+                                                                  .bodySmall
+                                                                  ?.copyWith(
+                                                                    color:
+                                                                        onSurface(
+                                                                          context,
+                                                                          a62,
+                                                                        ),
+                                                                    height: 1.3,
+                                                                  ),
+                                                            ),
+                                                            // Tighter section spacing for lower card height.
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            Divider(
+                                                              height: 1,
+                                                              color: outlineV(
+                                                                context,
+                                                                a40,
                                                               ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 8,
+                                                            ),
+                                                            Text(
+                                                              visibleStatusText ??
+                                                                  ' ',
+                                                              style: Theme.of(context)
+                                                                  .textTheme
+                                                                  .bodySmall
+                                                                  ?.copyWith(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    color:
+                                                                        onSurface(
+                                                                          context,
+                                                                          a84,
+                                                                        ),
+                                                                    height: 1.3,
+                                                                  ),
+                                                            ),
+                                                          ],
                                                         ),
-                                                        // Tighter section spacing for lower card height.
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                        Divider(
-                                                          height: 1,
-                                                          color: outlineV(
-                                                            context,
-                                                            a40,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                        Text(
-                                                          visibleStatusText ??
-                                                              ' ',
-                                                          style: Theme.of(context)
-                                                              .textTheme
-                                                              .bodySmall
-                                                              ?.copyWith(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                color:
-                                                                    onSurface(
-                                                                      context,
-                                                                      a84,
-                                                                    ),
-                                                                height: 1.3,
-                                                              ),
-                                                        ),
-                                                      ],
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: _cardGap),
-                                            KiduCard(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 12,
-                                                  ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  Text(
-                                                    'Recente uitgaven',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  docs.isEmpty
-                                                      ? Align(
-                                                          alignment:
-                                                              Alignment.topLeft,
-                                                          child: Text(
-                                                            canAddExpenses
-                                                                ? 'Nog geen uitgaven. Voeg er een toe met +.'
-                                                                : 'Nog geen uitgaven.',
-                                                            style: Theme.of(context)
-                                                                .textTheme
-                                                                .bodyMedium
-                                                                ?.copyWith(
-                                                                  color:
-                                                                      onSurface(
+                                                const SizedBox(
+                                                  height: _cardGap,
+                                                ),
+                                                KiduCard(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 12,
+                                                      ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .stretch,
+                                                    children: [
+                                                      Text(
+                                                        'Recente uitgaven',
+                                                        style: Theme.of(context)
+                                                            .textTheme
+                                                            .titleMedium
+                                                            ?.copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(
+                                                        height: 10,
+                                                      ),
+                                                      docs.isEmpty
+                                                          ? Align(
+                                                              alignment:
+                                                                  Alignment
+                                                                      .topLeft,
+                                                              child: Text(
+                                                                canAddExpenses
+                                                                    ? 'Nog geen uitgaven. Voeg er een toe met +.'
+                                                                    : 'Nog geen uitgaven.',
+                                                                style: Theme.of(context)
+                                                                    .textTheme
+                                                                    .bodyMedium
+                                                                    ?.copyWith(
+                                                                      color: onSurface(
                                                                         context,
                                                                         a62,
                                                                       ),
-                                                                  height: 1.35,
-                                                                ),
-                                                          ),
-                                                        )
-                                                      : ListView.separated(
-                                                          shrinkWrap: true,
-                                                          padding:
-                                                              EdgeInsets.zero,
-                                                          physics:
-                                                              const NeverScrollableScrollPhysics(),
-                                                          itemCount:
-                                                              visibleDocs.length,
-                                                          separatorBuilder:
-                                                              (
-                                                                context,
-                                                                index,
-                                                              ) => Divider(
-                                                                height: 14,
-                                                                color: outlineV(
-                                                                  context,
-                                                                  a40,
-                                                                ),
+                                                                      height:
+                                                                          1.35,
+                                                                    ),
                                                               ),
-                                                          itemBuilder: (context, index) {
-                                                            final d =
-                                                                visibleDocs[index];
-                                                            final e = d.data();
-                                                            final title =
-                                                                (e['title']
-                                                                        as String?)
-                                                                    ?.trim() ??
-                                                                '(zonder)';
-                                                            final amountCents =
-                                                                (e['amountCents']
-                                                                        as num?)
-                                                                    ?.toInt() ??
-                                                                0;
-                                                            final createdBy =
-                                                                (e['createdBy']
-                                                                        as String?)
-                                                                    ?.trim();
-
-                                                            final who =
-                                                                createdBy ==
-                                                                    user.uid
-                                                                ? myName
-                                                                : (otherUid !=
-                                                                          null &&
-                                                                      createdBy ==
-                                                                          otherUid)
-                                                                ? otherName
-                                                                : 'Co-parent';
-                                                            final isPending = d
-                                                                .metadata
-                                                                .hasPendingWrites;
-                                                            final rowFallback =
-                                                                createdBy ==
-                                                                        user.uid &&
-                                                                    _pendingExpenseRowFallback
-                                                                            ?.expenseId ==
-                                                                        d.id
-                                                                ? _pendingExpenseRowFallback
-                                                                : null;
-                                                            final createdAtRaw =
-                                                                e['createdAt'];
-                                                            DateTime?
-                                                            createdAtDateTime;
-                                                            if (createdAtRaw
-                                                                is Timestamp) {
-                                                              createdAtDateTime =
-                                                                  createdAtRaw
-                                                                      .toDate()
-                                                                      .toLocal();
-                                                            } else if (createdAtRaw
-                                                                is DateTime) {
-                                                              createdAtDateTime =
-                                                                  createdAtRaw
-                                                                      .toLocal();
-                                                            }
-                                                            createdAtDateTime ??=
-                                                                rowFallback
-                                                                    ?.savedAt
-                                                                    .toLocal();
-                                                            final dateLabel =
-                                                                _formatDashboardExpenseDate(
-                                                                  createdAtDateTime,
-                                                                );
-                                                            final actorLabel =
-                                                                (createdBy ==
-                                                                        user.uid)
-                                                                ? myName
-                                                                : (otherUid !=
-                                                                          null &&
-                                                                      createdBy ==
-                                                                          otherUid)
-                                                                ? visibleOtherName
-                                                                : null;
-                                                            final baseSubtitleText =
-                                                                actorLabel ==
-                                                                        null ||
-                                                                    actorLabel
-                                                                        .isEmpty
-                                                                ? dateLabel
-                                                                : dateLabel
-                                                                      .isEmpty
-                                                                ? actorLabel
-                                                                : '$actorLabel • $dateLabel';
-                                                            final note =
-                                                                visibleNotes[d.id] ??
-                                                                rowFallback?.note;
-                                                            final subtitleText =
-                                                                note != null &&
-                                                                        note.isNotEmpty
-                                                                ? baseSubtitleText
-                                                                          .isEmpty
-                                                                    ? note
-                                                                    : '$baseSubtitleText · $note'
-                                                                : baseSubtitleText;
-                                                            final expChildIds =
-                                                                (e['childIds']
-                                                                        as List?)
-                                                                    ?.whereType<
-                                                                      String
-                                                                    >()
-                                                                    .toList() ??
-                                                                const <
-                                                                  String
-                                                                >[];
-
-                                                            Future<void>
-                                                            openNoteFlow() async {
-                                                              final hasNote =
-                                                                  (visibleNotes[d.id] ??
-                                                                          '')
-                                                                      .isNotEmpty;
-                                                              if (!await _checkCanWriteNow()) {
-                                                                if (mounted) {
-                                                                  _showSnackBar(
-                                                                    hasNote
-                                                                        ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
-                                                                        : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
-                                                                  );
-                                                                }
-                                                                return;
-                                                              }
-                                                              await _openEditPrivateNoteDialog(
-                                                                householdId:
-                                                                    householdIdStr,
-                                                                expenseId:
-                                                                    d.id,
-                                                                uid: user.uid,
-                                                              );
-                                                            }
-
-                                                            return Material(
-                                                              type: MaterialType
-                                                                  .transparency,
-                                                              borderRadius:
-                                                                  BorderRadius.circular(
-                                                                    8,
+                                                            )
+                                                          : ListView.separated(
+                                                              shrinkWrap: true,
+                                                              padding:
+                                                                  EdgeInsets
+                                                                      .zero,
+                                                              physics:
+                                                                  const NeverScrollableScrollPhysics(),
+                                                              itemCount:
+                                                                  visibleDocs
+                                                                      .length,
+                                                              separatorBuilder:
+                                                                  (
+                                                                    context,
+                                                                    index,
+                                                                  ) => Divider(
+                                                                    height: 14,
+                                                                    color:
+                                                                        outlineV(
+                                                                          context,
+                                                                          a40,
+                                                                        ),
                                                                   ),
-                                                              child: InkWell(
-                                                                borderRadius:
-                                                                    BorderRadius.circular(
-                                                                      8,
-                                                                    ),
-                                                                highlightColor:
-                                                                    Theme.of(
-                                                                      context,
-                                                                    ).colorScheme.primary.withValues(
-                                                                      alpha:
-                                                                          0.10,
-                                                                    ),
-                                                                splashColor:
-                                                                    Theme.of(
-                                                                      context,
-                                                                    ).colorScheme.primary.withValues(
-                                                                      alpha:
-                                                                          0.08,
-                                                                    ),
-                                                                onTap: () async {
-                                                                  final preloadedChildNames =
-                                                                      expChildIds.isEmpty
-                                                                      ? const <String>[]
-                                                                      : (_dashChildren
-                                                                                .isNotEmpty &&
-                                                                            expChildIds.every(
-                                                                              (
-                                                                                id,
-                                                                              ) => _dashChildren.any(
-                                                                                (
-                                                                                  c,
-                                                                                ) =>
-                                                                                    c.id ==
-                                                                                    id,
-                                                                              ),
-                                                                            ))
-                                                                      ? expChildIds
-                                                                            .map(
-                                                                              (
-                                                                                id,
-                                                                              ) =>
-                                                                                  _dashChildren
-                                                                                      .where(
-                                                                                        (
-                                                                                          c,
-                                                                                        ) =>
-                                                                                            c.id ==
-                                                                                            id,
-                                                                                      )
-                                                                                      .map(
-                                                                                        (
-                                                                                          c,
-                                                                                        ) => c.name,
-                                                                                      )
-                                                                                      .firstOrNull ??
-                                                                                  'Verwijderd kind',
-                                                                            )
-                                                                            .toList()
-                                                                      : await _ExpenseDetailPage._resolveChildNames(
-                                                                          householdIdStr,
-                                                                          expChildIds,
-                                                                        );
-                                                                  if (!context.mounted) {
+                                                              itemBuilder: (context, index) {
+                                                                final d =
+                                                                    visibleDocs[index];
+                                                                final e = d
+                                                                    .data();
+                                                                final title =
+                                                                    (e['title']
+                                                                            as String?)
+                                                                        ?.trim() ??
+                                                                    '(zonder)';
+                                                                final amountCents =
+                                                                    (e['amountCents']
+                                                                            as num?)
+                                                                        ?.toInt() ??
+                                                                    0;
+                                                                final createdBy =
+                                                                    (e['createdBy']
+                                                                            as String?)
+                                                                        ?.trim();
+
+                                                                final who =
+                                                                    createdBy ==
+                                                                        user.uid
+                                                                    ? myName
+                                                                    : (otherUid !=
+                                                                              null &&
+                                                                          createdBy ==
+                                                                              otherUid)
+                                                                    ? otherName
+                                                                    : 'Co-parent';
+                                                                final isPending = d
+                                                                    .metadata
+                                                                    .hasPendingWrites;
+                                                                final rowFallback =
+                                                                    createdBy ==
+                                                                            user.uid &&
+                                                                        _pendingExpenseRowFallback?.expenseId ==
+                                                                            d.id
+                                                                    ? _pendingExpenseRowFallback
+                                                                    : null;
+                                                                final createdAtRaw =
+                                                                    e['createdAt'];
+                                                                DateTime?
+                                                                createdAtDateTime;
+                                                                if (createdAtRaw
+                                                                    is Timestamp) {
+                                                                  createdAtDateTime =
+                                                                      createdAtRaw
+                                                                          .toDate()
+                                                                          .toLocal();
+                                                                } else if (createdAtRaw
+                                                                    is DateTime) {
+                                                                  createdAtDateTime =
+                                                                      createdAtRaw
+                                                                          .toLocal();
+                                                                }
+                                                                createdAtDateTime ??=
+                                                                    rowFallback
+                                                                        ?.savedAt
+                                                                        .toLocal();
+                                                                final dateLabel =
+                                                                    _formatDashboardExpenseDate(
+                                                                      createdAtDateTime,
+                                                                    );
+                                                                final actorLabel =
+                                                                    (createdBy ==
+                                                                        user.uid)
+                                                                    ? myName
+                                                                    : (otherUid !=
+                                                                              null &&
+                                                                          createdBy ==
+                                                                              otherUid)
+                                                                    ? visibleOtherName
+                                                                    : null;
+                                                                final baseSubtitleText =
+                                                                    actorLabel ==
+                                                                            null ||
+                                                                        actorLabel
+                                                                            .isEmpty
+                                                                    ? dateLabel
+                                                                    : dateLabel
+                                                                          .isEmpty
+                                                                    ? actorLabel
+                                                                    : '$actorLabel • $dateLabel';
+                                                                final note =
+                                                                    visibleNotes[d
+                                                                        .id] ??
+                                                                    rowFallback
+                                                                        ?.note;
+                                                                final subtitleText =
+                                                                    note != null &&
+                                                                        note.isNotEmpty
+                                                                    ? baseSubtitleText
+                                                                              .isEmpty
+                                                                          ? note
+                                                                          : '$baseSubtitleText · $note'
+                                                                    : baseSubtitleText;
+                                                                final expChildIds =
+                                                                    (e['childIds']
+                                                                            as List?)
+                                                                        ?.whereType<
+                                                                          String
+                                                                        >()
+                                                                        .toList() ??
+                                                                    const <
+                                                                      String
+                                                                    >[];
+
+                                                                Future<void>
+                                                                openNoteFlow() async {
+                                                                  final hasNote =
+                                                                      (visibleNotes[d.id] ??
+                                                                              '')
+                                                                          .isNotEmpty;
+                                                                  if (!await _checkCanWriteNow()) {
+                                                                    if (mounted) {
+                                                                      _showSnackBar(
+                                                                        hasNote
+                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
+                                                                      );
+                                                                    }
                                                                     return;
                                                                   }
-                                                                  Navigator.of(
-                                                                    context,
-                                                                  ).push(
-                                                                    MaterialPageRoute<
-                                                                      void
-                                                                    >(
-                                                                      builder:
-                                                                          (
-                                                                            context,
-                                                                          ) => _ExpenseDetailPage(
-                                                                            householdId: householdIdStr,
-                                                                            expenseId: d.id,
-                                                                            uid: user.uid,
-                                                                            createdByUid:
-                                                                                createdBy ??
-                                                                                '',
-                                                                            title: title,
-                                                                            amountCents: amountCents,
-                                                                            paidByName: who,
-                                                                            createdAt: createdAtDateTime,
-                                                                            isPending: isPending,
-                                                                            onManageNote: createdBy == user.uid
-                                                                                ? openNoteFlow
-                                                                                : null,
-                                                                            otherParentName: otherName,
-                                                                            childIds: expChildIds,
-                                                                            childNames:
-                                                                                preloadedChildNames,
-                                                                          ),
-                                                                    ),
+                                                                  await _openEditPrivateNoteDialog(
+                                                                    householdId:
+                                                                        householdIdStr,
+                                                                    expenseId:
+                                                                        d.id,
+                                                                    uid: user
+                                                                        .uid,
                                                                   );
-                                                                },
-                                                                child: ListTile(
-                                                                  contentPadding:
-                                                                      const EdgeInsets.symmetric(
-                                                                        horizontal:
-                                                                            5,
+                                                                }
+
+                                                                return Material(
+                                                                  type: MaterialType
+                                                                      .transparency,
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        8,
                                                                       ),
-                                                                  dense: true,
-                                                                  visualDensity:
-                                                                      VisualDensity
-                                                                          .compact,
-                                                                  title: Text(
-                                                                    title,
-                                                                    maxLines: 1,
-                                                                    overflow:
-                                                                        TextOverflow
-                                                                            .ellipsis,
-                                                                  ),
-                                                                  subtitle:
-                                                                      subtitleText
+                                                                  child: InkWell(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          8,
+                                                                        ),
+                                                                    highlightColor: Theme.of(context)
+                                                                        .colorScheme
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.10,
+                                                                        ),
+                                                                    splashColor: Theme.of(context)
+                                                                        .colorScheme
+                                                                        .primary
+                                                                        .withValues(
+                                                                          alpha:
+                                                                              0.08,
+                                                                        ),
+                                                                    onTap: () async {
+                                                                      final preloadedChildNames =
+                                                                          expChildIds
+                                                                              .isEmpty
+                                                                          ? const <
+                                                                              String
+                                                                            >[]
+                                                                          : (_dashChildren.isNotEmpty &&
+                                                                                expChildIds.every(
+                                                                                  (
+                                                                                    id,
+                                                                                  ) => _dashChildren.any(
+                                                                                    (
+                                                                                      c,
+                                                                                    ) =>
+                                                                                        c.id ==
+                                                                                        id,
+                                                                                  ),
+                                                                                ))
+                                                                          ? expChildIds
+                                                                                .map(
+                                                                                  (
+                                                                                    id,
+                                                                                  ) =>
+                                                                                      _dashChildren
+                                                                                          .where(
+                                                                                            (
+                                                                                              c,
+                                                                                            ) =>
+                                                                                                c.id ==
+                                                                                                id,
+                                                                                          )
+                                                                                          .map(
+                                                                                            (
+                                                                                              c,
+                                                                                            ) => c.name,
+                                                                                          )
+                                                                                          .firstOrNull ??
+                                                                                      'Verwijderd kind',
+                                                                                )
+                                                                                .toList()
+                                                                          : await _ExpenseDetailPage._resolveChildNames(
+                                                                              householdIdStr,
+                                                                              expChildIds,
+                                                                            );
+                                                                      if (!context
+                                                                          .mounted) {
+                                                                        return;
+                                                                      }
+                                                                      Navigator.of(
+                                                                        context,
+                                                                      ).push(
+                                                                        MaterialPageRoute<
+                                                                          void
+                                                                        >(
+                                                                          builder:
+                                                                              (
+                                                                                context,
+                                                                              ) => _ExpenseDetailPage(
+                                                                                householdId: householdIdStr,
+                                                                                expenseId: d.id,
+                                                                                uid: user.uid,
+                                                                                createdByUid:
+                                                                                    createdBy ??
+                                                                                    '',
+                                                                                title: title,
+                                                                                amountCents: amountCents,
+                                                                                paidByName: who,
+                                                                                createdAt: createdAtDateTime,
+                                                                                isPending: isPending,
+                                                                                onManageNote:
+                                                                                    createdBy ==
+                                                                                        user.uid
+                                                                                    ? openNoteFlow
+                                                                                    : null,
+                                                                                otherParentName: otherName,
+                                                                                parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(
+                                                                                  e,
+                                                                                ),
+                                                                                parentSplitMembers: <_ParentSplitMember>[
+                                                                                  _ParentSplitMember(
+                                                                                    uid: user.uid,
+                                                                                    label: myName,
+                                                                                  ),
+                                                                                  if (otherUid != null)
+                                                                                    _ParentSplitMember(
+                                                                                      uid: otherUid,
+                                                                                      label: otherName,
+                                                                                    ),
+                                                                                ],
+                                                                                childIds: expChildIds,
+                                                                                childNames: preloadedChildNames,
+                                                                              ),
+                                                                        ),
+                                                                      );
+                                                                    },
+                                                                    child: ListTile(
+                                                                      contentPadding:
+                                                                          const EdgeInsets.symmetric(
+                                                                            horizontal:
+                                                                                5,
+                                                                          ),
+                                                                      dense:
+                                                                          true,
+                                                                      visualDensity:
+                                                                          VisualDensity
+                                                                              .compact,
+                                                                      title: Text(
+                                                                        title,
+                                                                        maxLines:
+                                                                            1,
+                                                                        overflow:
+                                                                            TextOverflow.ellipsis,
+                                                                      ),
+                                                                      subtitle:
+                                                                          subtitleText
                                                                               .isEmpty
                                                                           ? null
                                                                           : Text(
@@ -5944,63 +6027,58 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               maxLines: 1,
                                                                               overflow: TextOverflow.ellipsis,
                                                                             ),
-                                                                  trailing: Row(
-                                                                    mainAxisSize:
-                                                                        MainAxisSize
-                                                                            .min,
-                                                                    children: [
-                                                                      if (isPending)
-                                                                        Tooltip(
-                                                                          message:
-                                                                              'Nog niet gesynchroniseerd',
-                                                                          child: Icon(
-                                                                            Icons.cloud_off,
-                                                                            size:
-                                                                                16,
-                                                                            color:
-                                                                                onSurface(
+                                                                      trailing: Row(
+                                                                        mainAxisSize:
+                                                                            MainAxisSize.min,
+                                                                        children: [
+                                                                          if (isPending)
+                                                                            Tooltip(
+                                                                              message: 'Nog niet gesynchroniseerd',
+                                                                              child: Icon(
+                                                                                Icons.cloud_off,
+                                                                                size: 16,
+                                                                                color: onSurface(
                                                                                   context,
                                                                                   a50,
                                                                                 ),
+                                                                              ),
+                                                                            ),
+                                                                          if (isPending)
+                                                                            const SizedBox(
+                                                                              width: 4,
+                                                                            ),
+                                                                          Text(
+                                                                            _formatEur(
+                                                                              amountCents,
+                                                                            ),
+                                                                            style:
+                                                                                Theme.of(
+                                                                                  context,
+                                                                                ).textTheme.bodyMedium?.copyWith(
+                                                                                  fontWeight: FontWeight.w600,
+                                                                                ),
                                                                           ),
-                                                                        ),
-                                                                      if (isPending)
-                                                                        const SizedBox(
-                                                                          width:
-                                                                              4,
-                                                                        ),
-                                                                      Text(
-                                                                        _formatEur(
-                                                                          amountCents,
-                                                                        ),
-                                                                        style: Theme.of(
-                                                                          context,
-                                                                        ).textTheme.bodyMedium?.copyWith(
-                                                                          fontWeight:
-                                                                              FontWeight.w600,
-                                                                        ),
+                                                                        ],
                                                                       ),
-                                                                    ],
+                                                                    ),
                                                                   ),
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
-                                                        ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                                                );
+                                                              },
+                                                            ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
                                         );
                                       },
                                     );
                                   },
-                                );
-                              },
-                            ),
-                          ),
-                        );
-                      },
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -6170,11 +6248,15 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                           opacity: selectedCount == 0 ? 1 : 0,
                                           child: Text(
                                             'Selecteer minimaal 1 kind om verder te gaan',
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall?.copyWith(
-                                              color: onSurface(context, a68),
-                                            ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: onSurface(
+                                                    context,
+                                                    a68,
+                                                  ),
+                                                ),
                                           ),
                                         ),
                                       ),
@@ -6199,8 +6281,9 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                               .contains(child.id);
                                           return Material(
                                             type: MaterialType.transparency,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                             child: InkWell(
                                               borderRadius:
                                                   BorderRadius.circular(8),
@@ -6211,7 +6294,8 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                                         selectedChildIds
                                                             .where(
                                                               (id) =>
-                                                                  id != child.id,
+                                                                  id !=
+                                                                  child.id,
                                                             )
                                                             .toSet();
                                                   } else {
@@ -6364,6 +6448,8 @@ class _ExpenseDetailPage extends StatefulWidget {
     this.childIds = const [],
     this.childNames,
     this.otherParentName,
+    this.parentSplitSnapshot,
+    this.parentSplitMembers = const <_ParentSplitMember>[],
   });
 
   final String householdId;
@@ -6377,6 +6463,8 @@ class _ExpenseDetailPage extends StatefulWidget {
   final bool isPending;
   final Future<void> Function()? onManageNote;
   final String? otherParentName;
+  final ParentSplitSnapshot? parentSplitSnapshot;
+  final List<_ParentSplitMember> parentSplitMembers;
   final List<String> childIds;
   // Pre-resolved display names; when non-null the Voor section renders
   // synchronously without a FutureBuilder round-trip.
@@ -6417,40 +6505,6 @@ class _ExpenseDetailPage extends StatefulWidget {
       buf.write(euroStr[i]);
     }
     return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
-  }
-
-  /// Read-only line: [createdBy] share vs co-parent, from snapshot bps; legacy
-  /// or invalid data → 50/50. Labels from [paidByName] / [otherParentName] with
-  /// role fallbacks.
-  static String _formatParentSplitInfoLine(
-    Map<String, dynamic>? ed,
-    String fallbackCreatedBy, {
-    required String paidByName,
-    String? otherParentName,
-    required String viewerUid,
-  }) {
-    final createdBy =
-        ((ed?['createdBy'] as String?)?.trim() ?? fallbackCreatedBy).trim();
-    final v = viewerUid.trim();
-    final o = (otherParentName ?? '').trim();
-    final betalerLabel =
-        paidByName.trim().isNotEmpty ? paidByName.trim() : 'Betaler';
-    final coLabel =
-        v == createdBy
-            ? (o.isNotEmpty ? o : 'Co-ouder')
-            : 'Co-ouder';
-    if (ed == null || createdBy.isEmpty) {
-      return '$betalerLabel 50% · $coLabel 50%';
-    }
-    final snap = ParentSplitSnapshot.tryReadFromExpense(ed);
-    if (snap == null || !snap.participantUids.contains(createdBy)) {
-      return '$betalerLabel 50% · $coLabel 50%';
-    }
-    final betalerBps = createdBy == snap.participantUids[0]
-        ? snap.share0Bps
-        : snap.share1Bps;
-    final pBet = betalerBps ~/ 100;
-    return '$betalerLabel $pBet% · $coLabel ${100 - pBet}%';
   }
 
   static String _prefillAmountForEdit(int cents) {
@@ -6579,7 +6633,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   List<String> _allChildIds(List<_ChildItem> children) =>
       children.map((c) => c.id).toList(growable: false);
 
-  bool _isAllChildrenSelection(List<_ChildItem> children, List<String> childIds) {
+  bool _isAllChildrenSelection(
+    List<_ChildItem> children,
+    List<String> childIds,
+  ) {
     final allChildIds = _allChildIds(children);
     return allChildIds.isNotEmpty &&
         childIds.length == allChildIds.length &&
@@ -6700,8 +6757,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
           widget.currentAmountCents;
       final titleChanged = title != currentTitle;
       final amountChanged = parsed != fromCents;
-      final childIdsChanged =
-          !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
+      final childIdsChanged = !_sameChildIds(
+        effectiveSelectedChildIds,
+        currentChildIds,
+      );
       if (!amountChanged && !titleChanged && !childIdsChanged) {
         if (!mounted) return;
         setState(() {
@@ -6765,15 +6824,17 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   Widget build(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
     final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
-    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
-    );
-    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
-      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
-      fontWeight: FontWeight.w400,
-    );
+    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(
+          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+        );
+    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge
+        ?.copyWith(
+          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
+          fontWeight: FontWeight.w400,
+        );
     final titleTrimmed = _titleController.text.trim();
     final titleErrorHint = titleTrimmed.isEmpty
         ? 'Vul een titel in'
@@ -6913,11 +6974,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                         _effectiveSelectedChildIds(children);
                     final childSelectionSummary =
                         _isAllChildrenSelection(
-                              children,
-                              effectiveSelectedChildIds,
-                            )
-                            ? 'Alle kinderen'
-                            : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+                          children,
+                          effectiveSelectedChildIds,
+                        )
+                        ? 'Alle kinderen'
+                        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
                     return Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Column(
@@ -7031,6 +7092,8 @@ class _EditRecurringMasterExpenseDialog extends StatefulWidget {
     required this.currentTitle,
     required this.currentChildIds,
     required this.currentDueDayOfMonth,
+    required this.currentParentSplitSnapshot,
+    required this.parentSplitMembersFuture,
     required this.childrenFuture,
   });
 
@@ -7044,6 +7107,8 @@ class _EditRecurringMasterExpenseDialog extends StatefulWidget {
   /// referentie voor change-detectie bij save.
   final int currentDueDayOfMonth;
 
+  final ParentSplitSnapshot? currentParentSplitSnapshot;
+  final Future<List<_ParentSplitMember>> parentSplitMembersFuture;
   final Future<List<_ChildItem>> childrenFuture;
 
   @override
@@ -7065,6 +7130,10 @@ class _EditRecurringMasterExpenseDialogState
   bool _hasCustomChildSelection = false;
   List<String> _customSelectedChildIds = const <String>[];
   late int _selectedDueDay;
+  bool _loadingParentSplit = true;
+  List<_ParentSplitMember> _parentSplitMembers = const [];
+  ParentSplitSnapshot? _parentSplitSnapshot;
+  bool _didChangeParentSplit = false;
 
   /// Volledige datum zoals de gebruiker die in deze dialog-sessie heeft
   /// gekozen. `null` zolang de picker niet is geopend of de gebruiker
@@ -7087,6 +7156,7 @@ class _EditRecurringMasterExpenseDialogState
     _childrenFuture = widget.childrenFuture;
     final rawDue = widget.currentDueDayOfMonth;
     _selectedDueDay = rawDue < 1 ? 1 : (rawDue > 31 ? 31 : rawDue);
+    _loadParentSplit();
   }
 
   @override
@@ -7152,10 +7222,56 @@ class _EditRecurringMasterExpenseDialogState
     });
   }
 
+  Future<void> _loadParentSplit() async {
+    try {
+      final members = await widget.parentSplitMembersFuture;
+      final memberUids = members.map((m) => m.uid).toSet();
+      var snapshot = widget.currentParentSplitSnapshot;
+      if (snapshot == null ||
+          snapshot.participantUids.toSet().difference(memberUids).isNotEmpty) {
+        snapshot = _neutralParentSplitForMembers(members);
+      }
+      if (!mounted) return;
+      setState(() {
+        _parentSplitMembers = members;
+        _parentSplitSnapshot = snapshot;
+        _loadingParentSplit = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingParentSplit = false);
+    }
+  }
+
+  Future<void> _openParentSplitDialog() async {
+    final snapshot = _parentSplitSnapshot;
+    if (snapshot == null ||
+        _parentSplitMembers.length != kParentSplitParticipantCount) {
+      return;
+    }
+    final picked = await showDialog<ParentSplitSnapshot>(
+      context: context,
+      builder: (_) => _RecurringParentSplitDialog(
+        members: _parentSplitMembers,
+        initialSnapshot: snapshot,
+        viewerUid: FirebaseAuth.instance.currentUser?.uid,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _parentSplitSnapshot = picked;
+      _didChangeParentSplit = true;
+      _showNoChangesMessage = false;
+    });
+  }
+
   List<String> _allChildIds(List<_ChildItem> children) =>
       children.map((c) => c.id).toList(growable: false);
 
-  bool _isAllChildrenSelection(List<_ChildItem> children, List<String> childIds) {
+  bool _isAllChildrenSelection(
+    List<_ChildItem> children,
+    List<String> childIds,
+  ) {
     final allChildIds = _allChildIds(children);
     return allChildIds.isNotEmpty &&
         childIds.length == allChildIds.length &&
@@ -7216,6 +7332,7 @@ class _EditRecurringMasterExpenseDialogState
     final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
     final children = await _childrenFuture;
     final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
+    final parentSplitSnapshot = _parentSplitSnapshot;
     if (title.isEmpty) {
       if (mounted) {
         setState(() => _titleHasError = true);
@@ -7246,6 +7363,13 @@ class _EditRecurringMasterExpenseDialogState
       );
       return;
     }
+    if (parentSplitSnapshot == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Uitgavenverdeling kon niet laden.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     if (!await _checkCanWriteNow()) {
       if (!mounted) return;
@@ -7266,7 +7390,9 @@ class _EditRecurringMasterExpenseDialogState
       final masterRef = FirebaseFirestore.instance.doc(
         'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
       );
-      final fresh = await masterRef.get(const GetOptions(source: Source.server));
+      final fresh = await masterRef.get(
+        const GetOptions(source: Source.server),
+      );
       final freshData = fresh.data();
       final currentTitle =
           ((freshData?['title'] as String?) ?? widget.currentTitle).trim();
@@ -7278,8 +7404,22 @@ class _EditRecurringMasterExpenseDialogState
           widget.currentAmountCents;
       final titleChanged = title != currentTitle;
       final amountChanged = parsed != fromCents;
-      final childIdsChanged =
-          !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
+      final childIdsChanged = !_sameChildIds(
+        effectiveSelectedChildIds,
+        currentChildIds,
+      );
+      final currentParentSplitSnapshot =
+          _tryReadRecurringParentSplit(freshData) ??
+          widget.currentParentSplitSnapshot;
+      final splitChanged =
+          _didChangeParentSplit ||
+          currentParentSplitSnapshot == null ||
+          currentParentSplitSnapshot.share0Bps !=
+              parentSplitSnapshot.share0Bps ||
+          !_sameChildIds(
+            currentParentSplitSnapshot.participantUids,
+            parentSplitSnapshot.participantUids,
+          );
       // Elke interactie met de due-date-picker telt als schedule-wijziging:
       // de gekozen datum is semantisch de eerstvolgende concrete datum
       // waarop deze master weer moet vallen, dus `dueDayOfMonth` én
@@ -7288,6 +7428,7 @@ class _EditRecurringMasterExpenseDialogState
       if (!amountChanged &&
           !titleChanged &&
           !childIdsChanged &&
+          !splitChanged &&
           !scheduleChanged) {
         if (!mounted) return;
         setState(() {
@@ -7304,6 +7445,9 @@ class _EditRecurringMasterExpenseDialogState
       if (titleChanged) updateMap['title'] = title;
       if (amountChanged) updateMap['amountCents'] = parsed;
       if (childIdsChanged) updateMap['childIds'] = effectiveSelectedChildIds;
+      if (splitChanged) {
+        updateMap.addAll(_recurringParentSplitFields(parentSplitSnapshot));
+      }
       if (scheduleChanged) {
         // De picked-datum is de eerstvolgende concrete vervaldatum.
         // `dueDayOfMonth` volgt de dagcomponent; `materializeFromDate`
@@ -7341,19 +7485,27 @@ class _EditRecurringMasterExpenseDialogState
   Widget build(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
     final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
-    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
-    );
-    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
-      color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
-      fontWeight: FontWeight.w400,
-    );
+    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(
+          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+        );
+    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge
+        ?.copyWith(
+          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
+          fontWeight: FontWeight.w400,
+        );
     final titleTrimmed = _titleController.text.trim();
     final titleErrorHint = titleTrimmed.isEmpty
         ? 'Vul een titel in'
         : 'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.';
+    final parentSplitSummary = _parentSplitSnapshot == null
+        ? (_loadingParentSplit ? 'Laden…' : 'Niet beschikbaar')
+        : _formatParentSplitCompact(
+            _parentSplitSnapshot!,
+            FirebaseAuth.instance.currentUser?.uid,
+          );
     return Align(
       alignment: const Alignment(0, -0.15),
       child: SizedBox(
@@ -7467,8 +7619,7 @@ class _EditRecurringMasterExpenseDialogState
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
                               ),
-                              tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: const Text('Wijzigen'),
                           ),
@@ -7498,11 +7649,11 @@ class _EditRecurringMasterExpenseDialogState
                         _effectiveSelectedChildIds(children);
                     final childSelectionSummary =
                         _isAllChildrenSelection(
-                              children,
-                              effectiveSelectedChildIds,
-                            )
-                            ? 'Alle kinderen'
-                            : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+                          children,
+                          effectiveSelectedChildIds,
+                        )
+                        ? 'Alle kinderen'
+                        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
                     return Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Column(
@@ -7548,6 +7699,47 @@ class _EditRecurringMasterExpenseDialogState
                     );
                   },
                 ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Verdeling:',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              parentSplitSummary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed:
+                                (_saving ||
+                                    _loadingParentSplit ||
+                                    _parentSplitSnapshot == null)
+                                ? null
+                                : _openParentSplitDialog,
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Wijzigen'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 if (_showNoChangesMessage)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -7569,7 +7761,9 @@ class _EditRecurringMasterExpenseDialogState
               child: const Text('Annuleren'),
             ),
             ElevatedButton(
-              onPressed: _saving ? null : () => _submit(),
+              onPressed: (_saving || _loadingParentSplit)
+                  ? null
+                  : () => _submit(),
               child: SizedBox(
                 width: 82,
                 child: Stack(
@@ -7793,9 +7987,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(
                           'Titel',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: onSurface(context, a70),
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: onSurface(context, a70)),
                         ),
                         subtitle: Text(
                           currentTitle.isEmpty ? widget.title : currentTitle,
@@ -7823,25 +8016,37 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     builder: (context, expSnap) {
                       final ed = expSnap.data?.data();
                       final currentChildIds =
-                          (ed?['childIds'] as List?)?.whereType<String>().toList() ??
+                          (ed?['childIds'] as List?)
+                              ?.whereType<String>()
+                              .toList() ??
                           widget.childIds;
-                      final line = _ExpenseDetailPage._formatParentSplitInfoLine(
-                        ed,
-                        widget.createdByUid,
-                        paidByName: widget.paidByName,
-                        otherParentName: widget.otherParentName,
-                        viewerUid: widget.uid,
-                      );
-                      final splitLine = Padding(
-                        padding: const EdgeInsets.only(top: 2, bottom: 2),
-                        child: Text(
-                          line,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: onSurface(context, a60),
-                            height: 1.25,
-                          ),
-                        ),
-                      );
+                      final parentSplitSnapshot =
+                          ParentSplitSnapshot.tryReadFromExpense(
+                            ed ?? const {},
+                          ) ??
+                          widget.parentSplitSnapshot;
+                      final effectiveSplit =
+                          parentSplitSnapshot ??
+                          _neutralParentSplitForMembers(
+                            widget.parentSplitMembers,
+                          );
+                      final splitLine = effectiveSplit == null
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 2, bottom: 2),
+                              child: Text(
+                                _formatParentSplitNamed(
+                                  effectiveSplit,
+                                  widget.parentSplitMembers,
+                                  widget.uid,
+                                ),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: onSurface(context, a60),
+                                      height: 1.25,
+                                    ),
+                              ),
+                            );
                       if (currentChildIds.isEmpty) {
                         return splitLine;
                       }
@@ -8052,7 +8257,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final data = snap.data?.data();
                       final note = (data?['note'] as String?)?.trim() ?? '';
                       final hasNoteLive = note.isNotEmpty;
-                      final isCreator = widget.uid == widget.createdByUid.trim();
+                      final isCreator =
+                          widget.uid == widget.createdByUid.trim();
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -8101,7 +8307,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               ),
                             ),
                           if (isCreator)
-                            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            StreamBuilder<
+                              DocumentSnapshot<Map<String, dynamic>>
+                            >(
                               stream: FirebaseFirestore.instance
                                   .doc(
                                     'households/${widget.householdId}/expenses/${widget.expenseId}',
@@ -8138,9 +8346,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     ),
                                     label: Text(
                                       'Uitgave bewerken',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
                                     ),
                                   ),
                                 );
@@ -8333,6 +8541,7 @@ class _WijzigRow {
     required this.childIds,
     required this.createdBy,
     required this.createdAt,
+    required this.parentSplitSnapshot,
   });
 
   final String expenseId;
@@ -8346,6 +8555,7 @@ class _WijzigRow {
   final List<String> childIds;
   final String createdBy;
   final DateTime? createdAt;
+  final ParentSplitSnapshot? parentSplitSnapshot;
 }
 
 /// Keeps each Logboek [TabBarView] page subtree alive to reduce rebuild work when swiping.
@@ -8583,17 +8793,15 @@ class _LogboekPageState extends State<_LogboekPage>
     _modeTabController = TabController(length: 3, vsync: this);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
-    Future.wait([
-      _loadChildren(),
-      _loadParents(),
-      _expensesStream.first,
-    ]).then((_) {
-      if (!mounted) return;
-      setState(() => _initialDataReady = true);
-      _dismissInitialHoldOverlayWhenReady();
-    }).catchError((error, stackTrace) {
-      debugPrint('Logboek initial expenses load error: $error');
-    });
+    Future.wait([_loadChildren(), _loadParents(), _expensesStream.first])
+        .then((_) {
+          if (!mounted) return;
+          setState(() => _initialDataReady = true);
+          _dismissInitialHoldOverlayWhenReady();
+        })
+        .catchError((error, stackTrace) {
+          debugPrint('Logboek initial expenses load error: $error');
+        });
     _checkOffline();
   }
 
@@ -8769,10 +8977,7 @@ class _LogboekPageState extends State<_LogboekPage>
       backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       builder: (sheetContext) {
-        final maxH = min(
-          480.0,
-          MediaQuery.of(sheetContext).size.height * 0.65,
-        );
+        final maxH = min(480.0, MediaQuery.of(sheetContext).size.height * 0.65);
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
@@ -8795,9 +9000,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             Expanded(
                               child: Text(
                                 'Filter',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -8824,9 +9027,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             alignment: Alignment.centerLeft,
                             child: Text(
                               'Ouder',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(color: onSurface(context, a60)),
                             ),
                           ),
@@ -8873,9 +9074,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             alignment: Alignment.centerLeft,
                             child: Text(
                               'Kind',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(color: onSurface(context, a60)),
                             ),
                           ),
@@ -8921,9 +9120,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           alignment: Alignment.centerLeft,
                           child: Text(
                             'Periode',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelLarge
+                            style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(color: onSurface(context, a60)),
                           ),
                         ),
@@ -8994,10 +9191,7 @@ class _LogboekPageState extends State<_LogboekPage>
       backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       builder: (sheetContext) {
-        final maxH = min(
-          480.0,
-          MediaQuery.of(sheetContext).size.height * 0.65,
-        );
+        final maxH = min(480.0, MediaQuery.of(sheetContext).size.height * 0.65);
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
@@ -9020,9 +9214,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             Expanded(
                               child: Text(
                                 'Filter',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -9048,9 +9240,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             alignment: Alignment.centerLeft,
                             child: Text(
                               'Ouder',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(color: onSurface(context, a60)),
                             ),
                           ),
@@ -9081,7 +9271,9 @@ class _LogboekPageState extends State<_LogboekPage>
                                   showCheckmark: false,
                                   onSelected: (v) {
                                     setState(() {
-                                      _paymentFilterParentUid = v ? p.uid : null;
+                                      _paymentFilterParentUid = v
+                                          ? p.uid
+                                          : null;
                                     });
                                     setModalState(() {});
                                   },
@@ -9094,9 +9286,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           alignment: Alignment.centerLeft,
                           child: Text(
                             'Periode',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelLarge
+                            style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(color: onSurface(context, a60)),
                           ),
                         ),
@@ -9167,10 +9357,7 @@ class _LogboekPageState extends State<_LogboekPage>
       backgroundColor: Theme.of(context).colorScheme.surface,
       isScrollControlled: true,
       builder: (sheetContext) {
-        final maxH = min(
-          480.0,
-          MediaQuery.of(sheetContext).size.height * 0.65,
-        );
+        final maxH = min(480.0, MediaQuery.of(sheetContext).size.height * 0.65);
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
@@ -9193,9 +9380,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             Expanded(
                               child: Text(
                                 'Filter',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -9221,9 +9406,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             alignment: Alignment.centerLeft,
                             child: Text(
                               'Ouder',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelLarge
+                              style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(color: onSurface(context, a60)),
                             ),
                           ),
@@ -9254,7 +9437,9 @@ class _LogboekPageState extends State<_LogboekPage>
                                   showCheckmark: false,
                                   onSelected: (v) {
                                     setState(() {
-                                      _wijzigFilterEditedByUid = v ? p.uid : null;
+                                      _wijzigFilterEditedByUid = v
+                                          ? p.uid
+                                          : null;
                                     });
                                     setModalState(() {});
                                   },
@@ -9267,9 +9452,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           alignment: Alignment.centerLeft,
                           child: Text(
                             'Periode',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelLarge
+                            style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(color: onSurface(context, a60)),
                           ),
                         ),
@@ -9395,7 +9578,10 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   List<({String label, String value})> _paymentExportSummaryRows() => [
-    (label: 'Ouder', value: _paymentExportParentLabelFor(_paymentFilterParentUid)),
+    (
+      label: 'Ouder',
+      value: _paymentExportParentLabelFor(_paymentFilterParentUid),
+    ),
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
@@ -9407,8 +9593,7 @@ class _LogboekPageState extends State<_LogboekPage>
     (label: 'Periode', value: _expenseExportPeriodLabel()),
   ];
 
-  static String _csvEscape(String value) =>
-      '"${value.replaceAll('"', '""')}"';
+  static String _csvEscape(String value) => '"${value.replaceAll('"', '""')}"';
 
   static String _csvLine(List<String> values) =>
       values.map(_csvEscape).join(';');
@@ -9491,7 +9676,9 @@ class _LogboekPageState extends State<_LogboekPage>
     List<String> childIds,
     Map<String, String> childNamesById,
   ) {
-    return childIds.map((id) => childNamesById[id] ?? 'Verwijderd kind').toList();
+    return childIds
+        .map((id) => childNamesById[id] ?? 'Verwijderd kind')
+        .toList();
   }
 
   String _expenseExportFilename() {
@@ -9568,19 +9755,24 @@ class _LogboekPageState extends State<_LogboekPage>
     return 'Co-parent';
   }
 
-  Future<List<({
-    DateTime? createdAt,
-    String title,
-    String paidByUserId,
-    String paidByName,
-    int totalAmountCents,
-    int childAmountCents,
-    String divisionLabel,
-    String selectedChildLabel,
-    String allChildrenLabel,
-    int displayCents,
-    String childrenLabel,
-  })>> _loadExpenseExportRows() async {
+  Future<
+    List<
+      ({
+        DateTime? createdAt,
+        String title,
+        String paidByUserId,
+        String paidByName,
+        int totalAmountCents,
+        int childAmountCents,
+        String divisionLabel,
+        String selectedChildLabel,
+        String allChildrenLabel,
+        int displayCents,
+        String childrenLabel,
+      })
+    >
+  >
+  _loadExpenseExportRows() async {
     final filterChildId = _filterChildId;
     final filterParentUid = _filterParentUid;
     final periodFilter = _periodFilter;
@@ -9601,49 +9793,54 @@ class _LogboekPageState extends State<_LogboekPage>
       filterEnd: filterEnd,
     );
     final snap = await query.get();
-    return snap.docs.map((doc) {
-      final data = doc.data();
-      final title = (data['title'] as String?)?.trim() ?? '(zonder naam)';
-      final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
-      final childIds =
-          (data['childIds'] as List?)?.whereType<String>().toList() ??
-          const <String>[];
-      final createdBy = (data['createdBy'] as String?)?.trim() ?? '';
-      final createdAtRaw = data['createdAt'];
-      DateTime? createdAt;
-      if (createdAtRaw is Timestamp) {
-        createdAt = createdAtRaw.toDate().toLocal();
-      } else if (createdAtRaw is DateTime) {
-        createdAt = createdAtRaw.toLocal();
-      }
+    return snap.docs
+        .map((doc) {
+          final data = doc.data();
+          final title = (data['title'] as String?)?.trim() ?? '(zonder naam)';
+          final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
+          final childIds =
+              (data['childIds'] as List?)?.whereType<String>().toList() ??
+              const <String>[];
+          final createdBy = (data['createdBy'] as String?)?.trim() ?? '';
+          final createdAtRaw = data['createdAt'];
+          DateTime? createdAt;
+          if (createdAtRaw is Timestamp) {
+            createdAt = createdAtRaw.toDate().toLocal();
+          } else if (createdAtRaw is DateTime) {
+            createdAt = createdAtRaw.toLocal();
+          }
 
-      final totalAmountCents = amountCents;
-      final childAmountCents = filterChildId != null && childIds.isNotEmpty
-          ? (amountCents / childIds.length).round()
-          : amountCents;
-      final paidByName = _expenseExportPaidByName(createdBy, parentNamesByUid);
-      final childNames = _expenseExportChildNames(childIds, childNamesById);
-      final nKids = childIds.length;
-      final divisionLabel = nKids > 0 ? '1/$nKids' : '';
-      final selectedChildLabel = filterChildId == null
-          ? ''
-          : (childNamesById[filterChildId] ?? 'Verwijderd kind');
-      final allChildrenLabel = childNames.join(' | ');
+          final totalAmountCents = amountCents;
+          final childAmountCents = filterChildId != null && childIds.isNotEmpty
+              ? (amountCents / childIds.length).round()
+              : amountCents;
+          final paidByName = _expenseExportPaidByName(
+            createdBy,
+            parentNamesByUid,
+          );
+          final childNames = _expenseExportChildNames(childIds, childNamesById);
+          final nKids = childIds.length;
+          final divisionLabel = nKids > 0 ? '1/$nKids' : '';
+          final selectedChildLabel = filterChildId == null
+              ? ''
+              : (childNamesById[filterChildId] ?? 'Verwijderd kind');
+          final allChildrenLabel = childNames.join(' | ');
 
-      return (
-        createdAt: createdAt,
-        title: title,
-        paidByUserId: createdBy,
-        paidByName: paidByName,
-        totalAmountCents: totalAmountCents,
-        childAmountCents: childAmountCents,
-        divisionLabel: divisionLabel,
-        selectedChildLabel: selectedChildLabel,
-        allChildrenLabel: allChildrenLabel,
-        displayCents: childAmountCents,
-        childrenLabel: allChildrenLabel,
-      );
-    }).toList(growable: false);
+          return (
+            createdAt: createdAt,
+            title: title,
+            paidByUserId: createdBy,
+            paidByName: paidByName,
+            totalAmountCents: totalAmountCents,
+            childAmountCents: childAmountCents,
+            divisionLabel: divisionLabel,
+            selectedChildLabel: selectedChildLabel,
+            allChildrenLabel: allChildrenLabel,
+            displayCents: childAmountCents,
+            childrenLabel: allChildrenLabel,
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> _exportExpensesCsv() async {
@@ -9668,12 +9865,10 @@ class _LogboekPageState extends State<_LogboekPage>
         if (trimmed.isEmpty) return 0;
         return trimmed.split(' | ').length;
       }
+
       final selectedChildLabel = rows
           .map((row) => row.selectedChildLabel.trim())
-          .firstWhere(
-            (label) => label.isNotEmpty,
-            orElse: () => '',
-          );
+          .firstWhere((label) => label.isNotEmpty, orElse: () => '');
       final selectedChildAmountHeader = selectedChildLabel.isNotEmpty
           ? 'Bedrag voor $selectedChildLabel'
           : 'Bedrag voor kind';
@@ -9791,14 +9986,18 @@ class _LogboekPageState extends State<_LogboekPage>
       String pdfPeriodValue(DateTime start, DateTime end) {
         final startLabel = _fmtDateWithYear(start);
         final endLabel = _fmtDateWithYear(end);
-        return startLabel == endLabel ? startLabel : '$startLabel t/m $endLabel';
+        return startLabel == endLabel
+            ? startLabel
+            : '$startLabel t/m $endLabel';
       }
 
       ({String label, String value}) pdfPeriodSummaryRow() {
         if (frozenPeriodFilter != _PeriodFilter.all &&
             frozenFilterStart != null &&
             frozenFilterEnd != null) {
-          final inclusiveEnd = frozenFilterEnd.subtract(const Duration(days: 1));
+          final inclusiveEnd = frozenFilterEnd.subtract(
+            const Duration(days: 1),
+          );
           return (
             label: 'Periode',
             value: pdfPeriodValue(frozenFilterStart, inclusiveEnd),
@@ -9845,33 +10044,34 @@ class _LogboekPageState extends State<_LogboekPage>
         0,
         (totalCents, row) => totalCents + row.childAmountCents,
       );
-      final expenseTotalRows = <({String label, int amountCents, bool emphasize})>[
-        (
-          label: 'Totaal volledige uitgaven',
-          amountCents: fullExpensesTotalCents,
-          emphasize: true,
-        ),
-        if (hasSelectedChild)
-          (
-            label: selectedChildLabel.isNotEmpty
-                ? 'Totaal voor $selectedChildLabel'
-                : 'Totaal voor kind',
-            amountCents: selectedChildTotalCents,
-            emphasize: false,
-          ),
-        if (frozenFilterParentUid == null)
-          for (final parent in _parentItems)
+      final expenseTotalRows =
+          <({String label, int amountCents, bool emphasize})>[
             (
-              label: 'Totaal uitgaven door ${parent.name}',
-              amountCents: rows
-                  .where((row) => row.paidByUserId == parent.uid)
-                  .fold<int>(
-                    0,
-                    (totalCents, row) => totalCents + row.totalAmountCents,
-                  ),
-              emphasize: false,
+              label: 'Totaal volledige uitgaven',
+              amountCents: fullExpensesTotalCents,
+              emphasize: true,
             ),
-      ];
+            if (hasSelectedChild)
+              (
+                label: selectedChildLabel.isNotEmpty
+                    ? 'Totaal voor $selectedChildLabel'
+                    : 'Totaal voor kind',
+                amountCents: selectedChildTotalCents,
+                emphasize: false,
+              ),
+            if (frozenFilterParentUid == null)
+              for (final parent in _parentItems)
+                (
+                  label: 'Totaal uitgaven door ${parent.name}',
+                  amountCents: rows
+                      .where((row) => row.paidByUserId == parent.uid)
+                      .fold<int>(
+                        0,
+                        (totalCents, row) => totalCents + row.totalAmountCents,
+                      ),
+                  emphasize: false,
+                ),
+          ];
       final summaryRows = [
         (label: 'Tab', value: 'Uitgaven'),
         (label: 'Ouder', value: pdfParentLabel()),
@@ -10022,9 +10222,7 @@ class _LogboekPageState extends State<_LogboekPage>
                       4: pw.Alignment.centerRight,
                       5: pw.Alignment.centerRight,
                     }
-                  : {
-                      3: pw.Alignment.centerRight,
-                    },
+                  : {3: pw.Alignment.centerRight},
               columnWidths: hasSelectedChild
                   ? {
                       0: const pw.FixedColumnWidth(64),
@@ -10137,15 +10335,13 @@ class _LogboekPageState extends State<_LogboekPage>
 
       final csv = StringBuffer()
         ..writeln(
-          _csvLine(
-            const [
-              'Datum',
-              'Bedrag',
-              'Betaald door',
-              'Ontvangen door',
-              'Status',
-            ],
-          ),
+          _csvLine(const [
+            'Datum',
+            'Bedrag',
+            'Betaald door',
+            'Ontvangen door',
+            'Status',
+          ]),
         );
 
       for (final row in rows) {
@@ -10186,14 +10382,19 @@ class _LogboekPageState extends State<_LogboekPage>
     }
   }
 
-  Future<List<({
-    DateTime? createdAt,
-    int amountCents,
-    String fromUserId,
-    String fromName,
-    String toName,
-    String statusLabel,
-  })>> _loadPaymentExportRows() async {
+  Future<
+    List<
+      ({
+        DateTime? createdAt,
+        int amountCents,
+        String fromUserId,
+        String fromName,
+        String toName,
+        String statusLabel,
+      })
+    >
+  >
+  _loadPaymentExportRows() async {
     final paymentFilterParentUid = _paymentFilterParentUid;
     final periodFilter = _periodFilter;
     final filterStart = _filterStart;
@@ -10212,28 +10413,30 @@ class _LogboekPageState extends State<_LogboekPage>
         )
         .toList(growable: false);
 
-    return docs.map((doc) {
-      final data = doc.data();
-      final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
-      final fromUserId = (data['fromUserId'] as String?)?.trim() ?? '';
-      final toUserId = (data['toUserId'] as String?)?.trim() ?? '';
-      final status = (data['status'] as String?)?.trim() ?? '';
-      final createdAtRaw = data['createdAt'];
-      DateTime? createdAt;
-      if (createdAtRaw is Timestamp) {
-        createdAt = createdAtRaw.toDate().toLocal();
-      } else if (createdAtRaw is DateTime) {
-        createdAt = createdAtRaw.toLocal();
-      }
-      return (
-        createdAt: createdAt,
-        amountCents: amountCents,
-        fromUserId: fromUserId,
-        fromName: _paymentPartyName(fromUserId),
-        toName: _paymentPartyName(toUserId),
-        statusLabel: status == 'confirmed' ? 'Bevestigd' : 'In afwachting',
-      );
-    }).toList(growable: false);
+    return docs
+        .map((doc) {
+          final data = doc.data();
+          final amountCents = (data['amountCents'] as num?)?.toInt() ?? 0;
+          final fromUserId = (data['fromUserId'] as String?)?.trim() ?? '';
+          final toUserId = (data['toUserId'] as String?)?.trim() ?? '';
+          final status = (data['status'] as String?)?.trim() ?? '';
+          final createdAtRaw = data['createdAt'];
+          DateTime? createdAt;
+          if (createdAtRaw is Timestamp) {
+            createdAt = createdAtRaw.toDate().toLocal();
+          } else if (createdAtRaw is DateTime) {
+            createdAt = createdAtRaw.toLocal();
+          }
+          return (
+            createdAt: createdAt,
+            amountCents: amountCents,
+            fromUserId: fromUserId,
+            fromName: _paymentPartyName(fromUserId),
+            toName: _paymentPartyName(toUserId),
+            statusLabel: status == 'confirmed' ? 'Bevestigd' : 'In afwachting',
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> _exportPaymentsPdf() async {
@@ -10264,7 +10467,9 @@ class _LogboekPageState extends State<_LogboekPage>
       String pdfPeriodValue(DateTime start, DateTime end) {
         final startLabel = _fmtDateWithYear(start);
         final endLabel = _fmtDateWithYear(end);
-        return startLabel == endLabel ? startLabel : '$startLabel t/m $endLabel';
+        return startLabel == endLabel
+            ? startLabel
+            : '$startLabel t/m $endLabel';
       }
 
       ({String label, String value}) pdfPeriodSummaryRow() {
@@ -10442,9 +10647,7 @@ class _LogboekPageState extends State<_LogboekPage>
               ),
               cellStyle: const pw.TextStyle(fontSize: 9),
               cellAlignment: pw.Alignment.centerLeft,
-              cellAlignments: {
-                1: pw.Alignment.centerRight,
-              },
+              cellAlignments: {1: pw.Alignment.centerRight},
               columnWidths: {
                 0: const pw.FixedColumnWidth(64),
                 1: const pw.FixedColumnWidth(64),
@@ -10493,7 +10696,9 @@ class _LogboekPageState extends State<_LogboekPage>
                             child: pw.Text(
                               paymentTotalRows[i].label,
                               style: pw.TextStyle(
-                                fontSize: paymentTotalRows[i].emphasize ? 10 : 9,
+                                fontSize: paymentTotalRows[i].emphasize
+                                    ? 10
+                                    : 9,
                                 fontWeight: paymentTotalRows[i].emphasize
                                     ? pw.FontWeight.bold
                                     : pw.FontWeight.normal,
@@ -10558,7 +10763,9 @@ class _LogboekPageState extends State<_LogboekPage>
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Geen bedragwijzigingen gevonden voor deze selectie.'),
+            content: Text(
+              'Geen bedragwijzigingen gevonden voor deze selectie.',
+            ),
           ),
         );
         return;
@@ -10566,16 +10773,14 @@ class _LogboekPageState extends State<_LogboekPage>
 
       final csv = StringBuffer()
         ..writeln(
-          _csvLine(
-            const [
-              'Datum wijziging',
-              'Titel',
-              'Van',
-              'Naar',
-              'Reden',
-              'Gewijzigd door',
-            ],
-          ),
+          _csvLine(const [
+            'Datum wijziging',
+            'Titel',
+            'Van',
+            'Naar',
+            'Reden',
+            'Gewijzigd door',
+          ]),
         );
 
       for (final row in rows) {
@@ -10644,7 +10849,9 @@ class _LogboekPageState extends State<_LogboekPage>
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Geen bedragwijzigingen gevonden voor deze selectie.'),
+            content: Text(
+              'Geen bedragwijzigingen gevonden voor deze selectie.',
+            ),
           ),
         );
         return;
@@ -10659,7 +10866,9 @@ class _LogboekPageState extends State<_LogboekPage>
       String pdfPeriodValue(DateTime start, DateTime end) {
         final startLabel = _fmtDateWithYear(start);
         final endLabel = _fmtDateWithYear(end);
-        return startLabel == endLabel ? startLabel : '$startLabel t/m $endLabel';
+        return startLabel == endLabel
+            ? startLabel
+            : '$startLabel t/m $endLabel';
       }
 
       ({String label, String value}) pdfPeriodSummaryRow() {
@@ -10829,8 +11038,9 @@ class _LogboekPageState extends State<_LogboekPage>
               data: rows
                   .map(
                     (row) => [
-                      _ExpenseDetailPage._formatDateTime(row.editedAt)
-                          .replaceAll(' • ', ' - '),
+                      _ExpenseDetailPage._formatDateTime(
+                        row.editedAt,
+                      ).replaceAll(' • ', ' - '),
                       row.title,
                       _fmtCsvAmount(row.fromAmountCents),
                       _fmtCsvAmount(row.toAmountCents),
@@ -11171,14 +11381,12 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   Future<List<_WijzigRow>> _loadWijzigRows(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
-    {
-      _PeriodFilter? periodFilter,
-      DateTime? filterStart,
-      DateTime? filterEnd,
-      String? editedByUid,
-    }
-  ) async {
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs, {
+    _PeriodFilter? periodFilter,
+    DateTime? filterStart,
+    DateTime? filterEnd,
+    String? editedByUid,
+  }) async {
     final effectivePeriodFilter = periodFilter ?? _periodFilter;
     final effectiveFilterStart = filterStart ?? _filterStart;
     final effectiveFilterEnd = filterEnd ?? _filterEnd;
@@ -11241,6 +11449,7 @@ class _LogboekPageState extends State<_LogboekPage>
               childIds: childIds,
               createdBy: createdBy,
               createdAt: createdAt,
+              parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(e),
             ),
           );
         }
@@ -11545,6 +11754,15 @@ class _LogboekPageState extends State<_LogboekPage>
                                   )
                                 : null,
                             otherParentName: widget.otherName,
+                            parentSplitSnapshot: row.parentSplitSnapshot,
+                            parentSplitMembers: _parentItems
+                                .map(
+                                  (p) => _ParentSplitMember(
+                                    uid: p.uid,
+                                    label: p.name,
+                                  ),
+                                )
+                                .toList(growable: false),
                             childIds: row.childIds,
                             childNames: row.childIds
                                 .map(
@@ -11563,7 +11781,9 @@ class _LogboekPageState extends State<_LogboekPage>
                         key: ValueKey(
                           '${row.expenseId}_${row.editedAt.toIso8601String()}',
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                        ),
                         dense: true,
                         minTileHeight: _logboekListRowExtent,
                         minVerticalPadding: 0,
@@ -11606,10 +11826,9 @@ class _LogboekPageState extends State<_LogboekPage>
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final docs =
-            List<QueryDocumentSnapshot<Map<String, dynamic>>>.of(
-              snap.data!.docs,
-            )..sort(_compareExpenseDocsStable);
+        final docs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.of(
+          snap.data!.docs,
+        )..sort(_compareExpenseDocsStable);
         if (docs.isEmpty) {
           return const Align(
             alignment: Alignment.topLeft,
@@ -11624,108 +11843,119 @@ class _LogboekPageState extends State<_LogboekPage>
             color: outlineV(context, a40),
           ),
           itemBuilder: (context, i) {
-              final d = docs[i];
-              final e = d.data();
-              final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
-              final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
-              final createdAtRaw = e['createdAt'];
-              DateTime? createdAt;
-              if (createdAtRaw is Timestamp) {
-                createdAt = createdAtRaw.toDate().toLocal();
-              } else if (createdAtRaw is DateTime) {
-                createdAt = createdAtRaw.toLocal();
-              }
-              final childIds =
-                  (e['childIds'] as List?)?.whereType<String>().toList() ??
-                  const <String>[];
-              final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-              final paidByName = createdBy == widget.uid
-                  ? (widget.myName ?? 'Jij')
-                  : (widget.otherName ?? 'Co-parent');
-              final nKids = childIds.length;
-              final isFiltered = _filterChildId != null && nKids > 0;
-              final displayCents = isFiltered
-                  ? (amountCents / nKids).round()
-                  : amountCents;
-              final dateStr = _fmtDate(createdAt);
-              final subtitleStr = '$paidByName · $dateStr';
-              return SizedBox(
-                height: _logboekListRowExtent,
-                child: Material(
-                  type: MaterialType.transparency,
+            final d = docs[i];
+            final e = d.data();
+            final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+            final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+            final createdAtRaw = e['createdAt'];
+            DateTime? createdAt;
+            if (createdAtRaw is Timestamp) {
+              createdAt = createdAtRaw.toDate().toLocal();
+            } else if (createdAtRaw is DateTime) {
+              createdAt = createdAtRaw.toLocal();
+            }
+            final childIds =
+                (e['childIds'] as List?)?.whereType<String>().toList() ??
+                const <String>[];
+            final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+            final paidByName = createdBy == widget.uid
+                ? (widget.myName ?? 'Jij')
+                : (widget.otherName ?? 'Co-parent');
+            final nKids = childIds.length;
+            final isFiltered = _filterChildId != null && nKids > 0;
+            final displayCents = isFiltered
+                ? (amountCents / nKids).round()
+                : amountCents;
+            final dateStr = _fmtDate(createdAt);
+            final subtitleStr = '$paidByName · $dateStr';
+            return SizedBox(
+              height: _logboekListRowExtent,
+              child: Material(
+                type: MaterialType.transparency,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    highlightColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.10),
-                    splashColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.08),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _ExpenseDetailPage(
-                          householdId: widget.householdId,
-                          expenseId: d.id,
-                          uid: widget.uid,
-                          createdByUid: createdBy,
-                          title: title,
-                          amountCents: amountCents,
-                          paidByName: paidByName,
-                          createdAt: createdAt,
-                          isPending: false,
-                          onManageNote: createdBy == widget.uid
-                              ? () => _doManagePrivateNote(
-                                  context,
-                                  householdId: widget.householdId,
-                                  expenseId: d.id,
-                                  uid: widget.uid,
-                                )
-                              : null,
-                          otherParentName: widget.otherName,
-                          childIds: childIds,
-                          childNames: childIds
-                              .map(
-                                (id) =>
-                                    _children
-                                        .where((c) => c.id == id)
-                                        .map((c) => c.name)
-                                        .firstOrNull ??
-                                    'Verwijderd kind',
+                  highlightColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.10),
+                  splashColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.08),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _ExpenseDetailPage(
+                        householdId: widget.householdId,
+                        expenseId: d.id,
+                        uid: widget.uid,
+                        createdByUid: createdBy,
+                        title: title,
+                        amountCents: amountCents,
+                        paidByName: paidByName,
+                        createdAt: createdAt,
+                        isPending: false,
+                        onManageNote: createdBy == widget.uid
+                            ? () => _doManagePrivateNote(
+                                context,
+                                householdId: widget.householdId,
+                                expenseId: d.id,
+                                uid: widget.uid,
                               )
-                              .toList(),
+                            : null,
+                        otherParentName: widget.otherName,
+                        parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(
+                          e,
                         ),
+                        parentSplitMembers: _parentItems
+                            .map(
+                              (p) => _ParentSplitMember(
+                                uid: p.uid,
+                                label: p.name,
+                              ),
+                            )
+                            .toList(growable: false),
+                        childIds: childIds,
+                        childNames: childIds
+                            .map(
+                              (id) =>
+                                  _children
+                                      .where((c) => c.id == id)
+                                      .map((c) => c.name)
+                                      .firstOrNull ??
+                                  'Verwijderd kind',
+                            )
+                            .toList(),
                       ),
                     ),
-                    child: ListTile(
-                      key: ValueKey(d.id),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                      dense: true,
-                      minTileHeight: _logboekListRowExtent,
-                      minVerticalPadding: 0,
-                      visualDensity: VisualDensity.compact,
-                      title: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: subtitleStr.isEmpty
-                          ? null
-                          : Text(
-                              subtitleStr,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      trailing: Text(
-                        _fmtEur(displayCents),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                  ),
+                  child: ListTile(
+                    key: ValueKey(d.id),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                    dense: true,
+                    minTileHeight: _logboekListRowExtent,
+                    minVerticalPadding: 0,
+                    visualDensity: VisualDensity.compact,
+                    title: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: subtitleStr.isEmpty
+                        ? null
+                        : Text(
+                            subtitleStr,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                    trailing: Text(
+                      _fmtEur(displayCents),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
-              );
+              ),
+            );
           },
         );
       },
@@ -11759,7 +11989,10 @@ class _LogboekPageState extends State<_LogboekPage>
 
         final docs = allDocs
             .where(
-              (d) => _matchesPaymentParentFilter(d.data(), _paymentFilterParentUid),
+              (d) => _matchesPaymentParentFilter(
+                d.data(),
+                _paymentFilterParentUid,
+              ),
             )
             .toList(growable: false);
 
@@ -11777,97 +12010,97 @@ class _LogboekPageState extends State<_LogboekPage>
             color: outlineV(context, a40),
           ),
           itemBuilder: (context, i) {
-              final d = docs[i];
-              final p = d.data();
-              final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
-              final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
-              final toUserId = (p['toUserId'] as String?)?.trim() ?? '';
-              final status = (p['status'] as String?)?.trim() ?? '';
-              final createdAtRaw = p['createdAt'];
-              DateTime? createdAt;
-              if (createdAtRaw is Timestamp) {
-                createdAt = createdAtRaw.toDate().toLocal();
-              } else if (createdAtRaw is DateTime) {
-                createdAt = createdAtRaw.toLocal();
-              }
+            final d = docs[i];
+            final p = d.data();
+            final amountCents = (p['amountCents'] as num?)?.toInt() ?? 0;
+            final fromUserId = (p['fromUserId'] as String?)?.trim() ?? '';
+            final toUserId = (p['toUserId'] as String?)?.trim() ?? '';
+            final status = (p['status'] as String?)?.trim() ?? '';
+            final createdAtRaw = p['createdAt'];
+            DateTime? createdAt;
+            if (createdAtRaw is Timestamp) {
+              createdAt = createdAtRaw.toDate().toLocal();
+            } else if (createdAtRaw is DateTime) {
+              createdAt = createdAtRaw.toLocal();
+            }
 
-              final bool isSender = fromUserId == widget.uid;
-              final fromName = _paymentPartyName(fromUserId);
-              final toName = _paymentPartyName(toUserId);
-              final String rowTitle = 'Aan $toName';
-              final String statusStr = status == 'confirmed'
-                  ? 'Bevestigd'
-                  : 'In afwachting';
-              final String dateStr = _fmtDate(createdAt);
-              final String subtitleStr = '$dateStr · $statusStr';
-              final bool isPending = status != 'confirmed';
+            final bool isSender = fromUserId == widget.uid;
+            final fromName = _paymentPartyName(fromUserId);
+            final toName = _paymentPartyName(toUserId);
+            final String rowTitle = 'Aan $toName';
+            final String statusStr = status == 'confirmed'
+                ? 'Bevestigd'
+                : 'In afwachting';
+            final String dateStr = _fmtDate(createdAt);
+            final String subtitleStr = '$dateStr · $statusStr';
+            final bool isPending = status != 'confirmed';
 
-              final confirmedAtRaw = p['confirmedAt'];
-              DateTime? confirmedAt;
-              if (confirmedAtRaw is Timestamp) {
-                confirmedAt = confirmedAtRaw.toDate().toLocal();
-              } else if (confirmedAtRaw is DateTime) {
-                confirmedAt = confirmedAtRaw.toLocal();
-              }
+            final confirmedAtRaw = p['confirmedAt'];
+            DateTime? confirmedAt;
+            if (confirmedAtRaw is Timestamp) {
+              confirmedAt = confirmedAtRaw.toDate().toLocal();
+            } else if (confirmedAtRaw is DateTime) {
+              confirmedAt = confirmedAtRaw.toLocal();
+            }
 
-              final String? statusExplanation = isPending
-                  ? (isSender
-                        ? 'Wacht op bevestiging door $toName'
-                        : 'Wacht op jouw bevestiging')
-                  : null;
+            final String? statusExplanation = isPending
+                ? (isSender
+                      ? 'Wacht op bevestiging door $toName'
+                      : 'Wacht op jouw bevestiging')
+                : null;
 
-              return SizedBox(
-                height: _logboekListRowExtent,
-                child: Material(
-                  type: MaterialType.transparency,
+            return SizedBox(
+              height: _logboekListRowExtent,
+              child: Material(
+                type: MaterialType.transparency,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    highlightColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.10),
-                    splashColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.08),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => _PaymentDetailPage(
-                          title: 'Betaald door $fromName',
-                          amountCents: amountCents,
-                          status: status,
-                          createdAt: createdAt,
-                          confirmedAt: confirmedAt,
-                          statusExplanation: statusExplanation,
-                        ),
+                  highlightColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.10),
+                  splashColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.08),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _PaymentDetailPage(
+                        title: 'Betaald door $fromName',
+                        amountCents: amountCents,
+                        status: status,
+                        createdAt: createdAt,
+                        confirmedAt: confirmedAt,
+                        statusExplanation: statusExplanation,
                       ),
                     ),
-                    child: ListTile(
-                      key: ValueKey(d.id),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-                      dense: true,
-                      minTileHeight: _logboekListRowExtent,
-                      minVerticalPadding: 0,
-                      visualDensity: VisualDensity.compact,
-                      title: Text(
-                        rowTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        subtitleStr,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Text(
-                        _fmtEur(amountCents),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                  ),
+                  child: ListTile(
+                    key: ValueKey(d.id),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 5),
+                    dense: true,
+                    minTileHeight: _logboekListRowExtent,
+                    minVerticalPadding: 0,
+                    visualDensity: VisualDensity.compact,
+                    title: Text(
+                      rowTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      subtitleStr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Text(
+                      _fmtEur(amountCents),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
-              );
+              ),
+            );
           },
         );
       },
@@ -12305,16 +12538,18 @@ void _showMonthlyExpensesInfoSheet(BuildContext context) {
           children: [
             Text(
               'Over maandelijkse uitgaven',
-              style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                sheetContext,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 12),
             Text(
               'Een maandelijkse uitgave is een afspraak.\n\n'
               'KiDu maakt hiervan elke maand automatisch een gewone uitgave.\n\n'
-              'Wijzigingen gelden alleen voor toekomstige maandelijkse posten.\n\n'
-              'Eerder aangemaakte uitgaven blijven staan.',
+              'Nieuwe maandelijkse uitgaven starten met de huidige uitgavenverdeling.\n\n'
+              'Daarna staat de verdeling vast op deze maandelijkse uitgave.\n\n'
+              'Wijzigingen in Instellingen veranderen bestaande maandelijkse uitgaven niet.\n\n'
+              'Eerder aangemaakte uitgaven blijven ook onveranderd.',
               style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
                 color: onSurface(sheetContext, a68),
                 height: 1.35,
@@ -12447,6 +12682,250 @@ Color _recurringStatusDotColor(String? status) {
   return _kSuccessGreen;
 }
 
+const String _kRecurringParentSplitParticipantUidsField =
+    'recurringParentSplitParticipantUids';
+const String _kRecurringParentSplit0ShareBpsField =
+    'recurringParentSplit0ShareBps';
+
+class _ParentSplitMember {
+  const _ParentSplitMember({required this.uid, required this.label});
+
+  final String uid;
+  final String label;
+}
+
+Map<String, dynamic> _recurringParentSplitFields(
+  ParentSplitSnapshot snapshot,
+) => <String, dynamic>{
+  _kRecurringParentSplitParticipantUidsField: snapshot.participantUids,
+  _kRecurringParentSplit0ShareBpsField: snapshot.share0Bps,
+};
+
+ParentSplitSnapshot? _tryReadRecurringParentSplit(Map<String, dynamic>? data) {
+  if (data == null) return null;
+  final raw = data[_kRecurringParentSplitParticipantUidsField];
+  final bpsRaw = data[_kRecurringParentSplit0ShareBpsField];
+  if (raw is! List || bpsRaw is! num) return null;
+  return ParentSplitSnapshot.tryCreate(
+    participantUids: raw.whereType<String>().toList(growable: false),
+    share0Bps: bpsRaw.toInt(),
+  );
+}
+
+String _formatParentSplitShare(int bps) {
+  final pct = bps / 100.0;
+  if (pct == pct.roundToDouble()) return '${pct.toStringAsFixed(0)}%';
+  return '${pct.toStringAsFixed(1)}%';
+}
+
+String _parentSplitMemberLabel(List<_ParentSplitMember> members, String uid) {
+  for (final member in members) {
+    if (member.uid == uid) return member.label;
+  }
+  return uid;
+}
+
+({String firstUid, int firstBps, String secondUid, int secondBps})
+_viewerFirstParentSplit(ParentSplitSnapshot snapshot, String? viewerUid) {
+  final viewer = (viewerUid ?? '').trim();
+  final uid0 = snapshot.participantUids[0];
+  final uid1 = snapshot.participantUids[1];
+  if (viewer == uid1) {
+    return (
+      firstUid: uid1,
+      firstBps: snapshot.share1Bps,
+      secondUid: uid0,
+      secondBps: snapshot.share0Bps,
+    );
+  }
+  return (
+    firstUid: uid0,
+    firstBps: snapshot.share0Bps,
+    secondUid: uid1,
+    secondBps: snapshot.share1Bps,
+  );
+}
+
+String _formatParentSplitCompact(
+  ParentSplitSnapshot snapshot,
+  String? viewerUid,
+) {
+  final ordered = _viewerFirstParentSplit(snapshot, viewerUid);
+  return '${_formatParentSplitShare(ordered.firstBps).replaceAll('%', '')}/'
+      '${_formatParentSplitShare(ordered.secondBps).replaceAll('%', '')}';
+}
+
+String _formatParentSplitNamed(
+  ParentSplitSnapshot snapshot,
+  List<_ParentSplitMember> members,
+  String? viewerUid,
+) {
+  final ordered = _viewerFirstParentSplit(snapshot, viewerUid);
+  return '${_parentSplitMemberLabel(members, ordered.firstUid)} '
+      '${_formatParentSplitShare(ordered.firstBps)} · '
+      '${_parentSplitMemberLabel(members, ordered.secondUid)} '
+      '${_formatParentSplitShare(ordered.secondBps)}';
+}
+
+Future<List<_ParentSplitMember>> _loadParentSplitMembers(
+  String householdId,
+) async {
+  if (householdId.trim().isEmpty) return const <_ParentSplitMember>[];
+  final firestore = FirebaseFirestore.instance;
+  final memberSnap = await firestore
+      .collection('households/$householdId/members')
+      .get();
+  final memberUids = memberSnap.docs.map((d) => d.id).toList(growable: false)
+    ..sort();
+  final result = <_ParentSplitMember>[];
+  for (final uid in memberUids) {
+    String label = uid;
+    try {
+      final user = await firestore.doc('users/$uid').get();
+      final data = user.data();
+      final name = (data?['profileName'] ?? data?['displayName']) as String?;
+      if (name != null && name.trim().isNotEmpty) label = name.trim();
+    } catch (_) {
+      // Uid is still a valid fallback label.
+    }
+    result.add(_ParentSplitMember(uid: uid, label: label));
+  }
+  return result;
+}
+
+ParentSplitSnapshot? _neutralParentSplitForMembers(
+  List<_ParentSplitMember> members,
+) {
+  if (members.length != kParentSplitParticipantCount) return null;
+  final uids = sortedParticipantUids(members[0].uid, members[1].uid);
+  return ParentSplitSnapshot.tryCreate(
+    participantUids: uids,
+    share0Bps: kHouseholdShareBpsNeutral,
+  );
+}
+
+Future<ParentSplitSnapshot?> _legacyRecurringParentSplitFallback(
+  String householdId,
+) async {
+  final members = await _loadParentSplitMembers(householdId);
+  return _neutralParentSplitForMembers(members);
+}
+
+class _RecurringParentSplitDialog extends StatefulWidget {
+  const _RecurringParentSplitDialog({
+    required this.members,
+    required this.initialSnapshot,
+    required this.viewerUid,
+  });
+
+  final List<_ParentSplitMember> members;
+  final ParentSplitSnapshot initialSnapshot;
+  final String? viewerUid;
+
+  @override
+  State<_RecurringParentSplitDialog> createState() =>
+      _RecurringParentSplitDialogState();
+}
+
+class _RecurringParentSplitDialogState
+    extends State<_RecurringParentSplitDialog> {
+  late String _share0Uid;
+  late int _share0Bps;
+
+  @override
+  void initState() {
+    super.initState();
+    final ordered = _viewerFirstParentSplit(
+      widget.initialSnapshot,
+      widget.viewerUid,
+    );
+    _share0Uid = ordered.firstUid;
+    _share0Bps = ordered.firstBps;
+  }
+
+  _ParentSplitMember get _share0Member =>
+      widget.members.firstWhere((m) => m.uid == _share0Uid);
+
+  _ParentSplitMember get _share1Member =>
+      widget.members.firstWhere((m) => m.uid != _share0Uid);
+
+  ParentSplitSnapshot? _snapshot() {
+    final storedUids = widget.initialSnapshot.participantUids;
+    final storedShare0Bps = storedUids[0] == _share0Uid
+        ? _share0Bps
+        : kBpsFull - _share0Bps;
+    return ParentSplitSnapshot.tryCreate(
+      participantUids: storedUids,
+      share0Bps: storedShare0Bps,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final summary =
+        '${_share0Member.label} ${_formatParentSplitShare(_share0Bps)} · '
+        '${_share1Member.label} '
+        '${_formatParentSplitShare(kBpsFull - _share0Bps)}';
+
+    return AlertDialog(
+      title: const Text('Uitgavenverdeling'),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              summary,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: cs.primary.withValues(alpha: 0.58),
+                inactiveTrackColor: cs.onSurface.withValues(alpha: 0.12),
+                thumbColor: cs.primary.withValues(alpha: 0.72),
+                overlayColor: cs.primary.withValues(alpha: 0.08),
+                trackHeight: 3,
+              ),
+              child: Slider(
+                min: kHouseholdShareBpsMin.toDouble(),
+                max: kHouseholdShareBpsMax.toDouble(),
+                divisions:
+                    (kHouseholdShareBpsMax - kHouseholdShareBpsMin) ~/ 100,
+                value: _share0Bps.toDouble(),
+                label: _formatParentSplitShare(_share0Bps),
+                onChanged: (value) => setState(() {
+                  _share0Bps = value.round();
+                }),
+              ),
+            ),
+            Text(
+              'Deze verdeling hoort alleen bij deze maandelijkse uitgave.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: onSurface(context, a62),
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(_snapshot()),
+          child: const Text('Opslaan'),
+        ),
+      ],
+    );
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Pure materialisatie-helper voor Maandelijkse uitgaven
 //
@@ -12474,6 +12953,7 @@ class _RecurringMasterInput {
     required this.materializeFromDate,
     required this.status,
     required this.createdBy,
+    required this.parentSplitSnapshot,
   });
 
   final String masterId;
@@ -12499,6 +12979,10 @@ class _RecurringMasterInput {
 
   final String status;
   final String createdBy;
+
+  /// Eigen verdeling van deze monthly master. Wordt bij materialisatie één-op-één
+  /// naar de immutable expense-snapshot gekopieerd.
+  final ParentSplitSnapshot? parentSplitSnapshot;
 }
 
 /// Pure plan-entry voor één ontbrekende periode.
@@ -12676,9 +13160,7 @@ List<_RecurringMaterializationPlan> _computeRecurringMaterializationPlan({
   // masters door de runner al gevuld met `startDate.day`, en in de helper
   // hier nogmaals geclamped naar een veilig bereik als extra verdediging).
   final rawDueDay = master.dueDayOfMonth;
-  final startDay = rawDueDay < 1
-      ? 1
-      : (rawDueDay > 31 ? 31 : rawDueDay);
+  final startDay = rawDueDay < 1 ? 1 : (rawDueDay > 31 ? 31 : rawDueDay);
   var year = master.startDate.year;
   var month = master.startDate.month;
 
@@ -12876,28 +13358,10 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
   );
   if (plans.isEmpty) return emptyResult;
 
-  // Parent-split snapshot for this materialization run. Same contract
-  // as manual expense creation: 2-member household → always a snapshot
-  // (from valid settings, or an explicit neutral 50/50 if settings are
-  // missing/invalid/stale). Other member counts → null → plans are
-  // written WITHOUT snapshot fields (legacy 50/50 in dashboard).
-  ParentSplitSnapshot? materializationSnapshot;
-  try {
-    final memberSnap = await firestore
-        .collection('households/$householdId/members')
-        .get();
-    final memberUids = memberSnap.docs.map((d) => d.id).toSet();
-    final defaults = await HouseholdSplitSettingsRepository().load(householdId);
-    materializationSnapshot = buildSnapshotForNewExpense(
-      defaults: defaults,
-      currentMemberUids: memberUids,
-    );
-  } catch (e) {
-    if (kDebugMode) {
-      debugPrint('Recurring materialize: snapshot skipped: $e');
-    }
-    materializationSnapshot = null;
-  }
+  // Parent-split snapshot for this materialization run comes from the master
+  // itself. It is intentionally not re-read from household settings, so later
+  // settings changes never alter existing monthly masters.
+  final materializationSnapshot = master.parentSplitSnapshot;
 
   // Master-note éénmalig inlezen; lege/ontbrekende note → geen kopie.
   String? masterNote;
@@ -13193,6 +13657,21 @@ class _RecurringMaterializationRunner {
       if (createdBy != uid) continue;
       if (status != 'active') continue;
 
+      ParentSplitSnapshot? parentSplitSnapshot = _tryReadRecurringParentSplit(
+        data,
+      );
+      if (parentSplitSnapshot == null) {
+        try {
+          parentSplitSnapshot = await _legacyRecurringParentSplitFallback(
+            householdId,
+          );
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('Recurring runner: split fallback failed: $e');
+          }
+        }
+      }
+
       final master = _RecurringMasterInput(
         masterId: doc.id,
         title: title,
@@ -13204,6 +13683,7 @@ class _RecurringMaterializationRunner {
         materializeFromDate: materializeFromDate,
         status: status,
         createdBy: createdBy,
+        parentSplitSnapshot: parentSplitSnapshot,
       );
 
       try {
@@ -13216,9 +13696,7 @@ class _RecurringMaterializationRunner {
       } catch (e) {
         // Per-master fouten mogen de rest van de run niet stuk maken.
         if (kDebugMode) {
-          debugPrint(
-            'Recurring runner: materialize ${doc.id} failed: $e',
-          );
+          debugPrint('Recurring runner: materialize ${doc.id} failed: $e');
         }
       }
     }
@@ -13260,8 +13738,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
           .collection('households/$householdId/children')
           .get();
       hasActiveChildren = snap.docs.any(
-        (d) =>
-            d.data()['isArchived'] != true && d.data()['isDeleted'] != true,
+        (d) => d.data()['isArchived'] != true && d.data()['isDeleted'] != true,
       );
     } catch (_) {
       hasActiveChildren = false;
@@ -13300,8 +13777,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          _AddRecurringExpenseDialog(householdId: householdId),
+      builder: (_) => _AddRecurringExpenseDialog(householdId: householdId),
     );
     if (!mounted) return;
     if (result == true) {
@@ -13348,9 +13824,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
-              .collection(
-                'households/${widget.householdId}/recurringExpenses',
-              )
+              .collection('households/${widget.householdId}/recurringExpenses')
               .orderBy('createdAt', descending: true)
               .snapshots(),
           builder: (context, snap) {
@@ -13482,12 +13956,15 @@ class _RecurringMasterList extends StatelessWidget {
       child: ListView.separated(
         padding: EdgeInsets.zero,
         itemCount: docs.length,
-        separatorBuilder: (context, _) => Divider(
-          height: _separatorExtent,
-          color: outlineV(context, a40),
+        separatorBuilder: (context, _) =>
+            Divider(height: _separatorExtent, color: outlineV(context, a40)),
+        itemBuilder: (context, i) => _buildRow(
+          context,
+          textTheme,
+          docs[i],
+          otherParentName,
+          myParentName,
         ),
-        itemBuilder: (context, i) =>
-            _buildRow(context, textTheme, docs[i], otherParentName, myParentName),
       ),
     );
   }
@@ -13575,11 +14052,7 @@ class _RecurringMasterList extends StatelessWidget {
               final text = nextDue != null
                   ? '$parentLabel · Volgende op ${_formatRecurringShortDateNl(nextDue)}'
                   : parentLabel;
-              return Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              );
+              return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
             },
           );
     final statusDotColor = _recurringStatusDotColor(status);
@@ -13663,10 +14136,7 @@ class _RecurringMasterList extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: statusDotColor,
-                    border: Border.all(
-                      color: outlineV(context, a40),
-                      width: 1,
-                    ),
+                    border: Border.all(color: outlineV(context, a40), width: 1),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -13752,6 +14222,7 @@ class _RecurringMasterDetailPageState
   bool _pauseActionBusy = false;
   bool _deleteActionBusy = false;
   late final Future<List<_ChildItem>> _recurringEditChildrenFuture;
+  late final Future<List<_ParentSplitMember>> _parentSplitMembersFuture;
   List<String> _memoChildIdsForNames = const [];
   Future<List<String>>? _memoChildNamesFuture;
 
@@ -13771,8 +14242,8 @@ class _RecurringMasterDetailPageState
   @override
   void initState() {
     super.initState();
-    _recurringEditChildrenFuture =
-        _loadExpenseEditChildren(widget.householdId);
+    _recurringEditChildrenFuture = _loadExpenseEditChildren(widget.householdId);
+    _parentSplitMembersFuture = _loadParentSplitMembers(widget.householdId);
   }
 
   Future<List<String>> _childNamesFutureFor(List<String> childIds) {
@@ -13802,6 +14273,7 @@ class _RecurringMasterDetailPageState
     required String currentTitle,
     required List<String> currentChildIds,
     required int currentDueDayOfMonth,
+    required ParentSplitSnapshot? currentParentSplitSnapshot,
   }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
@@ -13843,6 +14315,8 @@ class _RecurringMasterDetailPageState
                 currentTitle: currentTitle,
                 currentChildIds: currentChildIds,
                 currentDueDayOfMonth: currentDueDayOfMonth,
+                currentParentSplitSnapshot: currentParentSplitSnapshot,
+                parentSplitMembersFuture: _parentSplitMembersFuture,
                 childrenFuture: _recurringEditChildrenFuture,
               ),
             ),
@@ -14102,7 +14576,9 @@ class _RecurringMasterDetailPageState
                     (data?['amountCents'] as num?)?.toInt() ??
                     widget.amountCents;
                 final childIds =
-                    (data?['childIds'] as List?)?.whereType<String>().toList() ??
+                    (data?['childIds'] as List?)
+                        ?.whereType<String>()
+                        .toList() ??
                     widget.childIds;
                 var startDate = widget.startDate;
                 final startRaw = data?['startDate'];
@@ -14152,6 +14628,7 @@ class _RecurringMasterDetailPageState
                 final materializeFromDate = matFromRaw is Timestamp
                     ? matFromRaw.toDate()
                     : null;
+                final parentSplitSnapshot = _tryReadRecurringParentSplit(data);
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -14164,9 +14641,7 @@ class _RecurringMasterDetailPageState
                           color: onSurface(context, a70),
                         ),
                       ),
-                      subtitle: Text(
-                        title.isEmpty ? widget.title : title,
-                      ),
+                      subtitle: Text(title.isEmpty ? widget.title : title),
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -14182,6 +14657,35 @@ class _RecurringMasterDetailPageState
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ),
+                    FutureBuilder<List<_ParentSplitMember>>(
+                      future: _parentSplitMembersFuture,
+                      builder: (context, splitSnap) {
+                        final members =
+                            splitSnap.data ?? const <_ParentSplitMember>[];
+                        final effectiveSplit =
+                            parentSplitSnapshot ??
+                            _neutralParentSplitForMembers(members);
+                        if (effectiveSplit == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            'Uitgavenverdeling',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: onSurface(context, a70),
+                            ),
+                          ),
+                          subtitle: Text(
+                            _formatParentSplitNamed(
+                              effectiveSplit,
+                              members,
+                              widget.uid,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     if (childIds.isNotEmpty)
                       FutureBuilder<List<String>>(
@@ -14211,9 +14715,9 @@ class _RecurringMasterDetailPageState
                                       (n) => Chip(
                                         label: Text(n),
                                         labelStyle: textTheme.bodySmall,
-                                        backgroundColor: Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest,
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest,
                                         materialTapTargetSize:
                                             MaterialTapTargetSize.shrinkWrap,
                                         visualDensity: VisualDensity.compact,
@@ -14238,9 +14742,10 @@ class _RecurringMasterDetailPageState
                         // deleting. Without this the section silently
                         // empties out one doc at a time during cleanup.
                         List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                            histDocs;
+                        histDocs;
                         if (_deleteActionBusy) {
-                          histDocs = _lastChangesDocs ??
+                          histDocs =
+                              _lastChangesDocs ??
                               (histSnap.hasData && !histSnap.hasError
                                   ? histSnap.data!.docs
                                   : const []);
@@ -14279,7 +14784,8 @@ class _RecurringMasterDetailPageState
                               ...histDocs.map((doc) {
                                 final h = doc.data();
                                 final fromC =
-                                    (h['fromAmountCents'] as num?)?.toInt() ?? 0;
+                                    (h['fromAmountCents'] as num?)?.toInt() ??
+                                    0;
                                 final toC =
                                     (h['toAmountCents'] as num?)?.toInt() ?? 0;
                                 final reason =
@@ -14308,8 +14814,9 @@ class _RecurringMasterDetailPageState
                                         const SizedBox(height: 4),
                                         Text(
                                           reason,
-                                          style: textTheme.bodyMedium
-                                              ?.copyWith(height: 1.35),
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            height: 1.35,
+                                          ),
                                         ),
                                       ],
                                     ],
@@ -14379,9 +14886,7 @@ class _RecurringMasterDetailPageState
                               color: onSurface(context, a70),
                             ),
                           ),
-                          subtitle: Text(
-                            _formatRecurringStartDateNl(nextDue),
-                          ),
+                          subtitle: Text(_formatRecurringStartDateNl(nextDue)),
                         );
                       },
                     ),
@@ -14430,8 +14935,7 @@ class _RecurringMasterDetailPageState
                                     ? _lastNoteData
                                     : snap.data?.data())
                               : snap.data?.data();
-                          final note =
-                              (nd?['note'] as String?)?.trim() ?? '';
+                          final note = (nd?['note'] as String?)?.trim() ?? '';
                           final hasNoteLive = note.isNotEmpty;
                           return Column(
                             mainAxisSize: MainAxisSize.min,
@@ -14504,8 +15008,10 @@ class _RecurringMasterDetailPageState
                                         ? widget.title
                                         : title,
                                     currentChildIds: childIds,
-                                    currentDueDayOfMonth: dueDay ??
-                                        (startDate?.day ?? 1),
+                                    currentDueDayOfMonth:
+                                        dueDay ?? (startDate?.day ?? 1),
+                                    currentParentSplitSnapshot:
+                                        parentSplitSnapshot,
                                   ),
                                   icon: const Icon(
                                     Icons.edit_outlined,
@@ -14626,7 +15132,11 @@ class _AddRecurringExpenseDialogState
   bool _startDateHasError = false;
 
   bool _loadingChildren = true;
+  bool _loadingParentSplit = true;
   List<_ChildItem> _children = const [];
+  List<_ParentSplitMember> _parentSplitMembers = const [];
+  ParentSplitSnapshot? _parentSplitSnapshot;
+  bool _parentSplitHasError = false;
   bool _hasCustomChildSelection = false;
   List<String> _customSelectedChildIds = const [];
 
@@ -14645,6 +15155,7 @@ class _AddRecurringExpenseDialogState
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
     _loadChildren();
+    _loadParentSplit();
   }
 
   @override
@@ -14700,6 +15211,43 @@ class _AddRecurringExpenseDialogState
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingChildren = false);
+    }
+  }
+
+  Future<void> _loadParentSplit() async {
+    final householdId = widget.householdId.trim();
+    if (householdId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _loadingParentSplit = false;
+          _parentSplitHasError = true;
+        });
+      }
+      return;
+    }
+    try {
+      final members = await _loadParentSplitMembers(householdId);
+      final memberUids = members.map((m) => m.uid).toSet();
+      final defaults = await HouseholdSplitSettingsRepository().load(
+        householdId,
+      );
+      final snapshot = buildSnapshotForNewExpense(
+        defaults: defaults,
+        currentMemberUids: memberUids,
+      );
+      if (!mounted) return;
+      setState(() {
+        _parentSplitMembers = members;
+        _parentSplitSnapshot = snapshot;
+        _parentSplitHasError = snapshot == null;
+        _loadingParentSplit = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _parentSplitHasError = true;
+        _loadingParentSplit = false;
+      });
     }
   }
 
@@ -14762,17 +15310,40 @@ class _AddRecurringExpenseDialogState
     });
   }
 
+  Future<void> _pickParentSplit() async {
+    final snapshot = _parentSplitSnapshot;
+    if (snapshot == null ||
+        _parentSplitMembers.length != kParentSplitParticipantCount) {
+      return;
+    }
+    final picked = await showDialog<ParentSplitSnapshot>(
+      context: context,
+      builder: (_) => _RecurringParentSplitDialog(
+        members: _parentSplitMembers,
+        initialSnapshot: snapshot,
+        viewerUid: FirebaseAuth.instance.currentUser?.uid,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _parentSplitSnapshot = picked;
+      _parentSplitHasError = false;
+    });
+  }
+
   Future<void> _onSavePressed() async {
     if (_saving) return;
 
     final title = _titleController.text.trim();
     final amountCents = _tryParseRecurringEurToCents(_amountController.text);
     final selectedChildIds = _effectiveSelectedChildIds;
+    final parentSplitSnapshot = _parentSplitSnapshot;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final titleInvalid = title.isEmpty;
     final amountInvalid = amountCents == null || amountCents <= 0;
     final childSelectionInvalid = selectedChildIds.isEmpty;
+    final parentSplitInvalid = parentSplitSnapshot == null;
     // Tweede verdediging: ook als een oude datum via omweg in _startDate
     // belandt mag er geen write plaatsvinden. Vandaag en toekomst blijven ok.
     final startDateInvalid = _startDate.isBefore(today);
@@ -14780,11 +15351,13 @@ class _AddRecurringExpenseDialogState
     if (titleInvalid ||
         amountInvalid ||
         childSelectionInvalid ||
+        parentSplitInvalid ||
         startDateInvalid) {
       setState(() {
         _titleHasError = titleInvalid;
         _amountHasError = amountInvalid;
         _childSelectionHasError = childSelectionInvalid;
+        _parentSplitHasError = parentSplitInvalid;
         _startDateHasError = startDateInvalid;
       });
       if (titleInvalid) {
@@ -14848,6 +15421,7 @@ class _AddRecurringExpenseDialogState
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
+        ..._recurringParentSplitFields(parentSplitSnapshot),
       });
       if (noteTrimmed.isNotEmpty) {
         final noteRef = masterRef.collection('privateNotes').doc(uid);
@@ -14916,6 +15490,12 @@ class _AddRecurringExpenseDialogState
     // Geen 'geen kinderen'-tak meer nodig: de recurring add-dialog opent
     // alleen wanneer _openAddRecurringDialog al heeft vastgesteld dat er
     // actieve kinderen zijn (consistent met 'Nieuwe uitgave'-flow).
+    final parentSplitSummary = _parentSplitSnapshot == null
+        ? (_loadingParentSplit ? 'Laden…' : 'Niet beschikbaar')
+        : _formatParentSplitCompact(
+            _parentSplitSnapshot!,
+            FirebaseAuth.instance.currentUser?.uid,
+          );
 
     // Title-anchored width. Cap sits between the old narrow (420) and the
     // too-wide (480) attempts so "Maandelijkse uitgave" still fits with calm
@@ -15113,6 +15693,41 @@ class _AddRecurringExpenseDialogState
                       ),
                     ],
                   ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Verdeling: ',
+                              style: metaLabelStyle,
+                            ),
+                            TextSpan(
+                              text: parentSplitSummary,
+                              style: metaValueStyle?.copyWith(
+                                color: _parentSplitHasError
+                                    ? cs.error.withValues(alpha: 0.85)
+                                    : metaValueStyle.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed:
+                          (_loadingParentSplit || _parentSplitSnapshot == null)
+                          ? null
+                          : _pickParentSplit,
+                      style: metaActionStyle,
+                      child: const Text('Wijzigen'),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -15125,7 +15740,9 @@ class _AddRecurringExpenseDialogState
           child: const Text('Annuleren'),
         ),
         ElevatedButton(
-          onPressed: (_loadingChildren || _saving) ? null : _onSavePressed,
+          onPressed: (_loadingChildren || _loadingParentSplit || _saving)
+              ? null
+              : _onSavePressed,
           child: _saving
               ? const SizedBox(
                   height: 16,
