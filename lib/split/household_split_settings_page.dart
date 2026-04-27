@@ -32,6 +32,10 @@ class _HouseholdSplitSettingsPageState
   List<_Member> _members = const [];
   String? _selectedShare0Uid;
   int _share0Bps = kHouseholdShareBpsNeutral;
+  String? _initialShare0Uid;
+  int? _initialShare0Bps;
+  String? _updatedBy;
+  DateTime? _updatedAt;
   bool _saving = false;
 
   @override
@@ -57,6 +61,8 @@ class _HouseholdSplitSettingsPageState
 
       setState(() {
         _members = members;
+        _updatedBy = validDefaults?.updatedBy;
+        _updatedAt = validDefaults?.updatedAt;
         if (validDefaults != null) {
           _selectedShare0Uid = validDefaults.share0Uid;
           _share0Bps = validDefaults.share0Bps;
@@ -67,6 +73,8 @@ class _HouseholdSplitSettingsPageState
           _selectedShare0Uid = null;
           _share0Bps = kHouseholdShareBpsNeutral;
         }
+        _initialShare0Uid = _selectedShare0Uid;
+        _initialShare0Bps = _share0Bps;
         _loading = false;
       });
     } catch (_) {
@@ -129,6 +137,13 @@ class _HouseholdSplitSettingsPageState
     if (share0Uid == null || other == null) return;
     if (!isValidHouseholdShareBps(_share0Bps)) return;
 
+    if (share0Uid == _initialShare0Uid && _share0Bps == _initialShare0Bps) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Geen wijzigingen om op te slaan.')),
+      );
+      return;
+    }
+
     if (!await _checkCanWriteNow()) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -166,6 +181,56 @@ class _HouseholdSplitSettingsPageState
     final pct = bps / 100.0;
     if (pct == pct.roundToDouble()) return '${pct.toStringAsFixed(0)}%';
     return '${pct.toStringAsFixed(1)}%';
+  }
+
+  String _formatLastChangedAgo(DateTime updatedAt) {
+    final now = DateTime.now();
+    final localUpdatedAt = updatedAt.toLocal();
+    if (!localUpdatedAt.isBefore(now)) return 'zojuist';
+
+    final diff = now.difference(localUpdatedAt);
+    if (diff.inSeconds < 60) return 'zojuist';
+
+    if (diff.inMinutes < 60) {
+      final minutes = diff.inMinutes;
+      final unit = minutes == 1 ? 'minuut' : 'minuten';
+      return '$minutes $unit geleden';
+    }
+
+    final sameDay =
+        localUpdatedAt.year == now.year &&
+        localUpdatedAt.month == now.month &&
+        localUpdatedAt.day == now.day;
+    if (sameDay) {
+      final hours = diff.inHours;
+      final minutes = diff.inMinutes.remainder(60);
+      final minuteUnit = minutes == 1 ? 'minuut' : 'minuten';
+      return '$hours uur en $minutes $minuteUnit geleden';
+    }
+
+    final today = DateTime(now.year, now.month, now.day);
+    final changedDay = DateTime(
+      localUpdatedAt.year,
+      localUpdatedAt.month,
+      localUpdatedAt.day,
+    );
+    final days = today.difference(changedDay).inDays.clamp(1, 999999);
+    if (days == 1) return '1 dag geleden';
+    return '$days dagen geleden';
+  }
+
+  String? _lastChangedText() {
+    final updatedBy = _updatedBy;
+    final updatedAt = _updatedAt;
+    if (updatedBy == null || updatedAt == null) return null;
+
+    for (final member in _members) {
+      if (member.uid == updatedBy) {
+        return 'Laatste wijziging · ${_formatLastChangedAgo(updatedAt)} · '
+            '${member.label}';
+      }
+    }
+    return null;
   }
 
   @override
@@ -233,6 +298,7 @@ class _HouseholdSplitSettingsPageState
     final firstShareBps = viewer == null || coParent == null
         ? _share0Bps
         : shareFor(viewer.uid);
+    final lastChangedText = _lastChangedText();
 
     return ListView(
       children: <Widget>[
@@ -300,6 +366,15 @@ class _HouseholdSplitSettingsPageState
           onPressed: _saving ? null : _save,
           child: Text(_saving ? 'Opslaan…' : 'Opslaan'),
         ),
+        if (lastChangedText != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            lastChangedText,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.50),
+            ),
+          ),
+        ],
       ],
     );
   }
