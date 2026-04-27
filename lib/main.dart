@@ -2281,62 +2281,6 @@ class _DashboardPageState extends State<DashboardPage> {
                             contentPadding: EdgeInsets.zero,
                             visualDensity: VisualDensity.standard,
                             leading: Icon(
-                              Icons.event_repeat_outlined,
-                              size: 18,
-                              color: onSurface(context, a50),
-                            ),
-                            title: Text(
-                              'Maandelijkse uitgaven',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              // Route-lokale fix voor swipe-back jank op deze
-                              // ene route. Een PageRouteBuilder negeert het
-                              // pageTransitionsTheme, waardoor Android
-                              // predictive-back / iOS swipe-back niet de
-                              // onderliggende dashboard-opbouw blootleggen.
-                              // Dezelfde korte fade speelt bij zowel pijltje
-                              // terug als swipe-back, zodat beide paden
-                              // visueel (vrijwel) identiek aanvoelen.
-                              Navigator.of(rootContext).push<void>(
-                                PageRouteBuilder<void>(
-                                  pageBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                      ) => _TerugkerendeKostenPage(
-                                        householdId: householdId,
-                                        otherParentName: otherName,
-                                        myParentName: myName,
-                                      ),
-                                  transitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  reverseTransitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  transitionsBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                        child,
-                                      ) => FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                        if (hasHousehold)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.standard,
-                            leading: Icon(
                               Icons.percent_outlined,
                               size: 18,
                               color: onSurface(context, a50),
@@ -2385,6 +2329,62 @@ class _DashboardPageState extends State<DashboardPage> {
                                         secondaryAnimation,
                                       ) => HouseholdSplitSettingsPage(
                                         householdId: householdId,
+                                      ),
+                                  transitionDuration: const Duration(
+                                    milliseconds: 180,
+                                  ),
+                                  reverseTransitionDuration: const Duration(
+                                    milliseconds: 180,
+                                  ),
+                                  transitionsBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                        child,
+                                      ) => FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                ),
+                              );
+                            },
+                          ),
+                        if (hasHousehold)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.standard,
+                            leading: Icon(
+                              Icons.event_repeat_outlined,
+                              size: 18,
+                              color: onSurface(context, a50),
+                            ),
+                            title: Text(
+                              'Maandelijkse uitgaven',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(context, a70)),
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              // Route-lokale fix voor swipe-back jank op deze
+                              // ene route. Een PageRouteBuilder negeert het
+                              // pageTransitionsTheme, waardoor Android
+                              // predictive-back / iOS swipe-back niet de
+                              // onderliggende dashboard-opbouw blootleggen.
+                              // Dezelfde korte fade speelt bij zowel pijltje
+                              // terug als swipe-back, zodat beide paden
+                              // visueel (vrijwel) identiek aanvoelen.
+                              Navigator.of(rootContext).push<void>(
+                                PageRouteBuilder<void>(
+                                  pageBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                      ) => _TerugkerendeKostenPage(
+                                        householdId: householdId,
+                                        otherParentName: otherName,
+                                        myParentName: myName,
                                       ),
                                   transitionDuration: const Duration(
                                     milliseconds: 180,
