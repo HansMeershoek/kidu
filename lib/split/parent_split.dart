@@ -82,6 +82,22 @@ class ParentSplitSnapshot {
     'parentSplit0ShareBps': share0Bps,
   };
 
+  static ParentSplitSnapshot? tryCreate({
+    required List<String> participantUids,
+    required int share0Bps,
+  }) {
+    if (participantUids.length != kParentSplitParticipantCount) return null;
+    final uid0 = participantUids[0];
+    final uid1 = participantUids[1];
+    if (uid0.isEmpty || uid1.isEmpty) return null;
+    if (uid0 == uid1) return null;
+    if (!isValidSnapshotShareBps(share0Bps)) return null;
+    return ParentSplitSnapshot._(
+      participantUids: List<String>.unmodifiable(<String>[uid0, uid1]),
+      share0Bps: share0Bps,
+    );
+  }
+
   /// Parses a snapshot from an expense document. Returns null if any
   /// invariant fails (wrong shape, stranger fields, out-of-range bps).
   /// A null result is the callers' signal to treat the expense as
@@ -98,9 +114,8 @@ class ParentSplitSnapshot {
     final uid1 = raw[1] as String;
     if (uid0 == uid1) return null;
     final bps = bpsRaw.toInt();
-    if (!isValidSnapshotShareBps(bps)) return null;
-    return ParentSplitSnapshot._(
-      participantUids: List<String>.unmodifiable(<String>[uid0, uid1]),
+    return ParentSplitSnapshot.tryCreate(
+      participantUids: <String>[uid0, uid1],
       share0Bps: bps,
     );
   }

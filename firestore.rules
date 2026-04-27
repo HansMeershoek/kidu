@@ -294,6 +294,8 @@ service cloud.firestore {
           'cadence',
           'status',
           'materializeFromDate',
+          'recurringParentSplitParticipantUids',
+          'recurringParentSplit0ShareBps',
           'createdAt',
           'createdBy',
           'updatedAt'
@@ -316,6 +318,19 @@ service cloud.firestore {
         && request.resource.data.status == 'active'
         && request.resource.data.materializeFromDate is timestamp
         && request.resource.data.materializeFromDate == request.resource.data.startDate
+        && request.resource.data.recurringParentSplitParticipantUids is list
+        && request.resource.data.recurringParentSplitParticipantUids.size() == 2
+        && request.resource.data.recurringParentSplitParticipantUids[0] is string
+        && request.resource.data.recurringParentSplitParticipantUids[1] is string
+        && request.resource.data.recurringParentSplitParticipantUids[0].size() > 0
+        && request.resource.data.recurringParentSplitParticipantUids[1].size() > 0
+        && request.resource.data.recurringParentSplitParticipantUids[0]
+           != request.resource.data.recurringParentSplitParticipantUids[1]
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[0]))
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[1]))
+        && request.resource.data.recurringParentSplit0ShareBps is int
+        && request.resource.data.recurringParentSplit0ShareBps >= 100
+        && request.resource.data.recurringParentSplit0ShareBps <= 9900
         && request.resource.data.createdAt == request.time
         && (!('updatedAt' in request.resource.data)
             || request.resource.data.updatedAt == request.time);
@@ -335,9 +350,27 @@ service cloud.firestore {
           'status',
           'dueDayOfMonth',
           'materializeFromDate',
+          'recurringParentSplitParticipantUids',
+          'recurringParentSplit0ShareBps',
           'updatedAt'
         ])
         && request.resource.data.updatedAt == request.time
+        && (('recurringParentSplitParticipantUids' in request.resource.data)
+            == ('recurringParentSplit0ShareBps' in request.resource.data))
+        && (!('recurringParentSplitParticipantUids' in request.resource.data)
+            || (request.resource.data.recurringParentSplitParticipantUids is list
+                && request.resource.data.recurringParentSplitParticipantUids.size() == 2
+                && request.resource.data.recurringParentSplitParticipantUids[0] is string
+                && request.resource.data.recurringParentSplitParticipantUids[1] is string
+                && request.resource.data.recurringParentSplitParticipantUids[0].size() > 0
+                && request.resource.data.recurringParentSplitParticipantUids[1].size() > 0
+                && request.resource.data.recurringParentSplitParticipantUids[0]
+                   != request.resource.data.recurringParentSplitParticipantUids[1]
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[0]))
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[1]))
+                && request.resource.data.recurringParentSplit0ShareBps is int
+                && request.resource.data.recurringParentSplit0ShareBps >= 100
+                && request.resource.data.recurringParentSplit0ShareBps <= 9900))
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title'])
             || (request.resource.data.title is string
                 && request.resource.data.title.size() >= 1
