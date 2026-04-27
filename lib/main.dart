@@ -2289,7 +2289,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               color: onSurface(context, a50),
                             ),
                             title: Text(
-                              'Terugkerende kosten',
+                              'Maandelijkse uitgaven',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: onSurface(context, a70)),
                             ),
@@ -7359,7 +7359,16 @@ class _EditRecurringMasterExpenseDialogState
       child: SizedBox(
         width: dialogW,
         child: AlertDialog(
-          title: const Text('Uitgave bewerken'),
+          title: Row(
+            children: [
+              const Expanded(child: Text('Maandelijkse uitgave bewerken')),
+              IconButton(
+                tooltip: 'Uitleg over maandelijkse uitgaven',
+                icon: const Icon(Icons.info_outline, size: 20),
+                onPressed: () => _showMonthlyExpensesInfoSheet(context),
+              ),
+            ],
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -12270,7 +12279,7 @@ class _KinderenPageState extends State<_KinderenPage> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Terugkerende kosten – v1 page + add-form shell
+// Maandelijkse uitgaven – v1 page + add-form shell
 //
 // Local-only UI shell for the recurring-expenses feature. Reached from
 // Instellingen > Huishouden. The page now owns a calm intro/empty-state and
@@ -12281,6 +12290,42 @@ class _KinderenPageState extends State<_KinderenPage> {
 // ────────────────────────────────────────────────────────────────────────────
 
 const int _kRecurringTitleMaxLength = 60;
+
+void _showMonthlyExpensesInfoSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Over maandelijkse uitgaven',
+              style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Een maandelijkse uitgave is een afspraak.\n\n'
+              'KiDu maakt hiervan elke maand automatisch een gewone uitgave.\n\n'
+              'Wijzigingen gelden alleen voor toekomstige maandelijkse posten.\n\n'
+              'Eerder aangemaakte uitgaven blijven staan.',
+              style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                color: onSurface(sheetContext, a68),
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 /// Parses a Dutch-style EUR amount (e.g. "12,34" or "12.34") to integer cents.
 /// Mirrors the parsing rhythm of the "Nieuwe uitgave" amount field.
@@ -13285,6 +13330,13 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
             letterSpacing: 0.4,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Uitleg over maandelijkse uitgaven',
+            icon: const Icon(Icons.info_outline, size: 20),
+            onPressed: () => _showMonthlyExpensesInfoSheet(context),
+          ),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: FloatingActionButton(
@@ -13340,17 +13392,9 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Hier beheer je vaste kosten die terugkomen.',
+                            'Hier beheer je maandelijkse afspraken voor vaste uitgaven.',
                             style: textTheme.bodyMedium?.copyWith(
                               color: onSurface(context, a84),
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Nog geen terugkerende kosten ingesteld. Voeg er een toe met +.',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: onSurface(context, a55),
                               height: 1.35,
                             ),
                           ),
@@ -13809,7 +13853,7 @@ class _RecurringMasterDetailPageState
     if (saved == true && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _showRecurringSnackBar('Uitgave bijgewerkt.');
+        _showRecurringSnackBar('Maandelijkse uitgave bijgewerkt.');
       });
     }
   }
@@ -13847,8 +13891,8 @@ class _RecurringMasterDetailPageState
         ),
         content: Text(
           willPause
-              ? 'Zolang deze uitgave gepauzeerd is, wordt er geen nieuwe maandelijkse post aangemaakt. Eerder aangemaakte posten blijven staan.'
-              : 'Vanaf vandaag maakt KiDu weer maandelijkse posten aan. Maanden die tijdens de pauze voorbij zijn, worden niet alsnog aangemaakt.',
+              ? 'Zolang deze maandelijkse uitgave gepauzeerd is, maakt KiDu geen nieuwe uitgave aan. Eerder aangemaakte uitgaven blijven staan.'
+              : 'Vanaf vandaag maakt KiDu weer elke maand een gewone uitgave aan. Maanden die tijdens de pauze voorbij zijn, worden niet alsnog aangemaakt.',
         ),
         actions: [
           TextButton(
@@ -14020,6 +14064,13 @@ class _RecurringMasterDetailPageState
             letterSpacing: 0.4,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Uitleg over maandelijkse uitgaven',
+            icon: const Icon(Icons.info_outline, size: 20),
+            onPressed: () => _showMonthlyExpensesInfoSheet(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -14461,7 +14512,7 @@ class _RecurringMasterDetailPageState
                                     size: 18,
                                   ),
                                   label: Text(
-                                    'Uitgave bewerken',
+                                    'Maandelijkse uitgave bewerken',
                                     style: textTheme.bodyMedium,
                                   ),
                                 ),
@@ -14517,7 +14568,7 @@ class _RecurringMasterDetailPageState
                     if (!isCreator) ...[
                       const SizedBox(height: 12),
                       Text(
-                        'Alleen de maker kan deze terugkerende uitgave bewerken of pauzeren.',
+                        'Alleen de maker kan deze maandelijkse uitgave bewerken of pauzeren.',
                         style: textTheme.bodySmall?.copyWith(
                           color: onSurface(context, a55),
                           height: 1.35,
@@ -14890,7 +14941,16 @@ class _AddRecurringExpenseDialogState
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       actionsAlignment: MainAxisAlignment.spaceBetween,
-      title: const Text('Maandelijkse uitgave'),
+      title: Row(
+        children: [
+          const Expanded(child: Text('Maandelijkse uitgave')),
+          IconButton(
+            tooltip: 'Uitleg over maandelijkse uitgaven',
+            icon: const Icon(Icons.info_outline, size: 20),
+            onPressed: () => _showMonthlyExpensesInfoSheet(context),
+          ),
+        ],
+      ),
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.75,
