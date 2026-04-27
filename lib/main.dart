@@ -2345,17 +2345,66 @@ class _DashboardPageState extends State<DashboardPage> {
                               color: onSurface(context, a50),
                             ),
                             title: Text(
-                              'Standaardverdeling',
+                              'Uitgavenverdeling',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: onSurface(context, a70)),
                             ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              Navigator.of(rootContext).push(
-                                MaterialPageRoute(
-                                  builder: (_) => HouseholdSplitSettingsPage(
-                                    householdId: householdId,
+                            onTap: () async {
+                              final sheetNavigator = Navigator.of(context);
+                              final rootNavigator = Navigator.of(rootContext);
+                              final messenger = ScaffoldMessenger.of(
+                                rootContext,
+                              );
+                              if (!await _checkCanWriteNow()) {
+                                if (!sheetNavigator.mounted) return;
+                                sheetNavigator.pop();
+                                await Future<void>.delayed(
+                                  const Duration(milliseconds: 220),
+                                );
+                                if (!mounted || !messenger.mounted) return;
+                                messenger
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Je bent offline, probeer het later opnieuw.',
+                                      ),
+                                      duration: Duration(seconds: 4),
+                                    ),
+                                  );
+                                return;
+                              }
+                              if (!sheetNavigator.mounted ||
+                                  !rootNavigator.mounted) {
+                                return;
+                              }
+                              sheetNavigator.pop();
+                              rootNavigator.push<void>(
+                                PageRouteBuilder<void>(
+                                  pageBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                      ) => HouseholdSplitSettingsPage(
+                                        householdId: householdId,
+                                      ),
+                                  transitionDuration: const Duration(
+                                    milliseconds: 180,
                                   ),
+                                  reverseTransitionDuration: const Duration(
+                                    milliseconds: 180,
+                                  ),
+                                  transitionsBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                        child,
+                                      ) => FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
                                 ),
                               );
                             },

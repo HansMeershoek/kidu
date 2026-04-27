@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'household_split_settings_repository.dart';
 import 'parent_split.dart';
 
-/// Settings > Huishouden > Standaardverdeling.
+/// Settings > Huishouden > Uitgavenverdeling.
 ///
 /// Load-logica spiegelt exact `buildSnapshotForNewExpense`: bij 2
 /// actuele members en missende/structureel-ongeldige/stale settings
@@ -108,11 +109,35 @@ class _HouseholdSplitSettingsPageState
     return null;
   }
 
+  Future<bool> _checkCanWriteNow() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      await FirebaseFirestore.instance
+          .doc('users/$uid')
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 2));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _save() async {
     final share0Uid = _selectedShare0Uid;
     final other = _otherMember();
     if (share0Uid == null || other == null) return;
     if (!isValidHouseholdShareBps(_share0Bps)) return;
+
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Je bent offline, probeer het later opnieuw.'),
+        ),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -124,7 +149,7 @@ class _HouseholdSplitSettingsPageState
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Standaardverdeling opgeslagen.')),
+        const SnackBar(content: Text('Uitgavenverdeling opgeslagen.')),
       );
       Navigator.of(context).maybePop();
     } catch (_) {
@@ -146,7 +171,16 @@ class _HouseholdSplitSettingsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Standaardverdeling')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Uitgavenverdeling',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -157,7 +191,13 @@ class _HouseholdSplitSettingsPageState
   }
 
   Widget _buildBody(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    final colorScheme = Theme.of(context).colorScheme;
+    if (_loading) {
+      return ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: const SizedBox.expand(),
+      );
+    }
     if (_loadError != null) return Center(child: Text(_loadError!));
     if (_members.length != kParentSplitParticipantCount) {
       return const Center(
@@ -172,74 +212,91 @@ class _HouseholdSplitSettingsPageState
     final share0Uid = _selectedShare0Uid!;
     final other = _otherMember()!;
     final share0Label = _members.firstWhere((m) => m.uid == share0Uid).label;
+    final viewerUid = FirebaseAuth.instance.currentUser?.uid;
+    _Member? viewer;
+    _Member? coParent;
+    for (final m in _members) {
+      if (m.uid == viewerUid) {
+        viewer = m;
+      } else {
+        coParent = m;
+      }
+    }
+    int shareFor(String uid) => uid == share0Uid
+        ? _share0Bps
+        : kBpsFull - _share0Bps;
+    final summaryText = viewer == null || coParent == null
+        ? '$share0Label: ${_formatShare(_share0Bps)}  ·  '
+              '${other.label}: ${_formatShare(kBpsFull - _share0Bps)}'
+        : '${viewer.label}: ${_formatShare(shareFor(viewer.uid))}  ·  '
+              '${coParent.label}: ${_formatShare(shareFor(coParent.uid))}';
+    final firstShareBps = viewer == null || coParent == null
+        ? _share0Bps
+        : shareFor(viewer.uid);
 
     return ListView(
       children: <Widget>[
-        const Text(
+        Text(
           'Bepaalt hoe NIEUWE uitgaven tussen jullie worden verdeeld. '
           'Bestaande uitgaven veranderen hierdoor niet.',
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Wie draagt welk deel?',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 8),
-        IgnorePointer(
-          ignoring: _saving,
-          child: RadioGroup<String>(
-            groupValue: share0Uid,
-            onChanged: (String? v) {
-              if (v == null) return;
-              setState(() => _selectedShare0Uid = v);
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                for (final m in _members)
-                  RadioListTile<String>(
-                    value: m.uid,
-                    title: Text(m.label),
-                  ),
-              ],
-            ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurface.withValues(alpha: 0.68),
+            height: 1.35,
           ),
         ),
         const SizedBox(height: 16),
         Text(
-          '$share0Label: ${_formatShare(_share0Bps)}  ·  '
-          '${other.label}: ${_formatShare(kBpsFull - _share0Bps)}',
+          summaryText,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        Slider(
-          min: kHouseholdShareBpsMin.toDouble(),
-          max: kHouseholdShareBpsMax.toDouble(),
-          divisions: (kHouseholdShareBpsMax - kHouseholdShareBpsMin) ~/ 100,
-          // `num.clamp(double, double)` on a double returns `num`, not
-          // `double`. Slider.value requires `double`, so cast back.
-          value: _share0Bps
-              .toDouble()
-              .clamp(
-                kHouseholdShareBpsMin.toDouble(),
-                kHouseholdShareBpsMax.toDouble(),
-              )
-              .toDouble(),
-          label: _formatShare(_share0Bps),
-          onChanged: _saving
-              ? null
-              : (v) {
-                  setState(() => _share0Bps = v.round());
-                },
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: colorScheme.primary.withValues(alpha: 0.58),
+            inactiveTrackColor: colorScheme.onSurface.withValues(alpha: 0.12),
+            thumbColor: colorScheme.primary.withValues(alpha: 0.72),
+            overlayColor: colorScheme.primary.withValues(alpha: 0.08),
+            trackHeight: 3,
+          ),
+          child: Slider(
+            min: kHouseholdShareBpsMin.toDouble(),
+            max: kHouseholdShareBpsMax.toDouble(),
+            divisions: (kHouseholdShareBpsMax - kHouseholdShareBpsMin) ~/ 100,
+            // `num.clamp(double, double)` on a double returns `num`, not
+            // `double`. Slider.value requires `double`, so cast back.
+            value: firstShareBps
+                .toDouble()
+                .clamp(
+                  kHouseholdShareBpsMin.toDouble(),
+                  kHouseholdShareBpsMax.toDouble(),
+                )
+                .toDouble(),
+            label: _formatShare(firstShareBps),
+            onChanged: _saving
+                ? null
+                : (v) {
+                    final rounded = v.round();
+                    setState(() {
+                      _share0Bps = viewer != null && viewer.uid != share0Uid
+                          ? kBpsFull - rounded
+                          : rounded;
+                    });
+                  },
+          ),
         ),
         const SizedBox(height: 8),
         Text(
           'Minimum ${_formatShare(kHouseholdShareBpsMin)} · Maximum '
           '${_formatShare(kHouseholdShareBpsMax)}. 0% en 100% zijn bewust '
           'niet toegestaan als standaard.',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurface.withValues(alpha: 0.68),
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 24),
-        FilledButton(
+        FilledButton.tonal(
           onPressed: _saving ? null : _save,
           child: Text(_saving ? 'Opslaan…' : 'Opslaan'),
         ),
