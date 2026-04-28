@@ -17,6 +17,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
+import 'privacy/reopen_lock_gate.dart';
+import 'privacy/reopen_lock_service.dart';
 import 'split/household_split_settings_page.dart';
 import 'split/household_split_settings_repository.dart';
 import 'split/parent_split.dart';
@@ -656,6 +658,7 @@ final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
 final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 const String _screenshotsBlockedPrefsKey = 'privacy.screenshotsBlocked';
 const MethodChannel _privacyPlatformChannel = MethodChannel('kidu/privacy');
@@ -727,6 +730,30 @@ Future<void> _restoreScreenshotsBlockedPreference() async {
   }
 }
 
+Future<void> _signOutForReopenLock() async {
+  appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+  try {
+    await FirebaseAuth.instance.signOut();
+  } catch (_) {}
+  try {
+    await _googleSignIn.signOut();
+  } catch (_) {}
+}
+
+Future<bool> _hasSignedInUserForReopenLock() async {
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser != null) {
+    return true;
+  }
+
+  try {
+    final user = await FirebaseAuth.instance.authStateChanges().first;
+    return user != null;
+  } catch (_) {
+    return FirebaseAuth.instance.currentUser != null;
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _restoreScreenshotsBlockedPreference();
@@ -776,6 +803,12 @@ class _KiDuAppState extends State<KiDuApp> with WidgetsBindingObserver {
       title: 'KiDu',
       theme: buildKiduTheme(),
       scaffoldMessengerKey: appScaffoldMessengerKey,
+      navigatorKey: appNavigatorKey,
+      builder: (context, child) => ReopenLockGate(
+        shouldLock: _hasSignedInUserForReopenLock,
+        onLogout: _signOutForReopenLock,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: const AuthGate(),
     );
   }
@@ -1755,6 +1788,9 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _inviteBusy = false;
   bool _inviteSheetOpening = false;
   bool _screenshotsBlocked = _screenshotsBlockedPreferenceCache;
+  bool _reopenLockEnabled = false;
+  bool _reopenLockBusy = false;
+  final ReopenLockService _reopenLockService = ReopenLockService();
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
@@ -2177,6 +2213,231 @@ class _DashboardPageState extends State<DashboardPage> {
     await _applyScreenshotsBlockedPreference(enabled);
   }
 
+  Future<void> _loadReopenLockSetting() async {
+    final enabled = await _reopenLockService.loadEnabled();
+    if (!mounted) return;
+    setState(() => _reopenLockEnabled = enabled);
+  }
+
+  Future<ReopenLockAuthResult> _enableReopenLockWithCheck() async {
+    final result = await _reopenLockService.authenticate(
+      localizedReason:
+          'Bevestig je identiteit om vergrendelen bij heropenen aan te zetten.',
+    );
+    if (result.isAuthenticated) {
+      await _reopenLockService.saveEnabled(true);
+    }
+    return result;
+  }
+
+  Future<void> _setReopenLockEnabled(bool enabled) async {
+    await _reopenLockService.saveEnabled(enabled);
+  }
+
+  void _openPrivacySecuritySheet(BuildContext rootContext) {
+    showModalBottomSheet<void>(
+      context: rootContext,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(rootContext).scaffoldBackgroundColor,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            void updateScreenshotsBlocked(bool enabled) {
+              setModalState(() => _screenshotsBlocked = enabled);
+              unawaited(_setScreenshotBlockingSetting(enabled));
+            }
+
+            Future<void> updateReopenLock(bool enabled) async {
+              if (_reopenLockBusy) {
+                return;
+              }
+
+              setModalState(() => _reopenLockBusy = true);
+              setState(() => _reopenLockBusy = true);
+
+              if (!enabled) {
+                await _setReopenLockEnabled(false);
+                if (!mounted) {
+                  return;
+                }
+                if (!context.mounted) {
+                  setState(() {
+                    _reopenLockEnabled = false;
+                    _reopenLockBusy = false;
+                  });
+                  return;
+                }
+                setModalState(() {
+                  _reopenLockEnabled = false;
+                  _reopenLockBusy = false;
+                });
+                setState(() {
+                  _reopenLockEnabled = false;
+                  _reopenLockBusy = false;
+                });
+                return;
+              }
+
+              final result = await _enableReopenLockWithCheck();
+              if (!mounted) {
+                return;
+              }
+
+              final shouldEnable = result.isAuthenticated;
+              if (!context.mounted) {
+                setState(() {
+                  _reopenLockEnabled = shouldEnable;
+                  _reopenLockBusy = false;
+                });
+                return;
+              }
+              setModalState(() {
+                _reopenLockEnabled = shouldEnable;
+                _reopenLockBusy = false;
+              });
+              setState(() {
+                _reopenLockEnabled = shouldEnable;
+                _reopenLockBusy = false;
+              });
+
+              if (result.status == ReopenLockAuthStatus.unsupported) {
+                _showSnackBar(
+                  'Schermvergrendeling is niet beschikbaar op dit apparaat.',
+                  duration: const Duration(seconds: 3),
+                );
+              }
+            }
+
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  left: _pagePadding,
+                  right: _pagePadding,
+                  top: 8,
+                  bottom:
+                      _pagePadding + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: KiduCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Privacy en beveiliging',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 12),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.standard,
+                          leading: Icon(
+                            Icons.screenshot_monitor_outlined,
+                            size: 18,
+                            color: onSurface(context, a50),
+                          ),
+                          title: Text(
+                            'Screenshots blokkeren',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          subtitle: Text(
+                            'Voorkomt screenshots waar dit door je toestel wordt ondersteund.',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a58)),
+                          ),
+                          trailing: Switch(
+                            value: _screenshotsBlocked,
+                            onChanged: updateScreenshotsBlocked,
+                            thumbColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer;
+                              }
+                              return null;
+                            }),
+                            trackColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer;
+                              }
+                              return null;
+                            }),
+                          ),
+                          onTap: () =>
+                              updateScreenshotsBlocked(!_screenshotsBlocked),
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.standard,
+                          leading: Icon(
+                            Icons.lock_outline,
+                            size: 18,
+                            color: onSurface(context, a50),
+                          ),
+                          title: Text(
+                            'Vergrendelen bij heropenen',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          subtitle: Text(
+                            'Vraag schermvergrendeling, Face ID of vingerafdruk wanneer je terugkomt in KiDu.',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a58)),
+                          ),
+                          trailing: Switch(
+                            value: _reopenLockEnabled,
+                            onChanged: _reopenLockBusy
+                                ? null
+                                : updateReopenLock,
+                            thumbColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer;
+                              }
+                              return null;
+                            }),
+                            trackColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer;
+                              }
+                              return null;
+                            }),
+                          ),
+                          onTap: _reopenLockBusy
+                              ? null
+                              : () => unawaited(
+                                  updateReopenLock(!_reopenLockEnabled),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _openMenuSheet({
     required String householdId,
     required String myUid,
@@ -2193,11 +2454,6 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            void updateScreenshotsBlocked(bool enabled) {
-              setModalState(() => _screenshotsBlocked = enabled);
-              unawaited(_setScreenshotBlockingSetting(enabled));
-            }
-
             final trimmedOther = (otherName ?? '').trim();
             final isPaired = trimmedOther.isNotEmpty;
             final hasHousehold = householdId.trim().isNotEmpty;
@@ -2580,41 +2836,28 @@ class _DashboardPageState extends State<DashboardPage> {
                           contentPadding: EdgeInsets.zero,
                           visualDensity: VisualDensity.standard,
                           leading: Icon(
-                            Icons.screenshot_monitor_outlined,
+                            Icons.shield_outlined,
                             size: 18,
                             color: onSurface(context, a50),
                           ),
                           title: Text(
-                            'Screenshots blokkeren',
+                            'Privacy en beveiliging',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: onSurface(context, a70)),
                           ),
-                          trailing: Switch(
-                            value: _screenshotsBlocked,
-                            onChanged: updateScreenshotsBlocked,
-                            thumbColor: WidgetStateProperty.resolveWith((
-                              states,
-                            ) {
-                              if (states.contains(WidgetState.selected)) {
-                                return Theme.of(
-                                  context,
-                                ).colorScheme.onSecondaryContainer;
-                              }
-                              return null;
-                            }),
-                            trackColor: WidgetStateProperty.resolveWith((
-                              states,
-                            ) {
-                              if (states.contains(WidgetState.selected)) {
-                                return Theme.of(
-                                  context,
-                                ).colorScheme.secondaryContainer;
-                              }
-                              return null;
-                            }),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            size: 20,
+                            color: onSurface(context, a45),
                           ),
-                          onTap: () =>
-                              updateScreenshotsBlocked(!_screenshotsBlocked),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                _openPrivacySecuritySheet(rootContext);
+                              }
+                            });
+                          },
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -3680,6 +3923,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     unawaited(_loadScreenshotBlockingSetting());
+    unawaited(_loadReopenLockSetting());
     ensureUserDoc();
   }
 
