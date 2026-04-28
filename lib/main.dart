@@ -2221,8 +2221,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<ReopenLockAuthResult> _enableReopenLockWithCheck() async {
     final result = await _reopenLockService.authenticate(
-      localizedReason:
-          'Bevestig je identiteit om vergrendelen bij heropenen aan te zetten.',
+      localizedReason: 'KiDu',
     );
     if (result.isAuthenticated) {
       await _reopenLockService.saveEnabled(true);
