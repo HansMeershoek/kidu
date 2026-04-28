@@ -70,7 +70,7 @@ class ReopenLockService {
   }
 
   Future<ReopenLockAuthResult> authenticate({
-    String localizedReason = 'KiDu',
+    String localizedReason = ' ',
   }) async {
     try {
       final authenticated = await _localAuthentication.authenticate(
