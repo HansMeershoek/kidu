@@ -343,6 +343,77 @@ int _compareExpenseDocsStable(
   return a.id.compareTo(b.id);
 }
 
+/// Gematerialiseerde uitgave uit een maandelijkse master (`Maandelijkse uitgaven`).
+bool _expenseDocIsMaterializedMonthly(Map<String, dynamic> e) =>
+    ((e['recurringExpenseId'] as String?)?.trim().isNotEmpty ?? false);
+
+/// Zelfde icoon als Settings > Huishouden > Maandelijkse uitgaven [Icons.event_repeat_outlined].
+Widget? _expenseSubtitleWithOptionalMonthlyIcon(
+  BuildContext context, {
+  required String actorAndDateLine,
+  String? noteTrailing,
+  required bool isMaterializedMonthly,
+}) {
+  final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+    color: onSurface(context, a62),
+    height: 1.35,
+  );
+  final note = noteTrailing?.trim();
+  final hasNote = note != null && note.isNotEmpty;
+  final base = actorAndDateLine.trim();
+
+  if (!isMaterializedMonthly) {
+    final full = hasNote
+        ? (base.isEmpty ? note : '$actorAndDateLine · $note')
+        : actorAndDateLine;
+    if (full.trim().isEmpty) return null;
+    return Text(
+      full,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+  }
+
+  final iconSpan = WidgetSpan(
+    alignment: PlaceholderAlignment.middle,
+    child: Icon(
+      Icons.event_repeat_outlined,
+      size: 14,
+      color: onSurface(context, a50),
+    ),
+  );
+
+  if (base.isEmpty && hasNote) {
+    return Text.rich(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: note),
+          const TextSpan(text: ' · '),
+          iconSpan,
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  return Text.rich(
+    TextSpan(
+      style: style,
+      children: [
+        TextSpan(text: actorAndDateLine),
+        const TextSpan(text: ' · '),
+        iconSpan,
+        if (hasNote) TextSpan(text: ' · $note'),
+      ],
+    ),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
+}
+
 // ── Shared private-note helpers (used by Dashboard and Logboek) ──────────────
 
 /// Returns true when there is a live server connection for writing.
@@ -5833,14 +5904,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         .id] ??
                                                                     rowFallback
                                                                         ?.note;
-                                                                final subtitleText =
-                                                                    note != null &&
-                                                                        note.isNotEmpty
-                                                                    ? baseSubtitleText
-                                                                              .isEmpty
-                                                                          ? note
-                                                                          : '$baseSubtitleText · $note'
-                                                                    : baseSubtitleText;
+                                                                final isMaterializedMonthly =
+                                                                    _expenseDocIsMaterializedMonthly(
+                                                                      e,
+                                                                    );
+                                                                final subtitleWidget =
+                                                                    _expenseSubtitleWithOptionalMonthlyIcon(
+                                                                      context,
+                                                                      actorAndDateLine:
+                                                                          baseSubtitleText,
+                                                                      noteTrailing: (note?.trim()
+                                                                              .isNotEmpty ??
+                                                                          false)
+                                                                      ? note!.trim()
+                                                                      : null,
+                                                                      isMaterializedMonthly:
+                                                                          isMaterializedMonthly,
+                                                                    );
                                                                 final expChildIds =
                                                                     (e['childIds']
                                                                             as List?)
@@ -6019,14 +6099,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             TextOverflow.ellipsis,
                                                                       ),
                                                                       subtitle:
-                                                                          subtitleText
-                                                                              .isEmpty
-                                                                          ? null
-                                                                          : Text(
-                                                                              subtitleText,
-                                                                              maxLines: 1,
-                                                                              overflow: TextOverflow.ellipsis,
-                                                                            ),
+                                                                          subtitleWidget,
                                                                       trailing: Row(
                                                                         mainAxisSize:
                                                                             MainAxisSize.min,
@@ -8212,6 +8285,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     ),
                     subtitle: Text(
                       _ExpenseDetailPage._formatDateTime(widget.createdAt),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
                   ListTile(
@@ -8542,6 +8616,7 @@ class _WijzigRow {
     required this.createdBy,
     required this.createdAt,
     required this.parentSplitSnapshot,
+    required this.isMaterializedMonthly,
   });
 
   final String expenseId;
@@ -8556,6 +8631,7 @@ class _WijzigRow {
   final String createdBy;
   final DateTime? createdAt;
   final ParentSplitSnapshot? parentSplitSnapshot;
+  final bool isMaterializedMonthly;
 }
 
 /// Keeps each Logboek [TabBarView] page subtree alive to reduce rebuild work when swiping.
@@ -11450,6 +11526,7 @@ class _LogboekPageState extends State<_LogboekPage>
               createdBy: createdBy,
               createdAt: createdAt,
               parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(e),
+              isMaterializedMonthly: _expenseDocIsMaterializedMonthly(e),
             ),
           );
         }
@@ -11720,6 +11797,14 @@ class _LogboekPageState extends State<_LogboekPage>
                 final row = rows[i];
                 final whoLabel = _wijzigEditedByName(row.editedBy);
                 final paidByName = _paymentPartyName(row.createdBy);
+                final wijzigSubtitle =
+                    _expenseSubtitleWithOptionalMonthlyIcon(
+                      context,
+                      actorAndDateLine:
+                          '$whoLabel · ${_formatWijzigingDate(row.editedAt)}',
+                      noteTrailing: null,
+                      isMaterializedMonthly: row.isMaterializedMonthly,
+                    );
                 return SizedBox(
                   height: _logboekListRowExtent,
                   child: Material(
@@ -11793,11 +11878,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        subtitle: Text(
-                          '$whoLabel · ${_formatWijzigingDate(row.editedAt)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        subtitle: wijzigSubtitle,
                         trailing: _buildWijzigingTrailing(context, row),
                       ),
                     ),
@@ -11867,7 +11948,15 @@ class _LogboekPageState extends State<_LogboekPage>
                 ? (amountCents / nKids).round()
                 : amountCents;
             final dateStr = _fmtDate(createdAt);
-            final subtitleStr = '$paidByName · $dateStr';
+            final actorAndDateLine = '$paidByName · $dateStr';
+            final isMaterializedMonthly =
+                _expenseDocIsMaterializedMonthly(e);
+            final subtitleWidget = _expenseSubtitleWithOptionalMonthlyIcon(
+              context,
+              actorAndDateLine: actorAndDateLine,
+              noteTrailing: null,
+              isMaterializedMonthly: isMaterializedMonthly,
+            );
             return SizedBox(
               height: _logboekListRowExtent,
               child: Material(
@@ -11939,13 +12028,7 @@ class _LogboekPageState extends State<_LogboekPage>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: subtitleStr.isEmpty
-                        ? null
-                        : Text(
-                            subtitleStr,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    subtitle: subtitleWidget,
                     trailing: Text(
                       _fmtEur(displayCents),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
