@@ -13,6 +13,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
@@ -656,8 +657,79 @@ final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+const String _screenshotsBlockedPrefsKey = 'privacy.screenshotsBlocked';
+const MethodChannel _privacyPlatformChannel = MethodChannel('kidu/privacy');
+
+bool _screenshotsBlockedPreferenceCache = false;
+
+Future<bool> _loadScreenshotsBlockedPreference() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(_screenshotsBlockedPrefsKey) ?? false;
+    _screenshotsBlockedPreferenceCache = enabled;
+    return enabled;
+  } catch (e) {
+    debugPrint('Load screenshot privacy preference error: $e');
+    return _screenshotsBlockedPreferenceCache;
+  }
+}
+
+Future<void> _saveScreenshotsBlockedPreference(bool enabled) async {
+  _screenshotsBlockedPreferenceCache = enabled;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_screenshotsBlockedPrefsKey, enabled);
+  } catch (e) {
+    debugPrint('Save screenshot privacy preference error: $e');
+  }
+}
+
+Future<void> _applyScreenshotsBlockedPreference(bool enabled) async {
+  if (!Platform.isAndroid) {
+    return;
+  }
+  try {
+    await _privacyPlatformChannel.invokeMethod<void>(
+      'setScreenshotsBlocked',
+      enabled,
+    );
+  } on MissingPluginException catch (e) {
+    if (kDebugMode) {
+      debugPrint('Screenshot privacy channel missing: $e');
+    }
+  } on PlatformException catch (e) {
+    if (kDebugMode) {
+      debugPrint('Screenshot privacy platform error: $e');
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('Apply screenshot privacy preference error: $e');
+    }
+  }
+}
+
+Future<void> _restoreScreenshotsBlockedPreference() async {
+  try {
+    final enabled = await _loadScreenshotsBlockedPreference();
+    await _applyScreenshotsBlockedPreference(enabled);
+  } on MissingPluginException catch (e) {
+    if (kDebugMode) {
+      debugPrint('Restore screenshot privacy channel missing: $e');
+    }
+  } on PlatformException catch (e) {
+    if (kDebugMode) {
+      debugPrint('Restore screenshot privacy platform error: $e');
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('Restore screenshot privacy preference error: $e');
+    }
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _restoreScreenshotsBlockedPreference();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _googleSignIn.initialize();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -1682,6 +1754,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _setupBusy = false;
   bool _inviteBusy = false;
   bool _inviteSheetOpening = false;
+  bool _screenshotsBlocked = _screenshotsBlockedPreferenceCache;
   final ValueNotifier<bool> _addExpenseCheckBusyVN = ValueNotifier(false);
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
@@ -2093,6 +2166,17 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  Future<void> _loadScreenshotBlockingSetting() async {
+    final enabled = await _loadScreenshotsBlockedPreference();
+    if (!mounted) return;
+    setState(() => _screenshotsBlocked = enabled);
+  }
+
+  Future<void> _setScreenshotBlockingSetting(bool enabled) async {
+    await _saveScreenshotsBlockedPreference(enabled);
+    await _applyScreenshotsBlockedPreference(enabled);
+  }
+
   void _openMenuSheet({
     required String householdId,
     required String myUid,
@@ -2109,6 +2193,11 @@ class _DashboardPageState extends State<DashboardPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            void updateScreenshotsBlocked(bool enabled) {
+              setModalState(() => _screenshotsBlocked = enabled);
+              unawaited(_setScreenshotBlockingSetting(enabled));
+            }
+
             final trimmedOther = (otherName ?? '').trim();
             final isPaired = trimmedOther.isNotEmpty;
             final hasHousehold = householdId.trim().isNotEmpty;
@@ -2479,6 +2568,56 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                         const SizedBox(height: 16),
                         Text(
+                          'Privacy',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a70),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.standard,
+                          leading: Icon(
+                            Icons.screenshot_monitor_outlined,
+                            size: 18,
+                            color: onSurface(context, a50),
+                          ),
+                          title: Text(
+                            'Screenshots blokkeren',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          trailing: Switch(
+                            value: _screenshotsBlocked,
+                            onChanged: updateScreenshotsBlocked,
+                            thumbColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer;
+                              }
+                              return null;
+                            }),
+                            trackColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected)) {
+                                return Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer;
+                              }
+                              return null;
+                            }),
+                          ),
+                          onTap: () =>
+                              updateScreenshotsBlocked(!_screenshotsBlocked),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
                           'Info',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
@@ -2496,7 +2635,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             color: onSurface(context, a50),
                           ),
                           title: Text(
-                            'Privacy',
+                            'Privacybeleid',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: onSurface(context, a70)),
                           ),
@@ -3540,6 +3679,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    unawaited(_loadScreenshotBlockingSetting());
     ensureUserDoc();
   }
 
