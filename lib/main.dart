@@ -730,14 +730,40 @@ Future<void> _restoreScreenshotsBlockedPreference() async {
   }
 }
 
+PageRoute<T> _reopenLockNoTransitionRoute<T>(Widget child) {
+  return PageRouteBuilder<T>(
+    pageBuilder: (context, animation, secondaryAnimation) => child,
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        child,
+  );
+}
+
+void _replaceReopenLockRoot(Widget child) {
+  final navigator = appNavigatorKey.currentState;
+  if (navigator == null || !navigator.mounted) {
+    return;
+  }
+
+  navigator.pushAndRemoveUntil<void>(
+    _reopenLockNoTransitionRoute<void>(child),
+    (route) => false,
+  );
+}
+
 Future<void> _signOutForReopenLock() async {
-  appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
   try {
-    await FirebaseAuth.instance.signOut();
-  } catch (_) {}
-  try {
-    await _googleSignIn.signOut();
-  } catch (_) {}
+    _replaceReopenLockRoot(const _AuthGateWhiteHoldScreen());
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+  } finally {
+    _replaceReopenLockRoot(const AuthGate());
+  }
 }
 
 Future<bool> _hasSignedInUserForReopenLock() async {

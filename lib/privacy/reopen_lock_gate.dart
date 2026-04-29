@@ -85,6 +85,9 @@ class _ReopenLockGateState extends State<ReopenLockGate>
 
     if (!signedIn) {
       _authTransitionCheckId++;
+      if (_logoutInProgress) {
+        return;
+      }
       if (mounted) {
         setState(() {
           _authTransitionHold = false;
@@ -233,25 +236,20 @@ class _ReopenLockGateState extends State<ReopenLockGate>
       _authInFlight = false;
     });
 
-    if (widget.onLogout != null) {
-      await widget.onLogout!();
+    try {
+      if (widget.onLogout != null) {
+        await widget.onLogout!();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _authTransitionHold = false;
+          _logoutInProgress = false;
+          _locked = false;
+          _authInFlight = false;
+        });
+      }
     }
-
-    if (!mounted) {
-      return;
-    }
-
-    await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _authTransitionHold = false;
-      _logoutInProgress = false;
-      _locked = false;
-      _authInFlight = false;
-    });
   }
 
   @override
