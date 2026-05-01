@@ -9979,6 +9979,16 @@ class _LogboekPageState extends State<_LogboekPage>
     return '${dt.day} ${mo[dt.month - 1]} ${dt.year}';
   }
 
+  /// Alleen voor Logboek > Uitgaven CSV-export (`dd-MM-yyyy`).
+  static String _fmtExpenseCsvDate(DateTime? dt) {
+    if (dt == null) return '—';
+    String two(int n) => n.toString().padLeft(2, '0');
+    // CSV heeft geen celtype; deze onzichtbare markering voorkomt dat
+    // spreadsheets sommige datums automatisch als datum en andere als tekst zien.
+    const textMarker = '\u200C';
+    return '$textMarker${two(dt.day)}-${two(dt.month)}-${dt.year}';
+  }
+
   static String _fmtEur(int cents) {
     final negative = cents < 0;
     final abs = cents.abs();
@@ -10146,15 +10156,15 @@ class _LogboekPageState extends State<_LogboekPage>
     Map<String, String> parentNamesByUid,
   ) {
     final direct = parentNamesByUid[createdBy]?.trim();
-    if (direct != null && direct.isNotEmpty) return direct;
+    if (direct != null && direct.isNotEmpty && direct != 'Jij') return direct;
     if (createdBy == widget.uid) {
       final mine = widget.myName?.trim();
       if (mine != null && mine.isNotEmpty) return mine;
-      return 'Jij';
+      return 'Ouder 1';
     }
     final other = widget.otherName?.trim();
     if (other != null && other.isNotEmpty) return other;
-    return 'Co-parent';
+    return 'Ouder 2';
   }
 
   List<String> _expenseExportChildNames(
@@ -10164,6 +10174,38 @@ class _LogboekPageState extends State<_LogboekPage>
     return childIds
         .map((id) => childNamesById[id] ?? 'Verwijderd kind')
         .toList();
+  }
+
+  String _expenseExportParentNameFor(String uid, int index) {
+    final trimmedUid = uid.trim();
+    if (trimmedUid.isNotEmpty) {
+      for (final parent in _parentItems) {
+        if (parent.uid == trimmedUid) {
+          final name = parent.name.trim();
+          if (name.isNotEmpty && name != 'Jij') return name;
+        }
+      }
+      if (trimmedUid == widget.uid) {
+        final mine = widget.myName?.trim();
+        if (mine != null && mine.isNotEmpty) return mine;
+      } else {
+        final other = widget.otherName?.trim();
+        if (other != null && other.isNotEmpty) return other;
+      }
+    }
+    return 'Ouder ${index + 1}';
+  }
+
+  static String _fmtCsvPercentBps(int bps) =>
+      (bps / 100).toStringAsFixed(2).replaceAll('.', ',');
+
+  static int? _expenseExportShareBpsFor(
+    ParentSplitSnapshot snapshot,
+    String uid,
+  ) {
+    if (uid == snapshot.participantUids[0]) return snapshot.share0Bps;
+    if (uid == snapshot.participantUids[1]) return snapshot.share1Bps;
+    return null;
   }
 
   String _expenseExportFilename() {
@@ -10244,16 +10286,20 @@ class _LogboekPageState extends State<_LogboekPage>
     List<
       ({
         DateTime? createdAt,
+        String expenseType,
         String title,
         String paidByUserId,
         String paidByName,
         int totalAmountCents,
         int childAmountCents,
+        int childCount,
+        bool hasMultipleChildren,
         String divisionLabel,
         String selectedChildLabel,
         String allChildrenLabel,
         int displayCents,
         String childrenLabel,
+        ParentSplitSnapshot? parentSplitSnapshot,
       })
     >
   >
@@ -10286,6 +10332,11 @@ class _LogboekPageState extends State<_LogboekPage>
           final childIds =
               (data['childIds'] as List?)?.whereType<String>().toList() ??
               const <String>[];
+          final expenseType =
+              ((data['recurringExpenseId'] as String?)?.trim().isNotEmpty ??
+                  false)
+              ? 'Maandelijks'
+              : 'Handmatig';
           final createdBy = (data['createdBy'] as String?)?.trim() ?? '';
           final createdAtRaw = data['createdAt'];
           DateTime? createdAt;
@@ -10296,33 +10347,40 @@ class _LogboekPageState extends State<_LogboekPage>
           }
 
           final totalAmountCents = amountCents;
-          final childAmountCents = filterChildId != null && childIds.isNotEmpty
-              ? (amountCents / childIds.length).round()
+          final childCount = childIds.isNotEmpty ? childIds.length : 1;
+          final childAmountCents = filterChildId != null
+              ? (amountCents / childCount).round()
               : amountCents;
           final paidByName = _expenseExportPaidByName(
             createdBy,
             parentNamesByUid,
           );
           final childNames = _expenseExportChildNames(childIds, childNamesById);
-          final nKids = childIds.length;
-          final divisionLabel = nKids > 0 ? '1/$nKids' : '';
+          final divisionLabel = childIds.isNotEmpty ? '1/$childCount' : '';
           final selectedChildLabel = filterChildId == null
               ? ''
               : (childNamesById[filterChildId] ?? 'Verwijderd kind');
           final allChildrenLabel = childNames.join(' | ');
+          final parentSplitSnapshot = ParentSplitSnapshot.tryReadFromExpense(
+            data,
+          );
 
           return (
             createdAt: createdAt,
+            expenseType: expenseType,
             title: title,
             paidByUserId: createdBy,
             paidByName: paidByName,
             totalAmountCents: totalAmountCents,
             childAmountCents: childAmountCents,
+            childCount: childCount,
+            hasMultipleChildren: childIds.length > 1,
             divisionLabel: divisionLabel,
             selectedChildLabel: selectedChildLabel,
             allChildrenLabel: allChildrenLabel,
             displayCents: childAmountCents,
             childrenLabel: allChildrenLabel,
+            parentSplitSnapshot: parentSplitSnapshot,
           );
         })
         .toList(growable: false);
@@ -10345,61 +10403,124 @@ class _LogboekPageState extends State<_LogboekPage>
         return;
       }
 
-      int csvChildCount(String allChildrenLabel) {
-        final trimmed = allChildrenLabel.trim();
-        if (trimmed.isEmpty) return 0;
-        return trimmed.split(' | ').length;
+      final showChildCount = rows.any((row) => row.hasMultipleChildren);
+
+      final parentOrder = <String>[];
+      void addParentUid(String uid) {
+        final trimmed = uid.trim();
+        if (trimmed.isEmpty || parentOrder.contains(trimmed)) return;
+        if (parentOrder.length < kParentSplitParticipantCount) {
+          parentOrder.add(trimmed);
+        }
       }
 
+      for (final parent in _parentItems) {
+        addParentUid(parent.uid);
+      }
+      for (final row in rows) {
+        final snapshot = row.parentSplitSnapshot;
+        if (snapshot == null) continue;
+        for (final uid in snapshot.participantUids) {
+          addParentUid(uid);
+        }
+      }
+      while (parentOrder.length < kParentSplitParticipantCount) {
+        parentOrder.add('');
+      }
+
+      final parentColumns = [
+        for (var i = 0; i < kParentSplitParticipantCount; i++)
+          (
+            uid: parentOrder[i],
+            name: _expenseExportParentNameFor(parentOrder[i], i),
+          ),
+      ];
       final selectedChildLabel = rows
           .map((row) => row.selectedChildLabel.trim())
-          .firstWhere((label) => label.isNotEmpty, orElse: () => '');
-      final selectedChildAmountHeader = selectedChildLabel.isNotEmpty
-          ? 'Bedrag voor $selectedChildLabel'
-          : 'Bedrag voor kind';
-      final csv = StringBuffer()
-        ..writeln(
-          _csvLine(
-            hasSelectedChild
-                ? [
-                    'Datum',
-                    'Titel',
-                    'Betaald door',
-                    'Volledige uitgave',
-                    'Aantal kinderen',
-                    selectedChildAmountHeader,
-                  ]
-                : [
-                    'Datum',
-                    'Titel',
-                    'Betaald door',
-                    'Volledige uitgave',
-                    'Kinderen',
-                  ],
-          ),
-        );
+          .firstWhere((label) => label.isNotEmpty, orElse: () => 'kind');
+      final selectedChildAmountHeader = 'Bedrag voor $selectedChildLabel (EUR)';
+
+      String divisionLabelFor(
+        ParentSplitSnapshot? snapshot,
+        List<({String uid, String name})> parentColumns,
+      ) {
+        if (snapshot == null) return 'Niet vastgelegd';
+        final bpsValues = [
+          for (final parent in parentColumns)
+            _expenseExportShareBpsFor(snapshot, parent.uid),
+        ];
+        if (bpsValues.any((bps) => bps == null)) {
+          return 'Niet vastgelegd';
+        }
+        return '${_fmtCsvPercentBps(bpsValues[0]!)}% / '
+            '${_fmtCsvPercentBps(bpsValues[1]!)}%';
+      }
+
+      List<String> parentSplitCellsFor(
+        ParentSplitSnapshot? snapshot,
+        int baseAmountCents,
+        List<({String uid, String name})> parentColumns,
+      ) {
+        if (snapshot == null) return const ['', '', '', ''];
+        final cells = <String>[];
+        for (final parent in parentColumns) {
+          final bps = _expenseExportShareBpsFor(snapshot, parent.uid);
+          if (bps == null) {
+            cells
+              ..add('')
+              ..add('');
+            continue;
+          }
+          cells
+            ..add('${_fmtCsvPercentBps(bps)}%')
+            ..add(
+              _fmtCsvAmount(
+                snapshot.fairShareCentsFor(parent.uid, baseAmountCents),
+              ),
+            );
+        }
+        return cells;
+      }
+
+      final header = <String>[
+        'Datum',
+        'Uitgavetype',
+        'Titel',
+        'Betaald door',
+        'Volledige uitgave (EUR)',
+        'Kinderen',
+        if (showChildCount)
+          hasSelectedChild ? 'Aantal kinderen in uitgave' : 'Aantal kinderen',
+        if (hasSelectedChild) selectedChildAmountHeader,
+        'Uitgavenverdeling',
+        '${parentColumns[0].name} %',
+        '${parentColumns[0].name} aandeel (EUR)',
+        '${parentColumns[1].name} %',
+        '${parentColumns[1].name} aandeel (EUR)',
+      ];
+      final csv = StringBuffer()..writeln(_csvLine(header));
 
       for (final row in rows) {
-        csv.writeln(
-          _csvLine(
-            hasSelectedChild
-                ? [
-                    _fmtDateWithYear(row.createdAt),
-                    row.title,
-                    row.paidByName,
-                    _fmtCsvAmount(row.totalAmountCents),
-                    csvChildCount(row.allChildrenLabel).toString(),
-                    _fmtCsvAmount(row.childAmountCents),
-                  ]
-                : [
-                    _fmtDateWithYear(row.createdAt),
-                    row.title,
-                    row.paidByName,
-                    _fmtCsvAmount(row.totalAmountCents),
-                    row.allChildrenLabel,
-                  ],
+        final baseAmountCents = hasSelectedChild
+            ? row.childAmountCents
+            : row.totalAmountCents;
+        final values = <String>[
+          _fmtExpenseCsvDate(row.createdAt),
+          row.expenseType,
+          row.title,
+          row.paidByName,
+          _fmtCsvAmount(row.totalAmountCents),
+          hasSelectedChild ? row.selectedChildLabel : row.allChildrenLabel,
+          if (showChildCount) row.childCount.toString(),
+          if (hasSelectedChild) _fmtCsvAmount(row.childAmountCents),
+          divisionLabelFor(row.parentSplitSnapshot, parentColumns),
+          ...parentSplitCellsFor(
+            row.parentSplitSnapshot,
+            baseAmountCents,
+            parentColumns,
           ),
-        );
+        ];
+        csv.writeln(_csvLine(values));
       }
 
       final tempDir = await Directory.systemTemp.createTemp('kidu-export-');
