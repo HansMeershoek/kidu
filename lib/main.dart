@@ -1210,6 +1210,8 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     r"^[\p{L}\p{M} '\-]+$",
     unicode: true,
   );
+  static const String _connectionError = 'Geen verbinding';
+  static const Duration _saveTimeout = Duration(seconds: 6);
 
   final _controller = TextEditingController();
   final FocusNode _nameFocus = FocusNode();
@@ -1223,11 +1225,6 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     if (initial != null && initial.trim().isNotEmpty) {
       _controller.text = initial.trim();
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _nameFocus.requestFocus();
-      }
-    });
   }
 
   String _normalizedName(String value) {
@@ -1245,6 +1242,23 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       return "Gebruik alleen letters, spaties, - of '.";
     }
     return null;
+  }
+
+  Future<void> _writeProfileNameOnline({
+    required String uid,
+    required String name,
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.doc('users/$uid');
+
+    await firestore
+        .runTransaction((transaction) async {
+          await transaction.get(userRef);
+          transaction.set(userRef, {
+            'profileName': name,
+          }, SetOptions(merge: true));
+        })
+        .timeout(_saveTimeout);
   }
 
   Future<void> _save() async {
@@ -1278,9 +1292,14 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       }
 
       final uid = stillUser.uid;
-      await FirebaseFirestore.instance.doc('users/$uid').set({
-        'profileName': name,
-      }, SetOptions(merge: true));
+      if (!await _checkCanWriteNow()) {
+        if (mounted) {
+          setState(() => _nameInlineHint = _connectionError);
+        }
+        return;
+      }
+
+      await _writeProfileNameOnline(uid: uid, name: name);
 
       if (!mounted) {
         return;
@@ -1307,14 +1326,37 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
           ),
         );
       }
+    } on TimeoutException catch (e) {
+      if (kDebugMode) debugPrint('Save profileName timeout: $e');
+      if (mounted) {
+        setState(() => _nameInlineHint = _connectionError);
+      }
+    } on FirebaseException catch (e) {
+      if (kDebugMode) debugPrint('Save profileName error: $e');
+      final isConnectionError =
+          e.code == 'unavailable' ||
+          e.code == 'network-request-failed' ||
+          e.code == 'deadline-exceeded';
+      if (mounted) {
+        setState(() {
+          _nameInlineHint = isConnectionError
+              ? _connectionError
+              : mapUserFacingError(
+                  e,
+                  fallback: 'Opslaan mislukt. Probeer opnieuw.',
+                );
+        });
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('Save profileName error: $e');
-      setState(() {
-        _nameInlineHint = mapUserFacingError(
-          e,
-          fallback: 'Opslaan mislukt. Probeer opnieuw.',
-        );
-      });
+      if (mounted) {
+        setState(() {
+          _nameInlineHint = mapUserFacingError(
+            e,
+            fallback: 'Opslaan mislukt. Probeer opnieuw.',
+          );
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -1402,6 +1444,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     return PopScope(
       canPop: widget.fromSettings,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           centerTitle: true,
           title: Text(
@@ -1413,154 +1456,192 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
           ),
         ),
         body: SafeArea(
-          child: SingleChildScrollView(
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
             padding: EdgeInsets.only(
-              left: _DashboardPageState._pagePadding,
-              right: _DashboardPageState._pagePadding,
-              top: 8,
-              bottom:
-                  _DashboardPageState._pagePadding +
-                  MediaQuery.of(context).viewInsets.bottom,
+              bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: KiduCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Welke naam wil je gebruiken?',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                              height: 1.25,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: onSurface(context, a68),
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Color.alphaBlend(
-                            Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: a06),
-                            Theme.of(context).colorScheme.surface,
-                          ),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: outlineV(context, a45)),
-                        ),
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _nameFocus,
-                          textCapitalization: TextCapitalization.sentences,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              _allowedNameCharacter,
-                            ),
-                            LengthLimitingTextInputFormatter(16),
-                          ],
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                          onChanged: (_) {
-                            final currentError = _profileNameError(
-                              _normalizedName(_controller.text),
-                            );
-                            if (_nameInlineHint != null &&
-                                currentError == null) {
-                              setState(() => _nameInlineHint = null);
-                            }
-                          },
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.12,
-                              ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            border: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 14,
-                            ),
-                            counterText: '',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 18,
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 4),
-                          child: _nameInlineHint == null
-                              ? const SizedBox.shrink()
-                              : Text(
-                                  _nameInlineHint!,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: onSurface(context, a62),
-                                        height: 1.35,
-                                      ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: _busy
-                                  ? null
-                                  : widget.fromSettings
-                                  ? () => Navigator.of(context).pop()
-                                  : _signOut,
-                              child: Text(
-                                widget.fromSettings ? 'Annuleren' : 'Uitloggen',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: onSurface(context, a70)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton.tonalIcon(
-                              onPressed: _busy ? null : _save,
-                              icon: _busy
-                                  ? SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                      ),
-                                    )
-                                  : const Icon(Icons.check, size: 18),
-                              label: Text(
-                                'Opslaan',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const topPadding = 8.0;
+                const bottomPadding = _DashboardPageState._pagePadding;
+                final minHeight = max(
+                  0.0,
+                  constraints.maxHeight - topPadding - bottomPadding,
+                );
+
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.only(
+                    left: _DashboardPageState._pagePadding,
+                    right: _DashboardPageState._pagePadding,
+                    top: topPadding,
+                    bottom: bottomPadding,
                   ),
-                ),
-              ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: minHeight),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: KiduCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.fromSettings
+                                    ? 'Naam wijzigen'
+                                    : 'Welke naam wil je gebruiken?',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.2,
+                                      height: 1.25,
+                                    ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                widget.fromSettings
+                                    ? 'Zichtbaar in jullie gedeelde KiDu-overzicht.'
+                                    : 'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: onSurface(context, a68),
+                                      height: 1.35,
+                                    ),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Color.alphaBlend(
+                                    Theme.of(context).colorScheme.primary
+                                        .withValues(alpha: a06),
+                                    Theme.of(context).colorScheme.surface,
+                                  ),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: outlineV(context, a45),
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: _controller,
+                                  focusNode: _nameFocus,
+                                  textCapitalization:
+                                      TextCapitalization.sentences,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      _allowedNameCharacter,
+                                    ),
+                                    LengthLimitingTextInputFormatter(16),
+                                  ],
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).unfocus(),
+                                  onChanged: (_) {
+                                    final currentError = _profileNameError(
+                                      _normalizedName(_controller.text),
+                                    );
+                                    if (_nameInlineHint != null &&
+                                        currentError == null) {
+                                      setState(() => _nameInlineHint = null);
+                                    }
+                                  },
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.12,
+                                      ),
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    border: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 14,
+                                    ),
+                                    counterText: '',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 18,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: _nameInlineHint == null
+                                      ? const SizedBox.shrink()
+                                      : Text(
+                                          _nameInlineHint!,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: onSurface(context, a62),
+                                                height: 1.35,
+                                              ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: _busy
+                                          ? null
+                                          : widget.fromSettings
+                                          ? () => Navigator.of(context).pop()
+                                          : _signOut,
+                                      child: Text(
+                                        widget.fromSettings
+                                            ? 'Annuleren'
+                                            : 'Uitloggen',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: onSurface(context, a70),
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: _busy ? null : _save,
+                                      icon: _busy
+                                          ? SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.primary,
+                                              ),
+                                            )
+                                          : const Icon(Icons.check, size: 18),
+                                      label: Text(
+                                        'Opslaan',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
