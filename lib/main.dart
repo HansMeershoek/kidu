@@ -12354,6 +12354,16 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  /// Gedeelde lege-state voor Logboek-tablijsten: vult de [KiduCard]-ruimte en centreert.
+  Widget _logboekListEmptyMessage(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(message, textAlign: TextAlign.center),
+      ),
+    );
+  }
+
   Widget _buildWijzigingenList(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
@@ -12398,10 +12408,7 @@ class _LogboekPageState extends State<_LogboekPage>
             }
             final rows = futSnap.data ?? const <_WijzigRow>[];
             if (rows.isEmpty) {
-              return const Align(
-                alignment: Alignment.topLeft,
-                child: Text('Geen bedragwijzigingen gevonden.'),
-              );
+              return _logboekListEmptyMessage('Geen wijzigingen gevonden');
             }
             return ListView.separated(
               padding: EdgeInsets.zero,
@@ -12528,10 +12535,7 @@ class _LogboekPageState extends State<_LogboekPage>
           snap.data!.docs,
         )..sort(_compareExpenseDocsStable);
         if (docs.isEmpty) {
-          return const Align(
-            alignment: Alignment.topLeft,
-            child: Text('Geen uitgaven gevonden.'),
-          );
+          return _logboekListEmptyMessage('Geen uitgaven gevonden');
         }
         return ListView.separated(
           padding: EdgeInsets.zero,
@@ -12679,12 +12683,7 @@ class _LogboekPageState extends State<_LogboekPage>
         }
         final allDocs = snap.data!.docs;
         if (allDocs.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Geen betalingen gevonden.'),
-            ),
-          );
+          return _logboekListEmptyMessage('Geen betalingen gevonden');
         }
 
         final docs = allDocs
@@ -12697,10 +12696,7 @@ class _LogboekPageState extends State<_LogboekPage>
             .toList(growable: false);
 
         if (docs.isEmpty) {
-          return const Align(
-            alignment: Alignment.topLeft,
-            child: Text('Geen betalingen gevonden.'),
-          );
+          return _logboekListEmptyMessage('Geen betalingen gevonden');
         }
         return ListView.separated(
           padding: EdgeInsets.zero,
