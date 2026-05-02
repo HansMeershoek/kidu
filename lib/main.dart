@@ -1525,6 +1525,22 @@ class PrivacyPolicyPage extends StatelessWidget {
   }
 }
 
+const String _kLoginNetworkErrorMessage = 'Geen internetverbinding';
+const String _kLoginGenericErrorMessage = 'Inloggen niet gelukt';
+
+bool _loginGoogleSignInWasCanceledByUser(Object error) {
+  return error is GoogleSignInException &&
+      error.code == GoogleSignInExceptionCode.canceled;
+}
+
+/// Inline copy for login only: network-style Firebase [FirebaseException] codes.
+String _loginInlineMessageForFirebaseCode(String code) {
+  if (code == 'network-request-failed' || code == 'unavailable') {
+    return _kLoginNetworkErrorMessage;
+  }
+  return _kLoginGenericErrorMessage;
+}
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -1535,19 +1551,6 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   String? _error;
   bool _busy = false;
-
-  void _showSnackBar(String message, {Duration? duration}) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: duration ?? const Duration(seconds: 4),
-      ),
-    );
-  }
 
   Future<void> _signInWithGoogle() async {
     if (_busy) {
@@ -1567,10 +1570,8 @@ class _LoginPageState extends State<LoginPage> {
       final googleAuth = googleUser.authentication;
       final idToken = googleAuth.idToken;
       if (idToken == null || idToken.trim().isEmpty) {
-        const message = 'Google-token ontbreekt. Probeer opnieuw.';
         if (mounted) {
-          setState(() => _error = message);
-          _showSnackBar(message);
+          setState(() => _error = _kLoginGenericErrorMessage);
         }
         return;
       }
@@ -1587,11 +1588,10 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on FirebaseAuthException catch (e) {
       debugPrint('Google sign-in FirebaseAuthException: $e');
-      final message = mapUserFacingError(e);
+      final message = _loginInlineMessageForFirebaseCode(e.code);
       if (mounted) {
         setState(() => _error = message);
       }
-      _showSnackBar(message);
     } catch (e) {
       debugPrint('Google sign-in error: $e');
       if (e is PlatformException) {
@@ -1599,14 +1599,18 @@ class _LoginPageState extends State<LoginPage> {
           'PlatformException code=${e.code} message=${e.message} details=${e.details}',
         );
       }
-      final message = mapUserFacingError(
-        e,
-        fallback: 'Google-inloggen mislukt. Probeer opnieuw.',
-      );
-      if (mounted) {
-        setState(() => _error = message);
+      if (_loginGoogleSignInWasCanceledByUser(e)) {
+        if (mounted) {
+          setState(() => _error = null);
+        }
+      } else {
+        final message = e is FirebaseException
+            ? _loginInlineMessageForFirebaseCode(e.code)
+            : _kLoginGenericErrorMessage;
+        if (mounted) {
+          setState(() => _error = message);
+        }
       }
-      _showSnackBar(message);
     } finally {
       if (mounted) {
         setState(() => _busy = false);
