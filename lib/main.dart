@@ -1202,6 +1202,15 @@ class ProfileNamePage extends StatefulWidget {
 }
 
 class _ProfileNamePageState extends State<ProfileNamePage> {
+  static final RegExp _allowedNameCharacter = RegExp(
+    r"[\p{L}\p{M} '\-]",
+    unicode: true,
+  );
+  static final RegExp _allowedName = RegExp(
+    r"^[\p{L}\p{M} '\-]+$",
+    unicode: true,
+  );
+
   final _controller = TextEditingController();
   final FocusNode _nameFocus = FocusNode();
   bool _busy = false;
@@ -1221,17 +1230,21 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     });
   }
 
-  void _showSnackBar(String message, {Duration? duration}) {
-    if (!mounted) {
-      return;
+  String _normalizedName(String value) {
+    return value.trim().replaceAll(RegExp(r' +'), ' ');
+  }
+
+  String? _profileNameError(String value) {
+    if (value.length > 16) {
+      return 'Gebruik maximaal 16 tekens.';
     }
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: duration ?? const Duration(seconds: 4),
-      ),
-    );
+    if (value.length < 2) {
+      return 'Vul minimaal 2 tekens in.';
+    }
+    if (value.contains(RegExp(r'[\r\n]')) || !_allowedName.hasMatch(value)) {
+      return "Gebruik alleen letters, spaties, - of '.";
+    }
+    return null;
   }
 
   Future<void> _save() async {
@@ -1244,9 +1257,16 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       return;
     }
 
-    final name = _controller.text.trim();
+    final name = _normalizedName(_controller.text);
     if (name.length < 2) {
-      setState(() => _nameInlineHint = 'Naam moet minimaal 2 tekens zijn.');
+      setState(() => _nameInlineHint = 'Vul minimaal 2 tekens in.');
+      _nameFocus.requestFocus();
+      return;
+    }
+
+    final validationError = _profileNameError(name);
+    if (validationError != null) {
+      setState(() => _nameInlineHint = validationError);
       return;
     }
 
@@ -1289,8 +1309,38 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
       }
     } catch (e) {
       if (kDebugMode) debugPrint('Save profileName error: $e');
-      _showSnackBar(
-        mapUserFacingError(e, fallback: 'Opslaan mislukt. Probeer opnieuw.'),
+      setState(() {
+        _nameInlineHint = mapUserFacingError(
+          e,
+          fallback: 'Opslaan mislukt. Probeer opnieuw.',
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+    if (_busy) {
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {}
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthGate()),
+        (route) => false,
       );
     } finally {
       if (mounted) {
@@ -1350,10 +1400,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     }
 
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.of(context).pop();
-      },
+      canPop: widget.fromSettings,
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
@@ -1368,17 +1415,18 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
         body: SafeArea(
           child: SingleChildScrollView(
             padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 20,
-              bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+              left: _DashboardPageState._pagePadding,
+              right: _DashboardPageState._pagePadding,
+              top: 8,
+              bottom:
+                  _DashboardPageState._pagePadding +
+                  MediaQuery.of(context).viewInsets.bottom,
             ),
             child: Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: KiduCard(
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     mainAxisSize: MainAxisSize.min,
@@ -1392,15 +1440,15 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                               height: 1.25,
                             ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
                         'Deze naam is zichtbaar in jullie gedeelde KiDu-overzicht.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: onSurface(context, a68),
-                          height: 1.45,
+                          height: 1.35,
                         ),
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 16),
                       Container(
                         decoration: BoxDecoration(
                           color: Color.alphaBlend(
@@ -1416,11 +1464,20 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                           controller: _controller,
                           focusNode: _nameFocus,
                           textCapitalization: TextCapitalization.sentences,
-                          maxLength: 20,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              _allowedNameCharacter,
+                            ),
+                            LengthLimitingTextInputFormatter(16),
+                          ],
                           textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _busy ? null : _save(),
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
                           onChanged: (_) {
-                            if (_nameInlineHint != null) {
+                            final currentError = _profileNameError(
+                              _normalizedName(_controller.text),
+                            );
+                            if (_nameInlineHint != null &&
+                                currentError == null) {
                               setState(() => _nameInlineHint = null);
                             }
                           },
@@ -1442,37 +1499,63 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                           ),
                         ),
                       ),
-                      if (_nameInlineHint != null) ...[
-                        const SizedBox(height: 10),
-                        Padding(
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 18,
+                        child: Padding(
                           padding: const EdgeInsets.only(left: 4),
-                          child: Text(
-                            _nameInlineHint!,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: onSurface(context, a62),
-                                  height: 1.35,
+                          child: _nameInlineHint == null
+                              ? const SizedBox.shrink()
+                              : Text(
+                                  _nameInlineHint!,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: onSurface(context, a62),
+                                        height: 1.35,
+                                      ),
                                 ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _busy
+                                  ? null
+                                  : widget.fromSettings
+                                  ? () => Navigator.of(context).pop()
+                                  : _signOut,
+                              child: Text(
+                                widget.fromSettings ? 'Annuleren' : 'Uitloggen',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: 22),
-                      FilledButton.tonalIcon(
-                        onPressed: _busy ? null : _save,
-                        icon: _busy
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              )
-                            : const Icon(Icons.check, size: 18),
-                        label: Text(
-                          'Opslaan',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.tonalIcon(
+                              onPressed: _busy ? null : _save,
+                              icon: _busy
+                                  ? SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check, size: 18),
+                              label: Text(
+                                'Opslaan',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
