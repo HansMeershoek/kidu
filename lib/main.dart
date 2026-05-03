@@ -1989,7 +1989,6 @@ class _DashboardPageState extends State<DashboardPage> {
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
   QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
-  String? _inviteCode;
   bool _showWaiting = false;
   int _notesRefreshTick = 0;
   bool _noteWriteInFlight = false;
@@ -2696,51 +2695,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                           ),
                         const SizedBox(height: 16),
-                        if (!isPaired && hasHousehold && canInvite) ...[
-                          FilledButton.tonalIcon(
-                            onPressed: _inviteBusy
-                                ? null
-                                : () async {
-                                    HapticFeedback.selectionClick();
-                                    await _generateInvite(householdId);
-                                    if (context.mounted) {
-                                      setModalState(() {});
-                                    }
-                                  },
-                            icon: Icon(
-                              Icons.key_outlined,
-                              size: 18,
-                              color: onSurface(context, a58),
-                            ),
-                            label: Text(
-                              _inviteBusy ? 'Bezig...' : 'Genereer invite code',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ),
-                          if (_inviteCode != null &&
-                              _inviteCode!.trim().isNotEmpty) ...[
-                            const SizedBox(height: _cardGap),
-                            KiduCodePill(
-                              code: _inviteCode!.trim(),
-                              onCopy: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(text: _inviteCode!.trim()),
-                                );
-                                _showSnackBar('Invite code gekopieerd.');
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            FilledButton.tonalIcon(
-                              onPressed: () => _shareInviteCode(_inviteCode!),
-                              icon: const Icon(Icons.share_outlined, size: 18),
-                              label: Text(
-                                'Delen',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: _cardGap),
-                        ],
                         if (!isPaired) ...[
                           OutlinedButton.icon(
                             onPressed: () {
@@ -4236,12 +4190,6 @@ class _DashboardPageState extends State<DashboardPage> {
         return null;
       }
 
-      if (!silent && mounted) {
-        setState(() {
-          _inviteCode = createdCode;
-        });
-      }
-
       return createdCode;
     } catch (e) {
       if (kDebugMode) debugPrint('Generate invite error: $e');
@@ -4371,7 +4319,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       codeFontWeight: FontWeight.w600,
                       onCopy: () async {
                         await Clipboard.setData(ClipboardData(text: code!));
-                        _showSnackBar('Invite code gekopieerd.');
                       },
                     ),
                     const SizedBox(height: 16),
