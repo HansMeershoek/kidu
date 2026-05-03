@@ -3957,12 +3957,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   .successSnackBarMessage;
                                         }
                                         if (context.mounted) {
-                                          await Future<void>.delayed(
-                                            const Duration(milliseconds: 150),
-                                          );
-                                          if (context.mounted) {
-                                            Navigator.of(context).pop();
-                                          }
+                                          Navigator.of(context).pop();
                                         }
                                       } catch (e) {
                                         debugPrint(
