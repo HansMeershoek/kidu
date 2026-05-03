@@ -8410,7 +8410,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
       return;
     }
     if (!mounted) return;
-    final saved = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
       useSafeArea: true,
       barrierDismissible: false,
@@ -8449,12 +8449,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
         ),
       ),
     );
-    if (saved == true && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _showExpenseSnackBar('Uitgave bijgewerkt.');
-      });
-    }
   }
 
   @override
