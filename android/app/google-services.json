@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "64374292159-jcf10e33g0lq0rgcrsi3avo7hnmv448i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anne.kidu",
+            "certificate_hash": "008ce2b13de75398828c1e2c5a2d9e7ec19e83e0"
+          }
+        },
+        {
           "client_id": "64374292159-lobqfbhnnf22jksnipkui2qm49coi7ev.apps.googleusercontent.com",
           "client_type": 3
         }
