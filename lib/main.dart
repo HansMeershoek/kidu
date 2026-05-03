@@ -2636,6 +2636,7 @@ class _DashboardPageState extends State<DashboardPage> {
     required String myUid,
     required String? otherName,
     required bool canInvite,
+    required bool isCoParentLinked,
     String? myName,
   }) {
     final rootContext = context;
@@ -2992,6 +2993,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         secondaryAnimation,
                                       ) => _TerugkerendeKostenPage(
                                         householdId: householdId,
+                                        isCoParentLinked: isCoParentLinked,
                                         otherParentName: otherName,
                                         myParentName: myName,
                                       ),
@@ -4563,6 +4565,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     myUid: user.uid,
                     otherName: null,
                     canInvite: false,
+                    isCoParentLinked: false,
                     myName: null,
                   ),
                   icon: const Icon(Icons.more_horiz),
@@ -4748,6 +4751,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           myUid: user.uid,
                           otherName: 'Co-parent',
                           canInvite: canInvite,
+                          isCoParentLinked: false,
                           myName: myProfileName,
                         ),
                         icon: const Icon(Icons.more_horiz),
@@ -5074,6 +5078,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 myUid: user.uid,
                                 otherName: otherName,
                                 canInvite: canInvite,
+                                isCoParentLinked: canAddExpenses,
                                 myName: myProfileName,
                               ),
                               icon: const Icon(Icons.more_horiz),
@@ -14483,11 +14488,16 @@ class _RecurringMaterializationRunner {
 class _TerugkerendeKostenPage extends StatefulWidget {
   const _TerugkerendeKostenPage({
     required this.householdId,
+    required this.isCoParentLinked,
     this.otherParentName,
     this.myParentName,
   });
 
   final String householdId;
+
+  /// Zelfde semantiek als dashboard [canAddExpenses]: tweede ouder in het
+  /// huishouden is zichtbaar (`otherUid`).
+  final bool isCoParentLinked;
   final String? otherParentName;
 
   /// Echte naam van de huidige gebruiker; gebruikt door de lijstregel om
@@ -14567,6 +14577,33 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
+    if (!widget.isCoParentLinked) {
+      return Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: AppBar(
+          centerTitle: true,
+          title: Text(
+            'Maandelijkse uitgaven',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Beschikbaar na koppelen',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       // Voorkom dat deze achtergrondpagina herlayoutet bij keyboard-open
