@@ -5069,7 +5069,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                 seconds: 5,
                                                               ),
                                                           content: const Text(
-                                                            'Voeg eerst een kind toe om een uitgave te registreren.',
+                                                            'Voeg eerst een kind toe.',
                                                           ),
                                                           action: SnackBarAction(
                                                             label: 'Kinderen',
@@ -14402,7 +14402,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
         SnackBar(
           duration: const Duration(seconds: 5),
           content: const Text(
-            'Voeg eerst een kind toe om een uitgave te registreren.',
+            'Voeg eerst een kind toe.',
           ),
           action: SnackBarAction(
             label: 'Kinderen',
