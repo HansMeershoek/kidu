@@ -357,10 +357,9 @@ Widget? _expenseSubtitleWithOptionalMonthlyIcon(
   String? noteTrailing,
   required bool isMaterializedMonthly,
 }) {
-  final style = Theme.of(context).textTheme.bodySmall?.copyWith(
-    color: onSurface(context, a62),
-    height: 1.35,
-  );
+  final style = Theme.of(
+    context,
+  ).textTheme.bodySmall?.copyWith(color: onSurface(context, a62), height: 1.35);
   final note = noteTrailing?.trim();
   final hasNote = note != null && note.isNotEmpty;
   final base = actorAndDateLine.trim();
@@ -2412,9 +2411,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<ReopenLockAuthResult> _enableReopenLockWithCheck() async {
-    final result = await _reopenLockService.authenticate(
-      localizedReason: ' ',
-    );
+    final result = await _reopenLockService.authenticate(localizedReason: ' ');
     if (result.isAuthenticated) {
       await _reopenLockService.saveEnabled(true);
     }
@@ -3273,9 +3270,7 @@ class _DashboardPageState extends State<DashboardPage> {
         noteForRowFallback: noteErrMsg == null ? noteTrimmed : null,
         successSnackBarMessage: isPending
             ? null
-            : (noteErrMsg != null
-                  ? 'Uitgave opgeslagen, $noteErrMsg'
-                  : null),
+            : (noteErrMsg != null ? 'Uitgave opgeslagen, $noteErrMsg' : null),
       );
     } catch (e) {
       if (kDebugMode) debugPrint('Create expense error: $e');
@@ -4661,240 +4656,235 @@ class _DashboardPageState extends State<DashboardPage> {
             if (showsPendingSoloPreview || showsStableSoloDashboard) {
               _reportPreviewReady(showsStableSoloDashboard);
               return Scaffold(
-                  resizeToAvoidBottomInset: false,
-                  appBar: AppBar(
-                    centerTitle: true,
-                    title: Text(
-                      'KiDu',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
-                      ),
+                resizeToAvoidBottomInset: false,
+                appBar: AppBar(
+                  centerTitle: true,
+                  title: Text(
+                    'KiDu',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
                     ),
-                    actions: [
-                      IconButton(
-                        onPressed: () => _openMenuSheet(
-                          householdId: householdIdStr,
-                          myUid: user.uid,
-                          otherName: 'Co-parent',
-                          canInvite: canInvite,
-                          isCoParentLinked: false,
-                          myName: myProfileName,
-                        ),
-                        icon: const Icon(Icons.more_horiz),
-                        tooltip: 'Menu',
-                      ),
-                    ],
                   ),
-                  floatingActionButton: null,
-                  body: SafeArea(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return SingleChildScrollView(
-                          padding: EdgeInsets.only(
-                            bottom: MediaQuery.of(context).viewInsets.bottom,
+                  actions: [
+                    IconButton(
+                      onPressed: () => _openMenuSheet(
+                        householdId: householdIdStr,
+                        myUid: user.uid,
+                        otherName: 'Co-parent',
+                        canInvite: canInvite,
+                        isCoParentLinked: false,
+                        myName: myProfileName,
+                      ),
+                      icon: const Icon(Icons.more_horiz),
+                      tooltip: 'Menu',
+                    ),
+                  ],
+                ),
+                floatingActionButton: null,
+                body: SafeArea(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
                           ),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: constraints.maxHeight,
-                            ),
-                            child: IntrinsicHeight(
-                              child: Padding(
-                                padding: const EdgeInsets.all(_pagePadding),
-                                child: Stack(
-                                  children: [
-                                    Align(
-                                      alignment: Alignment.topCenter,
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 520,
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            KiduCard(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  Text(
-                                                    'Balans',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  _balanceRow(
-                                                    label:
-                                                        'Totaal samen uitgegeven',
-                                                    value: _formatEur(0),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  Text(
-                                                    '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          color: onSurface(
-                                                            context,
-                                                            a68,
-                                                          ),
-                                                          height: 1.3,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  Divider(
-                                                    height: 1,
-                                                    color: outlineV(
-                                                      context,
-                                                      a40,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            const SizedBox(height: _cardGap),
-                                            KiduCard(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  Text(
-                                                    'Recente uitgaven',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  Text(
-                                                    'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.copyWith(
-                                                          color: onSurface(
-                                                            context,
-                                                            a62,
-                                                          ),
-                                                          height: 1.35,
-                                                        ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            const SizedBox(height: _cardGap),
-                                            KiduCard(
-                                                child: Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    Text(
-                                                      'Je bent nog niet gekoppeld',
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .titleMedium
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                          ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    Text(
-                                                      'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodySmall
-                                                          ?.copyWith(
-                                                            color: onSurface(
-                                                              context,
-                                                              a62,
-                                                            ),
-                                                            height: 1.35,
-                                                          ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    SizedBox(
-                                                      height: 48,
-                                                      child: ElevatedButton(
-                                                        onPressed:
-                                                            (_inviteBusy ||
-                                                                _setupBusy)
-                                                            ? null
-                                                            : () async {
-                                                                if (_inviteSheetOpening) {
-                                                                  return;
-                                                                }
-                                                                HapticFeedback.selectionClick();
-                                                                _inviteSheetOpening =
-                                                                    true;
-                                                                try {
-                                                                  await _openInviteSheetFlow(
-                                                                    householdIdStr,
-                                                                  );
-                                                                } finally {
-                                                                  if (mounted) {
-                                                                    _inviteSheetOpening =
-                                                                        false;
-                                                                  }
-                                                                }
-                                                              },
-                                                        child: const Text(
-                                                          'Co-parent uitnodigen',
-                                                        ),
+                          child: IntrinsicHeight(
+                            child: Padding(
+                              padding: const EdgeInsets.all(_pagePadding),
+                              child: Stack(
+                                children: [
+                                  Align(
+                                    alignment: Alignment.topCenter,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 520,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          KiduCard(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Text(
+                                                  'Balans',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
                                                       ),
-                                                    ),
-                                                    const SizedBox(height: 8),
-                                                    SizedBox(
-                                                      height: 48,
-                                                      child: OutlinedButton(
-                                                        onPressed: () {
-                                                          Navigator.of(
-                                                            context,
-                                                          ).push(
-                                                            MaterialPageRoute(
-                                                              builder: (_) =>
-                                                                  const SetupPage(),
-                                                            ),
-                                                          );
-                                                        },
-                                                        child: const Text(
-                                                          'Ik heb een code',
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
                                                 ),
-                                              ),
-                                          ],
-                                        ),
+                                                const SizedBox(height: 8),
+                                                _balanceRow(
+                                                  label:
+                                                      'Totaal samen uitgegeven',
+                                                  value: _formatEur(0),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a68,
+                                                        ),
+                                                        height: 1.3,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Divider(
+                                                  height: 1,
+                                                  color: outlineV(context, a40),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: _cardGap),
+                                          KiduCard(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Text(
+                                                  'Recente uitgaven',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a62,
+                                                        ),
+                                                        height: 1.35,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: _cardGap),
+                                          KiduCard(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Text(
+                                                  'Je bent nog niet gekoppeld',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleMedium
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: onSurface(
+                                                          context,
+                                                          a62,
+                                                        ),
+                                                        height: 1.35,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                SizedBox(
+                                                  height: 48,
+                                                  child: ElevatedButton(
+                                                    onPressed:
+                                                        (_inviteBusy ||
+                                                            _setupBusy)
+                                                        ? null
+                                                        : () async {
+                                                            if (_inviteSheetOpening) {
+                                                              return;
+                                                            }
+                                                            HapticFeedback.selectionClick();
+                                                            _inviteSheetOpening =
+                                                                true;
+                                                            try {
+                                                              await _openInviteSheetFlow(
+                                                                householdIdStr,
+                                                              );
+                                                            } finally {
+                                                              if (mounted) {
+                                                                _inviteSheetOpening =
+                                                                    false;
+                                                              }
+                                                            }
+                                                          },
+                                                    child: const Text(
+                                                      'Co-parent uitnodigen',
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                SizedBox(
+                                                  height: 48,
+                                                  child: OutlinedButton(
+                                                    onPressed: () {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).push(
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              const SetupPage(),
+                                                        ),
+                                                      );
+                                                    },
+                                                    child: const Text(
+                                                      'Ik heb een code',
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
+                ),
               );
             }
 
@@ -6346,19 +6336,19 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     _expenseDocIsMaterializedMonthly(
                                                                       e,
                                                                     );
-                                                                final subtitleWidget =
-                                                                    _expenseSubtitleWithOptionalMonthlyIcon(
-                                                                      context,
-                                                                      actorAndDateLine:
-                                                                          baseSubtitleText,
-                                                                      noteTrailing: (note?.trim()
-                                                                              .isNotEmpty ??
+                                                                final subtitleWidget = _expenseSubtitleWithOptionalMonthlyIcon(
+                                                                  context,
+                                                                  actorAndDateLine:
+                                                                      baseSubtitleText,
+                                                                  noteTrailing:
+                                                                      (note?.trim().isNotEmpty ??
                                                                           false)
-                                                                      ? note!.trim()
+                                                                      ? note!
+                                                                            .trim()
                                                                       : null,
-                                                                      isMaterializedMonthly:
-                                                                          isMaterializedMonthly,
-                                                                    );
+                                                                  isMaterializedMonthly:
+                                                                      isMaterializedMonthly,
+                                                                );
                                                                 final expChildIds =
                                                                     (e['childIds']
                                                                             as List?)
@@ -6501,17 +6491,21 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(
                                                                                   e,
                                                                                 ),
-                                                                                parentSplitMembers: <_ParentSplitMember>[
-                                                                                  _ParentSplitMember(
-                                                                                    uid: user.uid,
-                                                                                    label: myName,
-                                                                                  ),
-                                                                                  if (otherUid != null)
-                                                                                    _ParentSplitMember(
-                                                                                      uid: otherUid,
-                                                                                      label: otherName,
-                                                                                    ),
-                                                                                ],
+                                                                                parentSplitMembers:
+                                                                                    <
+                                                                                      _ParentSplitMember
+                                                                                    >[
+                                                                                      _ParentSplitMember(
+                                                                                        uid: user.uid,
+                                                                                        label: myName,
+                                                                                      ),
+                                                                                      if (otherUid !=
+                                                                                          null)
+                                                                                        _ParentSplitMember(
+                                                                                          uid: otherUid,
+                                                                                          label: otherName,
+                                                                                        ),
+                                                                                    ],
                                                                                 childIds: expChildIds,
                                                                                 childNames: preloadedChildNames,
                                                                               ),
@@ -12357,14 +12351,13 @@ class _LogboekPageState extends State<_LogboekPage>
                 final row = rows[i];
                 final whoLabel = _wijzigEditedByName(row.editedBy);
                 final paidByName = _paymentPartyName(row.createdBy);
-                final wijzigSubtitle =
-                    _expenseSubtitleWithOptionalMonthlyIcon(
-                      context,
-                      actorAndDateLine:
-                          '$whoLabel · ${_formatWijzigingDate(row.editedAt)}',
-                      noteTrailing: null,
-                      isMaterializedMonthly: row.isMaterializedMonthly,
-                    );
+                final wijzigSubtitle = _expenseSubtitleWithOptionalMonthlyIcon(
+                  context,
+                  actorAndDateLine:
+                      '$whoLabel · ${_formatWijzigingDate(row.editedAt)}',
+                  noteTrailing: null,
+                  isMaterializedMonthly: row.isMaterializedMonthly,
+                );
                 return SizedBox(
                   height: _logboekListRowExtent,
                   child: Material(
@@ -12506,8 +12499,7 @@ class _LogboekPageState extends State<_LogboekPage>
                 : amountCents;
             final dateStr = _fmtDate(createdAt);
             final actorAndDateLine = '$paidByName · $dateStr';
-            final isMaterializedMonthly =
-                _expenseDocIsMaterializedMonthly(e);
+            final isMaterializedMonthly = _expenseDocIsMaterializedMonthly(e);
             final subtitleWidget = _expenseSubtitleWithOptionalMonthlyIcon(
               context,
               actorAndDateLine: actorAndDateLine,
@@ -12548,15 +12540,12 @@ class _LogboekPageState extends State<_LogboekPage>
                               )
                             : null,
                         otherParentName: widget.otherName,
-                        parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(
-                          e,
-                        ),
+                        parentSplitSnapshot:
+                            ParentSplitSnapshot.tryReadFromExpense(e),
                         parentSplitMembers: _parentItems
                             .map(
-                              (p) => _ParentSplitMember(
-                                uid: p.uid,
-                                label: p.name,
-                              ),
+                              (p) =>
+                                  _ParentSplitMember(uid: p.uid, label: p.name),
                             )
                             .toList(growable: false),
                         childIds: childIds,
@@ -13350,11 +13339,36 @@ String _formatParentSplitShare(int bps) {
   return '${pct.toStringAsFixed(1)}%';
 }
 
-String _parentSplitMemberLabel(List<_ParentSplitMember> members, String uid) {
+String _parentSplitMemberLabel(
+  List<_ParentSplitMember> members,
+  String uid, {
+  required String fallbackLabel,
+}) {
   for (final member in members) {
-    if (member.uid == uid) return member.label;
+    if (member.uid == uid) {
+      final label = member.label.trim();
+      if (label.isNotEmpty && label != 'Ouder') return label;
+    }
   }
-  return uid;
+  return fallbackLabel;
+}
+
+String _parentSplitFallbackLabel({
+  required String uid,
+  required String? viewerUid,
+  required int displayIndex,
+  String? myParentName,
+  String? otherParentName,
+}) {
+  final viewer = (viewerUid ?? '').trim();
+  if (viewer.isNotEmpty && uid == viewer) {
+    final mine = myParentName?.trim();
+    if (mine != null && mine.isNotEmpty) return mine;
+    return 'Ouder $displayIndex';
+  }
+  final other = otherParentName?.trim();
+  if (other != null && other.isNotEmpty) return other;
+  return 'Ouder $displayIndex';
 }
 
 ({String firstUid, int firstBps, String secondUid, int secondBps})
@@ -13390,12 +13404,36 @@ String _formatParentSplitCompact(
 String _formatParentSplitNamed(
   ParentSplitSnapshot snapshot,
   List<_ParentSplitMember> members,
-  String? viewerUid,
-) {
+  String? viewerUid, {
+  String? myParentName,
+  String? otherParentName,
+}) {
   final ordered = _viewerFirstParentSplit(snapshot, viewerUid);
-  return '${_parentSplitMemberLabel(members, ordered.firstUid)} '
+  final firstLabel = _parentSplitMemberLabel(
+    members,
+    ordered.firstUid,
+    fallbackLabel: _parentSplitFallbackLabel(
+      uid: ordered.firstUid,
+      viewerUid: viewerUid,
+      displayIndex: 1,
+      myParentName: myParentName,
+      otherParentName: otherParentName,
+    ),
+  );
+  final secondLabel = _parentSplitMemberLabel(
+    members,
+    ordered.secondUid,
+    fallbackLabel: _parentSplitFallbackLabel(
+      uid: ordered.secondUid,
+      viewerUid: viewerUid,
+      displayIndex: 2,
+      myParentName: myParentName,
+      otherParentName: otherParentName,
+    ),
+  );
+  return '$firstLabel '
       '${_formatParentSplitShare(ordered.firstBps)} · '
-      '${_parentSplitMemberLabel(members, ordered.secondUid)} '
+      '$secondLabel '
       '${_formatParentSplitShare(ordered.secondBps)}';
 }
 
@@ -13411,14 +13449,14 @@ Future<List<_ParentSplitMember>> _loadParentSplitMembers(
     ..sort();
   final result = <_ParentSplitMember>[];
   for (final uid in memberUids) {
-    String label = uid;
+    String label = 'Ouder';
     try {
       final user = await firestore.doc('users/$uid').get();
       final data = user.data();
       final name = (data?['profileName'] ?? data?['displayName']) as String?;
       if (name != null && name.trim().isNotEmpty) label = name.trim();
     } catch (_) {
-      // Uid is still a valid fallback label.
+      // Keep UI labels calm; technical ids must never surface.
     }
     result.add(_ParentSplitMember(uid: uid, label: label));
   }
@@ -14390,9 +14428,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
       final noChildrenSnackBarController = messenger.showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 5),
-          content: const Text(
-            'Voeg eerst een kind toe.',
-          ),
+          content: const Text('Voeg eerst een kind toe.'),
           action: SnackBarAction(
             label: 'Kinderen',
             onPressed: () => nav.push(
@@ -14755,6 +14791,7 @@ class _RecurringMasterList extends StatelessWidget {
                   status: status,
                   preloadedChildNames: preloadedNames,
                   otherParentName: otherParentName,
+                  myParentName: myParentName,
                 ),
               ),
             );
@@ -14849,6 +14886,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
     required this.status,
     this.preloadedChildNames,
     this.otherParentName,
+    this.myParentName,
   });
 
   final String householdId;
@@ -14864,6 +14902,10 @@ class _RecurringMasterDetailPage extends StatefulWidget {
   /// Zelfde rol als bij [_ExpenseDetailPage.otherParentName] voor het
   /// wijzigingslabel (`Jij` / co-parent); optioneel zolang er geen route meegeeft.
   final String? otherParentName;
+
+  /// Echte naam van de huidige gebruiker; gebruikt als stabiele fallback voor
+  /// de parent-split regel voordat async membernamen binnen zijn.
+  final String? myParentName;
 
   /// Names vooraf opgelost door de lijstrij (analoog aan hoe het dashboard
   /// dit aan [_ExpenseDetailPage] doorgeeft). Als dit niet-null is, tonen
@@ -15333,6 +15375,8 @@ class _RecurringMasterDetailPageState
                               effectiveSplit,
                               members,
                               widget.uid,
+                              myParentName: widget.myParentName,
+                              otherParentName: widget.otherParentName,
                             ),
                           ),
                         );
