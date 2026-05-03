@@ -6216,7 +6216,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       .topLeft,
                                                               child: Text(
                                                                 canAddExpenses
-                                                                    ? 'Nog geen uitgaven. Voeg er een toe met +.'
+                                                                    ? 'Nog geen uitgaven. Voeg er één toe met +.'
                                                                     : 'Nog geen uitgaven.',
                                                                 style: Theme.of(context)
                                                                     .textTheme
@@ -14411,17 +14411,12 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
       );
       return;
     }
-    final result = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _AddRecurringExpenseDialog(householdId: householdId),
     );
     if (!mounted) return;
-    if (result == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Maandelijkse uitgave opgeslagen.')),
-      );
-    }
   }
 
   @override
@@ -14530,7 +14525,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Hier beheer je maandelijkse afspraken voor vaste uitgaven.',
+                            'Nog geen uitgaven. Voeg er één toe met +.',
                             style: textTheme.bodyMedium?.copyWith(
                               color: onSurface(context, a84),
                               height: 1.35,
@@ -14946,7 +14941,7 @@ class _RecurringMasterDetailPageState
       return;
     }
     if (!mounted) return;
-    final saved = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
       useSafeArea: true,
       barrierDismissible: false,
@@ -14988,12 +14983,6 @@ class _RecurringMasterDetailPageState
         ),
       ),
     );
-    if (saved == true && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _showRecurringSnackBar('Maandelijkse uitgave bijgewerkt.');
-      });
-    }
   }
 
   /// Creator-only pauze/hervat op de recurring master.
@@ -15065,8 +15054,6 @@ class _RecurringMasterDetailPageState
         // Dezelfde centrale runner; geen tweede materialisatie-implementatie.
         unawaited(_RecurringMaterializationRunner.run());
       }
-      if (!mounted) return;
-      _showRecurringSnackBar(willPause ? 'Gepauzeerd.' : 'Hervat.');
     } catch (e) {
       if (!mounted) return;
       _showRecurringSnackBar(
