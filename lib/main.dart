@@ -1989,7 +1989,6 @@ class _DashboardPageState extends State<DashboardPage> {
   final ValueNotifier<bool> _freezeExpensesVN = ValueNotifier(false);
   final ValueNotifier<bool> _addExpenseDialogOpenVN = ValueNotifier(false);
   QuerySnapshot<Map<String, dynamic>>? _lastExpensesSnap;
-  bool _showWaiting = false;
   int _notesRefreshTick = 0;
   bool _noteWriteInFlight = false;
   final Map<String, Future<String?>> _noteFutureCache = {};
@@ -4660,27 +4659,13 @@ class _DashboardPageState extends State<DashboardPage> {
                       ? user.displayName!.trim()
                       : 'Jij');
 
-            if (canAddExpenses && _showWaiting) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                setState(() => _showWaiting = false);
-              });
-            }
-
             // While the first members snapshot is pending, keep the same ungekoppeld
             // subtree as when docs=1 (avoids a full-screen spinner flash when
             // householdId first appears, e.g. behind the invite bottom sheet).
 
             if (showsPendingSoloPreview || showsStableSoloDashboard) {
               _reportPreviewReady(showsStableSoloDashboard);
-              return PopScope(
-                canPop: !_showWaiting,
-                onPopInvokedWithResult: (didPop, _) {
-                  if (!didPop && _showWaiting) {
-                    setState(() => _showWaiting = false);
-                  }
-                },
-                child: Scaffold(
+              return Scaffold(
                   resizeToAvoidBottomInset: false,
                   appBar: AppBar(
                     centerTitle: true,
@@ -4816,9 +4801,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 ],
                                               ),
                                             ),
-                                            if (!_showWaiting) ...[
-                                              const SizedBox(height: _cardGap),
-                                              KiduCard(
+                                            const SizedBox(height: _cardGap),
+                                            KiduCard(
                                                 child: Column(
                                                   mainAxisSize:
                                                       MainAxisSize.min,
@@ -4903,79 +4887,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   ],
                                                 ),
                                               ),
-                                            ],
                                           ],
                                         ),
                                       ),
                                     ),
-                                    if (_showWaiting) ...[
-                                      const ModalBarrier(
-                                        dismissible: false,
-                                        color: Color(0x59000000),
-                                      ),
-                                      Align(
-                                        alignment: const Alignment(0, 0.25),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          child: ConstrainedBox(
-                                            constraints: const BoxConstraints(
-                                              maxWidth: 520,
-                                            ),
-                                            child: KiduCard(
-                                              elevation: 8,
-                                              child: Column(
-                                                mainAxisSize: MainAxisSize.min,
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.stretch,
-                                                children: [
-                                                  Text(
-                                                    'Wachten op co-parent',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .titleMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 10),
-                                                  Text(
-                                                    'Je hebt de code gedeeld.\nZodra je co-parent koppelt, verschijnt het gedeelde overzicht automatisch.',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.copyWith(
-                                                          color: onSurface(
-                                                            context,
-                                                            a68,
-                                                          ),
-                                                          height: 1.35,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(height: 14),
-                                                  SizedBox(
-                                                    height: 48,
-                                                    child: FilledButton(
-                                                      onPressed: () {
-                                                        setState(
-                                                          () => _showWaiting =
-                                                              false,
-                                                        );
-                                                      },
-                                                      child: const Text(
-                                                        'Terug',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
                                   ],
                                 ),
                               ),
@@ -4985,7 +4900,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       },
                     ),
                   ),
-                ),
               );
             }
 
