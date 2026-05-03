@@ -3275,7 +3275,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ? null
             : (noteErrMsg != null
                   ? 'Uitgave opgeslagen, $noteErrMsg'
-                  : 'Uitgave opgeslagen.'),
+                  : null),
       );
     } catch (e) {
       if (kDebugMode) debugPrint('Create expense error: $e');
