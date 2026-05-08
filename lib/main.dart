@@ -478,7 +478,8 @@ Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
 /// Shared note-management flow used by both Dashboard and Logboek.
 ///
 /// Loads the latest note from Firestore, opens the edit dialog, verifies
-/// connectivity before writing, persists to Firestore, and shows a snackbar.
+/// connectivity before writing, persists to Firestore, and shows snackbars on
+/// offline-blocking (before write) or persist errors.
 /// Returns the committed [PrivateNoteDialogResult] so callers can bust local
 /// caches; returns null on cancel, offline block, or error.
 Future<PrivateNoteDialogResult?> _doManagePrivateNote(
@@ -530,19 +531,6 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
       });
     }
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              result is PrivateNoteDialogDelete
-                  ? 'Notitie verwijderd.'
-                  : 'Notitie opgeslagen.',
-            ),
-          ),
-        );
-    }
     return result;
   } catch (e) {
     debugPrint('Note save error: $e');
@@ -617,19 +605,6 @@ Future<PrivateNoteDialogResult?> _doManageRecurringMasterPrivateNote(
       });
     }
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(
-              result is PrivateNoteDialogDelete
-                  ? 'Notitie verwijderd.'
-                  : 'Notitie opgeslagen.',
-            ),
-          ),
-        );
-    }
     return result;
   } catch (e) {
     debugPrint('Recurring master note save error: $e');
