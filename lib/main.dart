@@ -15126,11 +15126,6 @@ class _RecurringMasterDetailPageState
     // snapshot instead of whatever the live streams emit, so co-parent
     // deletions of changes/privateNotes/master are not visible as jank.
     setState(() => _deleteActionBusy = true);
-    // Capture the messenger/navigator up-front: after the master is deleted
-    // we pop this page, and the detail widget's own context is no longer
-    // usable for showing a snackbar. The nearest ScaffoldMessenger above
-    // (MaterialApp's root messenger) survives the pop.
-    final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     try {
       final firestore = FirebaseFirestore.instance;
@@ -15165,9 +15160,6 @@ class _RecurringMasterDetailPageState
 
       if (!mounted) return;
       navigator.pop();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Maandelijkse uitgave verwijderd.')),
-      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _deleteActionBusy = false);
