@@ -5599,9 +5599,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                             'confirmedBy': user.uid,
                                                                                           },
                                                                                         );
-                                                                                    _showSnackBar(
-                                                                                      'Ontvangst bevestigd.',
-                                                                                    );
                                                                                   } catch (
                                                                                     e
                                                                                   ) {
@@ -6042,9 +6039,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                                         'confirmedBy': null,
                                                                                                       },
                                                                                                     );
-                                                                                                _showSnackBar(
-                                                                                                  'Betaling gemeld — wacht op bevestiging.',
-                                                                                                );
                                                                                               } catch (
                                                                                                 e
                                                                                               ) {
