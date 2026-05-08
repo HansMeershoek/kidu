@@ -4504,8 +4504,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     isCoParentLinked: false,
                     myName: null,
                   ),
-                  icon: const Icon(Icons.more_horiz),
-                  tooltip: 'Menu',
+                  icon: const Icon(Icons.settings_rounded),
+                  tooltip: 'Instellingen',
                 ),
               ],
             ),
@@ -4676,8 +4676,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         isCoParentLinked: false,
                         myName: myProfileName,
                       ),
-                      icon: const Icon(Icons.more_horiz),
-                      tooltip: 'Menu',
+                      icon: const Icon(Icons.settings_rounded),
+                      tooltip: 'Instellingen',
                     ),
                   ],
                 ),
@@ -4807,7 +4807,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'Nog niet gekoppeld — nodig je co-parent uit om te starten.',
+                                                  'Nodig je co-parent uit, of voer een code in die je hebt ontvangen.',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
@@ -4927,8 +4927,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                 isCoParentLinked: canAddExpenses,
                                 myName: myProfileName,
                               ),
-                              icon: const Icon(Icons.more_horiz),
-                              tooltip: 'Menu',
+                              icon: const Icon(Icons.settings_rounded),
+                              tooltip: 'Instellingen',
                             ),
                           ]
                         : [],
