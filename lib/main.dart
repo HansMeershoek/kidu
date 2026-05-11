@@ -3798,9 +3798,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                             initialSelectedChildIds:
                                                                 hasCustomChildSelection
                                                                 ? customSelectedChildIds
-                                                                : const <
-                                                                    String
-                                                                  >[],
+                                                                : allChildIds,
                                                           );
                                                       if (pickedChildIds ==
                                                               null ||
@@ -7172,11 +7170,12 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   }
 
   List<String> _dialogInitialSelectedChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
     if (_didChangeChildSelection) {
-      return _hasCustomChildSelection ? _customSelectedChildIds : const [];
+      return _hasCustomChildSelection ? _customSelectedChildIds : allChildIds;
     }
     return _isAllChildrenSelection(children, widget.currentChildIds)
-        ? const []
+        ? allChildIds
         : _currentKnownChildIds(children);
   }
 
@@ -7872,11 +7871,12 @@ class _EditRecurringMasterExpenseDialogState
   }
 
   List<String> _dialogInitialSelectedChildIds(List<_ChildItem> children) {
+    final allChildIds = _allChildIds(children);
     if (_didChangeChildSelection) {
-      return _hasCustomChildSelection ? _customSelectedChildIds : const [];
+      return _hasCustomChildSelection ? _customSelectedChildIds : allChildIds;
     }
     return _isAllChildrenSelection(children, widget.currentChildIds)
-        ? const []
+        ? allChildIds
         : _currentKnownChildIds(children);
   }
 
