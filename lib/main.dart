@@ -3660,6 +3660,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  const SizedBox(height: 8),
                                   TextField(
                                     controller: titleController,
                                     focusNode: titleFocusNode,
@@ -7362,7 +7363,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _titleController,
                   focusNode: _titleFocusNode,
@@ -8140,7 +8141,7 @@ class _EditRecurringMasterExpenseDialogState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _titleController,
                   focusNode: _titleFocusNode,
@@ -16388,6 +16389,7 @@ class _AddRecurringExpenseDialogState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const SizedBox(height: 8),
                 TextField(
                   controller: _titleController,
                   focusNode: _titleFocusNode,
