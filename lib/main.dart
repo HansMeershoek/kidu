@@ -7687,17 +7687,76 @@ class _EditRecurringMasterExpenseDialogState
   /// onthouden in [_pickedDueDate] zodat de save-flow materialisatie-floor
   /// en structurele vervaldag samen uit diezelfde bron kan afleiden.
   ///
-  /// Verleden is hier niet toegestaan: `firstDate` is vandaag 00:00 lokaal,
-  /// dus er kan niet teruggebladerd worden naar oude maanden.
+  /// `firstDate` is het maximum van vandaag en de eerste dag van de eerste
+  /// maand vanaf nu waarvan `periodKey` nog niet op een expense voor deze
+  /// master staat,
+  /// zodat de gebruiker geen datum in een al-gematerialiseerde maand kiest.
+  Future<Set<String>> _fetchExistingPeriodKeysForRecurringEdit() async {
+    final householdId = widget.householdId.trim();
+    final masterId = widget.masterId.trim();
+    if (householdId.isEmpty || masterId.isEmpty) {
+      return <String>{};
+    }
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('households/$householdId/expenses')
+          .where('recurringExpenseId', isEqualTo: masterId)
+          .get();
+      final keys = <String>{};
+      for (final doc in snapshot.docs) {
+        final pk = doc.data()['periodKey'];
+        if (pk is String && pk.isNotEmpty) {
+          keys.add(pk);
+        }
+      }
+      return keys;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Recurring edit: existing period keys read failed: $e');
+      }
+      return <String>{};
+    }
+  }
+
+  /// Eerste kiesbare dag voor deze edit-flow: niet vóór vandaag en niet in
+  /// een maand die al een `periodKey` heeft voor deze master.
+  DateTime _firstSelectableDateForRecurringEdit({
+    required Set<String> existingPeriodKeys,
+    required DateTime today,
+  }) {
+    var y = today.year;
+    var m = today.month;
+    for (var i = 0; i < 60; i++) {
+      final pk = _formatRecurringPeriodKey(y, m);
+      if (!existingPeriodKeys.contains(pk)) {
+        final firstOfFreeMonth = DateTime(y, m, 1);
+        return today.isAfter(firstOfFreeMonth) ? today : firstOfFreeMonth;
+      }
+      m += 1;
+      if (m > 12) {
+        m = 1;
+        y += 1;
+      }
+    }
+    return today;
+  }
+
   Future<void> _pickDueDay() async {
     FocusManager.instance.primaryFocus?.unfocus();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
+    final existingKeys = await _fetchExistingPeriodKeysForRecurringEdit();
+    if (!mounted) return;
+    final firstDate = _firstSelectableDateForRecurringEdit(
+      existingPeriodKeys: existingKeys,
+      today: today,
+    );
+
     DateTime initial;
     if (_pickedDueDate != null) {
       final prev = _pickedDueDate!;
-      initial = prev.isBefore(today) ? today : prev;
+      initial = prev.isBefore(firstDate) ? firstDate : prev;
     } else {
       final thisMonthDue = _recurringDueDateFor(
         year: today.year,
@@ -7715,15 +7774,21 @@ class _EditRecurringMasterExpenseDialogState
           startDay: _selectedDueDay,
         );
       }
+      if (initial.isBefore(firstDate)) {
+        initial = firstDate;
+      }
     }
     final lastDate = DateTime(now.year + 5);
+    if (initial.isAfter(lastDate)) {
+      initial = lastDate;
+    }
 
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
-      firstDate: today,
+      firstDate: firstDate,
       lastDate: lastDate,
-      helpText: 'Vervaldag',
+      helpText: 'Volgende vervaldatum',
       cancelText: 'Annuleren',
       confirmText: 'Kiezen',
     );
