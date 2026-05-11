@@ -16606,8 +16606,8 @@ class _AddRecurringExpenseDialogState
 // ────────────────────────────────────────────────────────────────────────────
 // Recurring child-selection dialog
 //
-// Local sibling of the dashboard's own child-selection dialog. Kept inside
-// this flow so the recurring form has no coupling to _DashboardPageState.
+// Local sibling of the dashboard's own child-selection dialog; layout matches
+// _openAddExpenseChildSelectionDialog (only _DashboardPageState._cardRadius shared).
 // ────────────────────────────────────────────────────────────────────────────
 
 class _RecurringChildSelectionDialog extends StatefulWidget {
@@ -16640,81 +16640,250 @@ class _RecurringChildSelectionDialogState
 
   @override
   Widget build(BuildContext context) {
+    final allChildIds = widget.children
+        .map((c) => c.id)
+        .toList(growable: false);
     final allCount = widget.children.length;
-    final allSelected = _selected.length == allCount;
+    final selectedCount = _selected.length;
+    final allSelected = selectedCount == allCount;
     final cs = Theme.of(context).colorScheme;
+    final dialogBackground = cs.surfaceContainerHigh;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final modalHeight = min(520.0, MediaQuery.of(context).size.height - 36);
+    void dismissSelectionDialog() => Navigator.of(context).pop();
 
-    return AlertDialog(
-      title: const Text('Voor wie?'),
-      contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextButton(
-              onPressed: () => setState(() {
-                _selected = allSelected
-                    ? <String>{}
-                    : widget.children.map((c) => c.id).toSet();
-              }),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                allSelected ? 'Alles deselecteren' : 'Alles selecteren',
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SafeArea(
+        child: Align(
+          alignment: const Alignment(0, -0.08),
+          child: SizedBox(
+            width: dialogW,
+            child: SizedBox(
+              height: modalHeight,
+              child: Material(
+                color: dialogBackground,
+                elevation: 3,
+                clipBehavior: Clip.antiAlias,
+                borderRadius: BorderRadius.circular(
+                  _DashboardPageState._cardRadius,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(
+                      _DashboardPageState._cardRadius,
+                    ),
+                    border: Border.all(color: outlineV(context, a40)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Center(
+                          child: Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: cs.outlineVariant.withValues(alpha: 0.85),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: Text(
+                          'Selectie',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w400,
+                                color: onSurface(context, a84),
+                              ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextButton(
+                                onPressed: () => setState(() {
+                                  _selected = allSelected
+                                      ? <String>{}
+                                      : allChildIds.toSet();
+                                }),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  allSelected
+                                      ? 'Alles deselecteren'
+                                      : 'Alles selecteren',
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                height: 28,
+                                child: Align(
+                                  alignment: Alignment.topLeft,
+                                  child: Opacity(
+                                    opacity: _selected.isEmpty ? 1 : 0,
+                                    child: Text(
+                                      'Selecteer minimaal 1 kind om verder te gaan',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: onSurface(context, a68),
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.only(
+                                    top: 2,
+                                    bottom: 4,
+                                  ),
+                                  itemCount: widget.children.length,
+                                  separatorBuilder: (_, _) => Divider(
+                                    height: 1,
+                                    thickness: 0.4,
+                                    color: cs.outlineVariant.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                  itemBuilder: (context, index) {
+                                    final child = widget.children[index];
+                                    final selected = _selected.contains(
+                                      child.id,
+                                    );
+                                    return Material(
+                                      type: MaterialType.transparency,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () {
+                                          setState(() {
+                                            if (selected) {
+                                              _selected = _selected
+                                                  .where((id) => id != child.id)
+                                                  .toSet();
+                                            } else {
+                                              _selected = {
+                                                ..._selected,
+                                                child.id,
+                                              };
+                                            }
+                                          });
+                                        },
+                                        child: ListTile(
+                                          dense: true,
+                                          visualDensity: VisualDensity.compact,
+                                          minLeadingWidth: 32,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 2,
+                                                vertical: 0,
+                                              ),
+                                          leading: Checkbox(
+                                            value: selected,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            activeColor: cs.primary.withValues(
+                                              alpha: a84,
+                                            ),
+                                            checkColor: cs.surface,
+                                            side: BorderSide(
+                                              color: cs.outlineVariant
+                                                  .withValues(alpha: 0.85),
+                                            ),
+                                            onChanged: (value) {
+                                              setState(() {
+                                                if (value ?? false) {
+                                                  _selected = {
+                                                    ..._selected,
+                                                    child.id,
+                                                  };
+                                                } else {
+                                                  _selected = _selected
+                                                      .where(
+                                                        (id) => id != child.id,
+                                                      )
+                                                      .toSet();
+                                                }
+                                              });
+                                            },
+                                          ),
+                                          title: Text(
+                                            child.name,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  color: onSurface(
+                                                    context,
+                                                    a84,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: dialogBackground,
+                          border: Border(
+                            top: BorderSide(color: outlineV(context, a32)),
+                          ),
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                            child: Row(
+                              children: [
+                                TextButton(
+                                  onPressed: dismissSelectionDialog,
+                                  child: const Text('Annuleren'),
+                                ),
+                                const Spacer(),
+                                ElevatedButton(
+                                  onPressed: _selected.isEmpty
+                                      ? null
+                                      : () => Navigator.of(
+                                          context,
+                                        ).pop(_selected.toList()),
+                                  child: const Text('Gereed'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 320),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: widget.children.length,
-                itemBuilder: (context, index) {
-                  final child = widget.children[index];
-                  final selected = _selected.contains(child.id);
-                  return CheckboxListTile(
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    activeColor: cs.primary.withValues(alpha: a84),
-                    title: Text(child.name),
-                    value: selected,
-                    onChanged: (value) {
-                      setState(() {
-                        if (value ?? false) {
-                          _selected = {..._selected, child.id};
-                        } else {
-                          _selected = _selected
-                              .where((id) => id != child.id)
-                              .toSet();
-                        }
-                      });
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuleren'),
-        ),
-        ElevatedButton(
-          onPressed: _selected.isEmpty
-              ? null
-              : () => Navigator.of(context).pop(_selected.toList()),
-          child: const Text('Gereed'),
-        ),
-      ],
     );
   }
 }
