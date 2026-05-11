@@ -8089,7 +8089,7 @@ class _EditRecurringMasterExpenseDialogState
   @override
   Widget build(BuildContext context) {
     final screenW = MediaQuery.sizeOf(context).width;
-    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
     final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
         ?.copyWith(
           color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
@@ -8111,22 +8111,31 @@ class _EditRecurringMasterExpenseDialogState
             _parentSplitSnapshot!,
             FirebaseAuth.instance.currentUser?.uid,
           );
-    return Align(
-      alignment: const Alignment(0, -0.15),
-      child: SizedBox(
-        width: dialogW,
-        child: AlertDialog(
-          title: Row(
-            children: [
-              const Expanded(child: Text('Maandelijkse uitgave bewerken')),
-              IconButton(
-                tooltip: 'Uitleg over maandelijkse uitgaven',
-                icon: const Icon(Icons.info_outline, size: 20),
-                onPressed: () => _showMonthlyExpensesInfoSheet(context),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
+    final textTheme = Theme.of(context).textTheme;
+    final metaLabelStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w400,
+      color: onSurface(context, a84),
+    );
+    final metaValueStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w500,
+      color: onSurface(context, a84),
+    );
+    final metaActionStyle = TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      title: const Text('Maandelijkse uitgave bewerken'),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+        ),
+        child: SizedBox(
+          width: dialogContentW,
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -8195,8 +8204,10 @@ class _EditRecurringMasterExpenseDialogState
                       });
                     }
                   },
-                  decoration: const InputDecoration(
-                    labelText: 'Nieuw bedrag (€)',
+                  decoration: InputDecoration(
+                    labelText: 'Bedrag (EUR)',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 Padding(
@@ -8204,28 +8215,29 @@ class _EditRecurringMasterExpenseDialogState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Vervaldag:',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      const SizedBox(height: 4),
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              'Op de ${_selectedDueDay}e',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Vervaldag: ',
+                                    style: metaLabelStyle,
+                                  ),
+                                  TextSpan(
+                                    text: 'Op de ${_selectedDueDay}e',
+                                    style: metaValueStyle,
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           TextButton(
                             onPressed: _saving ? null : _pickDueDay,
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
+                            style: metaActionStyle,
                             child: const Text('Wijzigen'),
                           ),
                         ],
@@ -8323,40 +8335,32 @@ class _EditRecurringMasterExpenseDialogState
                         )
                         ? 'Alle kinderen'
                         : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
-                    final selectionSection = Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    final selectionSection = Row(
                       children: [
-                        Text(
-                          'Voor:',
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                childSelectionSummary,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: _saving || !snap.hasData
-                                  ? null
-                                  : () async {
-                                      FocusManager.instance.primaryFocus
-                                          ?.unfocus();
-                                      await _openChildSelectionDialog(children);
-                                    },
-                              style: TextButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(text: 'Voor: ', style: metaLabelStyle),
+                                TextSpan(
+                                  text: childSelectionSummary,
+                                  style: metaValueStyle,
                                 ),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: const Text('Selectie'),
+                              ],
                             ),
-                          ],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _saving || !snap.hasData
+                              ? null
+                              : () async {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  await _openChildSelectionDialog(children);
+                                },
+                          style: metaActionStyle,
+                          child: const Text('Selectie'),
                         ),
                       ],
                     );
@@ -8377,41 +8381,35 @@ class _EditRecurringMasterExpenseDialogState
                 ),
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        'Verdeling:',
-                        style: Theme.of(context).textTheme.labelMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              parentSplitSummary,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed:
-                                (_saving ||
-                                    _loadingParentSplit ||
-                                    _parentSplitSnapshot == null)
-                                ? null
-                                : _openParentSplitDialog,
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'Verdeling: ',
+                                style: metaLabelStyle,
                               ),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text('Wijzigen'),
+                              TextSpan(
+                                text: parentSplitSummary,
+                                style: metaValueStyle,
+                              ),
+                            ],
                           ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed:
+                            (_saving ||
+                                _loadingParentSplit ||
+                                _parentSplitSnapshot == null)
+                            ? null
+                            : _openParentSplitDialog,
+                        style: metaActionStyle,
+                        child: const Text('Wijzigen'),
                       ),
                     ],
                   ),
@@ -8431,40 +8429,39 @@ class _EditRecurringMasterExpenseDialogState
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: _saving ? null : () => Navigator.of(context).pop(),
-              child: const Text('Annuleren'),
-            ),
-            ElevatedButton(
-              onPressed: (_saving || _loadingParentSplit)
-                  ? null
-                  : () => _submit(),
-              child: SizedBox(
-                width: 82,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    const Text('Opslaan'),
-                    if (_saving)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Annuleren'),
+        ),
+        ElevatedButton(
+          onPressed: (_saving || _loadingParentSplit) ? null : () => _submit(),
+          child: SizedBox(
+            width: 82,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Text('Opslaan'),
+                if (_saving)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -16380,16 +16377,7 @@ class _AddRecurringExpenseDialogState
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       actionsAlignment: MainAxisAlignment.spaceBetween,
-      title: Row(
-        children: [
-          const Expanded(child: Text('Maandelijkse uitgave')),
-          IconButton(
-            tooltip: 'Uitleg over maandelijkse uitgaven',
-            icon: const Icon(Icons.info_outline, size: 20),
-            onPressed: () => _showMonthlyExpensesInfoSheet(context),
-          ),
-        ],
-      ),
+      title: const Text('Maandelijkse uitgave'),
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.75,
