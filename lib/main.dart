@@ -229,9 +229,15 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                           maxLines: 8,
                           textCapitalization: TextCapitalization.sentences,
                           textInputAction: TextInputAction.done,
+                          buildCounter:
+                              (
+                                context, {
+                                required int currentLength,
+                                required bool isFocused,
+                                required int? maxLength,
+                              }) => null,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            counterText: '',
                           ),
                           onChanged: (v) => _draftNote = v,
                           onFieldSubmitted: (_) =>
@@ -3753,6 +3759,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                         TextCapitalization.sentences,
                                     maxLength: 180,
                                     textInputAction: TextInputAction.done,
+                                    buildCounter:
+                                        (
+                                          context, {
+                                          required int currentLength,
+                                          required bool isFocused,
+                                          required int? maxLength,
+                                        }) => null,
                                     decoration: const InputDecoration(
                                       labelText: 'Notitie (optioneel)',
                                       floatingLabelBehavior:
@@ -16460,6 +16473,13 @@ class _AddRecurringExpenseDialogState
                   textCapitalization: TextCapitalization.sentences,
                   maxLength: 180,
                   textInputAction: TextInputAction.next,
+                  buildCounter:
+                      (
+                        context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) => null,
                   decoration: const InputDecoration(
                     labelText: 'Notitie (optioneel)',
                     floatingLabelBehavior: FloatingLabelBehavior.always,
