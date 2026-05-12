@@ -2058,6 +2058,511 @@ Future<void> _kiduEnsureHouseholdForCurrentUserIfNeeded() async {
   }
 }
 
+/// Instellingen als volledig scherm (was bottom sheet).
+class _SettingsPage extends StatelessWidget {
+  const _SettingsPage({
+    required this.dashboardMounted,
+    required this.householdId,
+    required this.myUid,
+    required this.otherName,
+    required this.isCoParentLinked,
+    this.myName,
+    required this.openPrivacySecuritySheet,
+    required this.signOut,
+  });
+
+  final bool Function() dashboardMounted;
+  final String householdId;
+  final String myUid;
+  final String? otherName;
+  final bool isCoParentLinked;
+  final String? myName;
+  final void Function(BuildContext rootContext) openPrivacySecuritySheet;
+  final Future<void> Function(BuildContext context) signOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedOther = (otherName ?? '').trim();
+    final isPaired = trimmedOther.isNotEmpty;
+    final hasHousehold = householdId.trim().isNotEmpty;
+    final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Instellingen')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: _DashboardPageState._pagePadding,
+            right: _DashboardPageState._pagePadding,
+            top: 8,
+            bottom:
+                _DashboardPageState._pagePadding +
+                MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: KiduCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isPaired ? 'Instellingen' : 'Koppel met co-parent',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (isPaired)
+                    Text(
+                      trimmedOther == 'Co-parent'
+                          ? 'Je bent nog niet gekoppeld'
+                          : 'Verbonden met $effectiveOtherName',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a68),
+                        height: 1.35,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Koppel met je co-parent om samen kosten te delen.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a68),
+                        height: 1.35,
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  if (!isPaired) ...[
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const SetupPage()),
+                        );
+                      },
+                      icon: Icon(
+                        Icons.link,
+                        size: 18,
+                        color: onSurface(context, a70),
+                      ),
+                      label: Text(
+                        'Ik heb een invite-code',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                    ),
+                  ],
+                  Divider(height: 24, color: outlineV(context, a40)),
+                  Text(
+                    'Account',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.standard,
+                    leading: Icon(
+                      Icons.edit_outlined,
+                      size: 18,
+                      color: onSurface(context, a50),
+                    ),
+                    title: Text(
+                      'Naam',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ProfileNamePage(
+                            fromSettings: true,
+                            initialName: myName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Huishouden',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (hasHousehold)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.standard,
+                      leading: Icon(
+                        Icons.child_care_outlined,
+                        size: 18,
+                        color: onSurface(context, a50),
+                      ),
+                      title: Text(
+                        'Kinderen',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                _KinderenPage(householdId: householdId),
+                          ),
+                        );
+                      },
+                    ),
+                  if (hasHousehold)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.standard,
+                      leading: Icon(
+                        Icons.menu_book_outlined,
+                        size: 18,
+                        color: onSurface(context, a50),
+                      ),
+                      title: Text(
+                        'Logboek',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      onTap: () {
+                        // Zelfde route-lokale fade als bij
+                        // _TerugkerendeKostenPage: maskeert swipe-back /
+                        // predictive-back jank op deze route en maakt
+                        // openen/sluiten visueel consistent met
+                        // 'Maandelijkse uitgaven'.
+                        Navigator.of(context).push<void>(
+                          PageRouteBuilder<void>(
+                            pageBuilder:
+                                (routeContext, animation, secondaryAnimation) =>
+                                    _LogboekPage(
+                                      householdId: householdId,
+                                      uid: myUid,
+                                      myName: myName,
+                                      otherName: otherName,
+                                    ),
+                            transitionDuration: const Duration(
+                              milliseconds: 180,
+                            ),
+                            reverseTransitionDuration: const Duration(
+                              milliseconds: 180,
+                            ),
+                            transitionsBuilder:
+                                (
+                                  routeContext,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) => FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (hasHousehold)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.standard,
+                      leading: Icon(
+                        Icons.percent_outlined,
+                        size: 18,
+                        color: onSurface(context, a50),
+                      ),
+                      title: Text(
+                        'Uitgavenverdeling',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        if (!await _checkCanWriteNow()) {
+                          if (!context.mounted) return;
+                          messenger
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Je bent offline, probeer het later opnieuw.',
+                                ),
+                                duration: Duration(seconds: 4),
+                              ),
+                            );
+                          return;
+                        }
+                        if (!context.mounted) return;
+                        Navigator.of(context).push<void>(
+                          PageRouteBuilder<void>(
+                            pageBuilder:
+                                (routeContext, animation, secondaryAnimation) =>
+                                    HouseholdSplitSettingsPage(
+                                      householdId: householdId,
+                                    ),
+                            transitionDuration: const Duration(
+                              milliseconds: 180,
+                            ),
+                            reverseTransitionDuration: const Duration(
+                              milliseconds: 180,
+                            ),
+                            transitionsBuilder:
+                                (
+                                  routeContext,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) => FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  if (hasHousehold)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.standard,
+                      leading: Icon(
+                        Icons.event_repeat_outlined,
+                        size: 18,
+                        color: onSurface(context, a50),
+                      ),
+                      title: Text(
+                        'Maandelijkse uitgaven',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: onSurface(context, a70),
+                        ),
+                      ),
+                      onTap: () {
+                        // Route-lokale fix voor swipe-back jank op deze
+                        // ene route. Een PageRouteBuilder negeert het
+                        // pageTransitionsTheme, waardoor Android
+                        // predictive-back / iOS swipe-back niet de
+                        // onderliggende dashboard-opbouw blootleggen.
+                        // Dezelfde korte fade speelt bij zowel pijltje
+                        // terug als swipe-back, zodat beide paden
+                        // visueel (vrijwel) identiek aanvoelen.
+                        Navigator.of(context).push<void>(
+                          PageRouteBuilder<void>(
+                            pageBuilder:
+                                (routeContext, animation, secondaryAnimation) =>
+                                    _TerugkerendeKostenPage(
+                                      householdId: householdId,
+                                      isCoParentLinked: isCoParentLinked,
+                                      otherParentName: otherName,
+                                      myParentName: myName,
+                                    ),
+                            transitionDuration: const Duration(
+                              milliseconds: 180,
+                            ),
+                            reverseTransitionDuration: const Duration(
+                              milliseconds: 180,
+                            ),
+                            transitionsBuilder:
+                                (
+                                  routeContext,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) => FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Privacy',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.standard,
+                    leading: Icon(
+                      Icons.shield_outlined,
+                      size: 18,
+                      color: onSurface(context, a50),
+                    ),
+                    title: Text(
+                      'Privacy en beveiliging',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: onSurface(context, a45),
+                    ),
+                    onTap: () {
+                      final sheetAnchorContext = context;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!dashboardMounted() ||
+                            !sheetAnchorContext.mounted) {
+                          return;
+                        }
+                        openPrivacySecuritySheet(sheetAnchorContext);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Info',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.standard,
+                    leading: Icon(
+                      Icons.privacy_tip_outlined,
+                      size: 18,
+                      color: onSurface(context, a50),
+                    ),
+                    title: Text(
+                      'Privacybeleid',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    onTap: () {
+                      final settingsRouteContext = context;
+                      final settingsNavigator = Navigator.of(
+                        settingsRouteContext,
+                      );
+                      showDialog<void>(
+                        context: settingsRouteContext,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Privacy in KiDu'),
+                          content: SingleChildScrollView(
+                            child: Text(
+                              'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+                              'Wat we wél gebruiken (alleen wat nodig is):\n'
+                              '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
+                              '• Je Google-account (voor veilig inloggen)\n'
+                              '• Jullie gedeelde uitgaven in KiDu\n\n'
+                              'Wat KiDu níét vraagt of gebruikt:\n'
+                              '• Geen telefoonnummer\n'
+                              '• Geen toegang tot je contacten\n'
+                              '• Geen locatie\n'
+                              '• Geen agenda, microfoon of camera\n'
+                              '• Geen push-notificaties of "ping-gedrag"\n\n'
+                              'Delen met anderen?\n'
+                              '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
+                              '• We delen geen gegevens voor marketingdoeleinden.\n'
+                              '• We verkopen je gegevens niet.\n\n'
+                              'Je houdt de controle:\n'
+                              '• Je kunt je naam altijd aanpassen.\n'
+                              '• Je kunt uitloggen wanneer je wilt.',
+                              style: Theme.of(ctx).textTheme.bodyMedium
+                                  ?.copyWith(color: onSurface(ctx, a68)),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                if (!settingsRouteContext.mounted) return;
+                                settingsNavigator.push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const PrivacyPolicyPage(),
+                                  ),
+                                );
+                              },
+                              child: const Text('Volledige privacyverklaring'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Sluiten'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.standard,
+                    leading: Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: onSurface(context, a50),
+                    ),
+                    title: Text(
+                      'Over KiDu',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    onTap: () {
+                      showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('KiDu'),
+                          content: const Text(
+                            'Rust in gedeelde kosten tussen co-parents.\n'
+                            'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('Sluiten'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  Divider(height: 32, color: outlineV(context, a40)),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.standard,
+                    leading: Icon(
+                      Icons.logout,
+                      size: 18,
+                      color: onSurface(context, a50),
+                    ),
+                    title: Text(
+                      'Uitloggen',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    onTap: () {
+                      final settingsContext = context;
+                      unawaited(signOut(settingsContext));
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
     super.key,
@@ -2805,7 +3310,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  void _openMenuSheet({
+  void _openSettingsPage({
     required String householdId,
     required String myUid,
     required String? otherName,
@@ -2813,519 +3318,19 @@ class _DashboardPageState extends State<DashboardPage> {
     required bool isCoParentLinked,
     String? myName,
   }) {
-    final rootContext = context;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final trimmedOther = (otherName ?? '').trim();
-            final isPaired = trimmedOther.isNotEmpty;
-            final hasHousehold = householdId.trim().isNotEmpty;
-            final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
-
-            return SafeArea(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(
-                  left: _pagePadding,
-                  right: _pagePadding,
-                  top: 8,
-                  bottom:
-                      _pagePadding + MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: KiduCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          isPaired ? 'Instellingen' : 'Koppel met co-parent',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        if (isPaired)
-                          Text(
-                            trimmedOther == 'Co-parent'
-                                ? 'Je bent nog niet gekoppeld'
-                                : 'Verbonden met $effectiveOtherName',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: onSurface(context, a68),
-                                  height: 1.35,
-                                ),
-                          )
-                        else
-                          Text(
-                            'Koppel met je co-parent om samen kosten te delen.',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: onSurface(context, a68),
-                                  height: 1.35,
-                                ),
-                          ),
-                        const SizedBox(height: 16),
-                        if (!isPaired) ...[
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              Navigator.of(rootContext).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const SetupPage(),
-                                ),
-                              );
-                            },
-                            icon: Icon(
-                              Icons.link,
-                              size: 18,
-                              color: onSurface(context, a70),
-                            ),
-                            label: Text(
-                              'Ik heb een invite-code',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                          ),
-                        ],
-                        Divider(height: 24, color: outlineV(context, a40)),
-                        Text(
-                          'Account',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a70),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.edit_outlined,
-                            size: 18,
-                            color: onSurface(context, a50),
-                          ),
-                          title: Text(
-                            'Naam',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            Navigator.of(rootContext).push(
-                              MaterialPageRoute(
-                                builder: (_) => ProfileNamePage(
-                                  fromSettings: true,
-                                  initialName: myName,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Huishouden',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a70),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (hasHousehold)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.standard,
-                            leading: Icon(
-                              Icons.child_care_outlined,
-                              size: 18,
-                              color: onSurface(context, a50),
-                            ),
-                            title: Text(
-                              'Kinderen',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              Navigator.of(rootContext).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      _KinderenPage(householdId: householdId),
-                                ),
-                              );
-                            },
-                          ),
-                        if (hasHousehold)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.standard,
-                            leading: Icon(
-                              Icons.menu_book_outlined,
-                              size: 18,
-                              color: onSurface(context, a50),
-                            ),
-                            title: Text(
-                              'Logboek',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              // Zelfde route-lokale fade als bij
-                              // _TerugkerendeKostenPage: maskeert swipe-back /
-                              // predictive-back jank op deze route en maakt
-                              // openen/sluiten visueel consistent met
-                              // 'Maandelijkse uitgaven'.
-                              Navigator.of(rootContext).push<void>(
-                                PageRouteBuilder<void>(
-                                  pageBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                      ) => _LogboekPage(
-                                        householdId: householdId,
-                                        uid: myUid,
-                                        myName: myName,
-                                        otherName: otherName,
-                                      ),
-                                  transitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  reverseTransitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  transitionsBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                        child,
-                                      ) => FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                        if (hasHousehold)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.standard,
-                            leading: Icon(
-                              Icons.percent_outlined,
-                              size: 18,
-                              color: onSurface(context, a50),
-                            ),
-                            title: Text(
-                              'Uitgavenverdeling',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            onTap: () async {
-                              final sheetNavigator = Navigator.of(context);
-                              final rootNavigator = Navigator.of(rootContext);
-                              final messenger = ScaffoldMessenger.of(
-                                rootContext,
-                              );
-                              if (!await _checkCanWriteNow()) {
-                                if (!sheetNavigator.mounted) return;
-                                sheetNavigator.pop();
-                                await Future<void>.delayed(
-                                  const Duration(milliseconds: 220),
-                                );
-                                if (!mounted || !messenger.mounted) return;
-                                messenger
-                                  ..hideCurrentSnackBar()
-                                  ..showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Je bent offline, probeer het later opnieuw.',
-                                      ),
-                                      duration: Duration(seconds: 4),
-                                    ),
-                                  );
-                                return;
-                              }
-                              if (!sheetNavigator.mounted ||
-                                  !rootNavigator.mounted) {
-                                return;
-                              }
-                              sheetNavigator.pop();
-                              rootNavigator.push<void>(
-                                PageRouteBuilder<void>(
-                                  pageBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                      ) => HouseholdSplitSettingsPage(
-                                        householdId: householdId,
-                                      ),
-                                  transitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  reverseTransitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  transitionsBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                        child,
-                                      ) => FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                        if (hasHousehold)
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.standard,
-                            leading: Icon(
-                              Icons.event_repeat_outlined,
-                              size: 18,
-                              color: onSurface(context, a50),
-                            ),
-                            title: Text(
-                              'Maandelijkse uitgaven',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: onSurface(context, a70)),
-                            ),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              // Route-lokale fix voor swipe-back jank op deze
-                              // ene route. Een PageRouteBuilder negeert het
-                              // pageTransitionsTheme, waardoor Android
-                              // predictive-back / iOS swipe-back niet de
-                              // onderliggende dashboard-opbouw blootleggen.
-                              // Dezelfde korte fade speelt bij zowel pijltje
-                              // terug als swipe-back, zodat beide paden
-                              // visueel (vrijwel) identiek aanvoelen.
-                              Navigator.of(rootContext).push<void>(
-                                PageRouteBuilder<void>(
-                                  pageBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                      ) => _TerugkerendeKostenPage(
-                                        householdId: householdId,
-                                        isCoParentLinked: isCoParentLinked,
-                                        otherParentName: otherName,
-                                        myParentName: myName,
-                                      ),
-                                  transitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  reverseTransitionDuration: const Duration(
-                                    milliseconds: 180,
-                                  ),
-                                  transitionsBuilder:
-                                      (
-                                        context,
-                                        animation,
-                                        secondaryAnimation,
-                                        child,
-                                      ) => FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Privacy',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a70),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.shield_outlined,
-                            size: 18,
-                            color: onSurface(context, a50),
-                          ),
-                          title: Text(
-                            'Privacy en beveiliging',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
-                          ),
-                          trailing: Icon(
-                            Icons.chevron_right,
-                            size: 20,
-                            color: onSurface(context, a45),
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                _openPrivacySecuritySheet(rootContext);
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Info',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: onSurface(context, a70),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.privacy_tip_outlined,
-                            size: 18,
-                            color: onSurface(context, a50),
-                          ),
-                          title: Text(
-                            'Privacybeleid',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            showDialog<void>(
-                              context: rootContext,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Privacy in KiDu'),
-                                content: SingleChildScrollView(
-                                  child: Text(
-                                    'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
-                                    'Wat we wél gebruiken (alleen wat nodig is):\n'
-                                    '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
-                                    '• Je Google-account (voor veilig inloggen)\n'
-                                    '• Jullie gedeelde uitgaven in KiDu\n\n'
-                                    'Wat KiDu níét vraagt of gebruikt:\n'
-                                    '• Geen telefoonnummer\n'
-                                    '• Geen toegang tot je contacten\n'
-                                    '• Geen locatie\n'
-                                    '• Geen agenda, microfoon of camera\n'
-                                    '• Geen push-notificaties of "ping-gedrag"\n\n'
-                                    'Delen met anderen?\n'
-                                    '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
-                                    '• We delen geen gegevens voor marketingdoeleinden.\n'
-                                    '• We verkopen je gegevens niet.\n\n'
-                                    'Je houdt de controle:\n'
-                                    '• Je kunt je naam altijd aanpassen.\n'
-                                    '• Je kunt uitloggen wanneer je wilt.',
-                                    style: Theme.of(ctx).textTheme.bodyMedium
-                                        ?.copyWith(color: onSurface(ctx, a68)),
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(ctx).pop();
-                                      Navigator.of(rootContext).push(
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const PrivacyPolicyPage(),
-                                        ),
-                                      );
-                                    },
-                                    child: const Text(
-                                      'Volledige privacyverklaring',
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(),
-                                    child: const Text('Sluiten'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.info_outline,
-                            size: 18,
-                            color: onSurface(context, a50),
-                          ),
-                          title: Text(
-                            'Over KiDu',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            showDialog<void>(
-                              context: rootContext,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('KiDu'),
-                                content: const Text(
-                                  'Rust in gedeelde kosten tussen co-parents.\n'
-                                  'Koppelen, bijhouden, afrekenen — zonder gedoe.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(),
-                                    child: const Text('Sluiten'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                        Divider(height: 32, color: outlineV(context, a40)),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.logout,
-                            size: 18,
-                            color: onSurface(context, a50),
-                          ),
-                          title: Text(
-                            'Uitloggen',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (!mounted) {
-                                return;
-                              }
-                              _signOut(rootContext);
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _SettingsPage(
+          dashboardMounted: () => mounted,
+          householdId: householdId,
+          myUid: myUid,
+          otherName: otherName,
+          isCoParentLinked: isCoParentLinked,
+          myName: myName,
+          openPrivacySecuritySheet: _openPrivacySecuritySheet,
+          signOut: _signOut,
+        ),
+      ),
     );
   }
 
@@ -4736,7 +4741,7 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               actions: [
                 IconButton(
-                  onPressed: () => _openMenuSheet(
+                  onPressed: () => _openSettingsPage(
                     householdId: '',
                     myUid: user.uid,
                     otherName: null,
@@ -4908,7 +4913,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                   actions: [
                     IconButton(
-                      onPressed: () => _openMenuSheet(
+                      onPressed: () => _openSettingsPage(
                         householdId: householdIdStr,
                         myUid: user.uid,
                         otherName: 'Co-parent',
@@ -5159,7 +5164,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     actions: canAddExpenses
                         ? [
                             IconButton(
-                              onPressed: () => _openMenuSheet(
+                              onPressed: () => _openSettingsPage(
                                 householdId: householdIdStr,
                                 myUid: user.uid,
                                 otherName: otherName,
