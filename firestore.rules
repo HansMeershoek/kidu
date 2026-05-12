@@ -16,6 +16,31 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId)).data.createdBy == request.auth.uid;
     }
 
+    // Private note share list: max 3 viewers, non-empty string uids, household
+    // members only, owner not listed, no duplicates (unfolded; no loops).
+    function privateNoteSharedWithUidsValid(householdId, ownerUid, listValue) {
+      return listValue is list
+        && listValue.size() <= 3
+        && (listValue.size() < 2 || listValue[0] != listValue[1])
+        && (listValue.size() < 3
+            || (listValue[0] != listValue[2] && listValue[1] != listValue[2]))
+        && (listValue.size() < 1
+            || (listValue[0] is string
+                && listValue[0].size() > 0
+                && listValue[0] != ownerUid
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(listValue[0]))))
+        && (listValue.size() < 2
+            || (listValue[1] is string
+                && listValue[1].size() > 0
+                && listValue[1] != ownerUid
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(listValue[1]))))
+        && (listValue.size() < 3
+            || (listValue[2] is string
+                && listValue[2].size() > 0
+                && listValue[2] != ownerUid
+                && exists(/databases/$(database)/documents/households/$(householdId)/members/$(listValue[2]))));
+    }
+
     function sameHouseholdUser(targetUserId) {
       let requesterUser = get(/databases/$(database)/documents/users/$(request.auth.uid));
       let targetUser = get(/databases/$(database)/documents/users/$(targetUserId));
@@ -502,9 +527,28 @@ service cloud.firestore {
 
     match /households/{householdId}/recurringExpenses/{recurringId}/privateNotes/{uid} {
       allow get: if isSignedIn()
-        && request.auth.uid == uid
         && isHouseholdMember(householdId)
-        && isRecurringMasterCreator(householdId, recurringId);
+        && (
+          (
+            request.auth.uid == uid
+            && isRecurringMasterCreator(householdId, recurringId)
+          )
+          || (
+            exists(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId))
+            && get(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId)).data.createdBy == uid
+            && 'sharedWithUids' in resource.data
+            && resource.data.sharedWithUids is list
+            && request.auth.uid in resource.data.sharedWithUids
+            && privateNoteSharedWithUidsValid(
+              householdId,
+              uid,
+              resource.data.sharedWithUids
+            )
+            && 'note' in resource.data
+            && resource.data.note is string
+            && resource.data.note.size() >= 1
+          )
+        );
 
       allow list: if false;
 
@@ -518,19 +562,39 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
-        && request.resource.data.keys().hasOnly(['note', 'updatedAt'])
+        && request.resource.data.keys().hasOnly([
+          'note',
+          'updatedAt',
+          'sharedWithUids'
+        ])
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 180
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (!('sharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              uid,
+              request.resource.data.sharedWithUids
+            ));
 
       allow update: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
         && isRecurringMasterCreator(householdId, recurringId)
-        && request.resource.data.keys().hasOnly(['note', 'updatedAt'])
+        && request.resource.data.keys().hasOnly([
+          'note',
+          'updatedAt',
+          'sharedWithUids'
+        ])
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 180
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (!('sharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              uid,
+              request.resource.data.sharedWithUids
+            ));
 
       // Delete is deliberately broader than get/update: the creator of the
       // recurring master must be able to clean up ALL uid-slots under this
@@ -658,8 +722,25 @@ service cloud.firestore {
 
     match /households/{householdId}/expenses/{expenseId}/privateNotes/{uid} {
       allow get: if isSignedIn()
-        && request.auth.uid == uid
-        && isHouseholdMember(householdId);
+        && isHouseholdMember(householdId)
+        && (
+          request.auth.uid == uid
+          || (
+            exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
+            && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == uid
+            && 'sharedWithUids' in resource.data
+            && resource.data.sharedWithUids is list
+            && request.auth.uid in resource.data.sharedWithUids
+            && privateNoteSharedWithUidsValid(
+              householdId,
+              uid,
+              resource.data.sharedWithUids
+            )
+            && 'note' in resource.data
+            && resource.data.note is string
+            && resource.data.note.size() >= 1
+          )
+        );
 
       allow list: if false;
 
@@ -668,10 +749,20 @@ service cloud.firestore {
         && isHouseholdMember(householdId)
         && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
         && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
-        && request.resource.data.keys().hasOnly(['note', 'updatedAt'])
+        && request.resource.data.keys().hasOnly([
+          'note',
+          'updatedAt',
+          'sharedWithUids'
+        ])
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 180
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (!('sharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              uid,
+              request.resource.data.sharedWithUids
+            ));
 
       allow delete: if isSignedIn()
         && request.auth.uid == uid
