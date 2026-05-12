@@ -2133,6 +2133,7 @@ class _DashboardPageState extends State<DashboardPage> {
   int _notesRefreshTick = 0;
   bool _noteWriteInFlight = false;
   final Map<String, Future<String?>> _noteFutureCache = {};
+  final Map<String, Future<String?>> _peerSharedExpenseNoteFutureCache = {};
 
   String? _namesCacheKey;
   Future<Map<String, String>>? _namesFuture;
@@ -2192,6 +2193,36 @@ class _DashboardPageState extends State<DashboardPage> {
     return raw;
   }
 
+  /// Creator's privateNotes doc; returns trimmed note only when [viewerUid]
+  /// appears in stored `sharedWithUids`. No UI on denied/missing/forbidden-read.
+  Future<String?> _loadPeerSharedExpenseNoteForViewer({
+    required String householdId,
+    required String expenseId,
+    required String creatorUid,
+    required String viewerUid,
+  }) async {
+    final slot = creatorUid.trim();
+    if (slot.isEmpty) return null;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .doc('households/$householdId/expenses/$expenseId/privateNotes/$slot')
+          .get();
+      if (!snap.exists) return null;
+      final data = snap.data();
+      if (!_ExpenseDetailPage._privateNoteIsSharedWithViewer(data, viewerUid)) {
+        return null;
+      }
+      final raw = (data?['note'] as String?)?.trim();
+      if (raw == null || raw.isEmpty) return null;
+      return raw;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<String?> _getNoteFuture(String householdId, String expenseId) {
     return _noteFutureCache.putIfAbsent(
       expenseId,
@@ -2199,6 +2230,25 @@ class _DashboardPageState extends State<DashboardPage> {
         householdId: householdId,
         expenseId: expenseId,
         uid: FirebaseAuth.instance.currentUser!.uid,
+      ),
+    );
+  }
+
+  Future<String?> _getPeerSharedExpenseNoteFuture({
+    required String householdId,
+    required String expenseId,
+    required String creatorUid,
+    required String viewerUid,
+  }) {
+    final cacheKey =
+        '$householdId|$expenseId|${_ExpenseDetailPage._privateNotesDocUid(creatorUid)}';
+    return _peerSharedExpenseNoteFutureCache.putIfAbsent(
+      cacheKey,
+      () => _loadPeerSharedExpenseNoteForViewer(
+        householdId: householdId,
+        expenseId: expenseId,
+        creatorUid: creatorUid,
+        viewerUid: viewerUid,
       ),
     );
   }
@@ -2231,6 +2281,9 @@ class _DashboardPageState extends State<DashboardPage> {
     required String householdId,
     required String otherUid,
     required List<String> visibleOwnExpenseIds,
+    required List<({String expenseId, String creatorUid})>
+    visiblePeerExpensePrivateNoteLookups,
+    required String viewerUid,
     required String otherFallback,
   }) async {
     final otherNameFuture = _loadUserDisplayName(
@@ -2245,11 +2298,29 @@ class _DashboardPageState extends State<DashboardPage> {
         ).then((note) => MapEntry(expenseId, note)),
       ),
     );
+    final peerNotesFuture = Future.wait(
+      visiblePeerExpensePrivateNoteLookups.map(
+        (p) => _getPeerSharedExpenseNoteFuture(
+          householdId: householdId,
+          expenseId: p.expenseId,
+          creatorUid: p.creatorUid,
+          viewerUid: viewerUid,
+        ).then((note) => MapEntry(p.expenseId, note)),
+      ),
+    );
 
     final otherName = await otherNameFuture;
     final noteEntries = await notesFuture;
+    final peerEntries = await peerNotesFuture;
+
     final notesByExpenseId = <String, String>{};
     for (final entry in noteEntries) {
+      final note = entry.value?.trim();
+      if (note != null && note.isNotEmpty) {
+        notesByExpenseId[entry.key] = note;
+      }
+    }
+    for (final entry in peerEntries) {
       final note = entry.value?.trim();
       if (note != null && note.isNotEmpty) {
         notesByExpenseId[entry.key] = note;
@@ -2266,9 +2337,16 @@ class _DashboardPageState extends State<DashboardPage> {
     required String householdId,
     required String otherUid,
     required List<String> visibleOwnExpenseIds,
+    required List<({String expenseId, String creatorUid})>
+    visiblePeerExpensePrivateNoteLookups,
+    required String viewerUid,
   }) {
     final visibleIdsKey = visibleOwnExpenseIds.join(',');
-    final key = '$householdId|$otherUid|$visibleIdsKey|$_notesRefreshTick';
+    final peerKey = visiblePeerExpensePrivateNoteLookups
+        .map((p) => '${p.expenseId}:${p.creatorUid}')
+        .join('|');
+    final key =
+        '$householdId|$otherUid|$visibleIdsKey|$peerKey|$viewerUid|$_notesRefreshTick';
     if (_dashboardSecondaryMetadataFuture == null ||
         _dashboardSecondaryMetadataCacheKey != key) {
       _dashboardSecondaryMetadataCacheKey = key;
@@ -2276,6 +2354,9 @@ class _DashboardPageState extends State<DashboardPage> {
         householdId: householdId,
         otherUid: otherUid,
         visibleOwnExpenseIds: visibleOwnExpenseIds,
+        visiblePeerExpensePrivateNoteLookups:
+            visiblePeerExpensePrivateNoteLookups,
+        viewerUid: viewerUid,
         otherFallback: 'Co-parent',
       );
     }
@@ -2338,6 +2419,7 @@ class _DashboardPageState extends State<DashboardPage> {
         setState(() {
           _notesRefreshTick++;
           _noteFutureCache.clear();
+          _peerSharedExpenseNoteFutureCache.clear();
         });
       }
     } finally {
@@ -5344,6 +5426,25 @@ class _DashboardPageState extends State<DashboardPage> {
                                             )
                                             .map((d) => d.id)
                                             .toList(growable: false);
+                                        final visiblePeerExpensePrivateNoteLookups =
+                                            visibleDocs
+                                                .map((d) {
+                                                  final cb =
+                                                      (d.data()['createdBy']
+                                                              as String?)
+                                                          ?.trim() ??
+                                                      '';
+                                                  return (
+                                                    expenseId: d.id,
+                                                    creatorUid: cb,
+                                                  );
+                                                })
+                                                .where(
+                                                  (p) =>
+                                                      p.creatorUid.isNotEmpty &&
+                                                      p.creatorUid != user.uid,
+                                                )
+                                                .toList(growable: false);
 
                                         var totalCents = 0;
                                         var myPaidCents = 0;
@@ -5452,6 +5553,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                               otherUid: otherUid!,
                                               visibleOwnExpenseIds:
                                                   visibleOwnExpenseIds,
+                                              visiblePeerExpensePrivateNoteLookups:
+                                                  visiblePeerExpensePrivateNoteLookups,
+                                              viewerUid: user.uid,
                                             );
 
                                         return FutureBuilder<
@@ -7243,6 +7347,24 @@ class _ExpenseDetailPage extends StatefulWidget {
       'dec',
     ];
     return '${dt.day} ${nlMonths[dt.month - 1]} \u2022 ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Note doc id = expense/master `createdBy` (author slot).
+  static String _privateNotesDocUid(String createdByUid) => createdByUid.trim();
+
+  static bool _privateNoteIsSharedWithViewer(
+    Map<String, dynamic>? data,
+    String viewerUid,
+  ) {
+    if (data == null) return false;
+    final raw = data['sharedWithUids'];
+    if (raw is! List) return false;
+    final v = viewerUid.trim();
+    if (v.isEmpty) return false;
+    for (final e in raw) {
+      if (e is String && e.trim() == v) return true;
+    }
+    return false;
   }
 
   @override
@@ -9093,20 +9215,127 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
-                          'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${widget.uid}',
+                          'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
                         )
                         .snapshots(),
                     builder: (context, snap) {
+                      final isCreator =
+                          widget.uid.trim() == widget.createdByUid.trim();
+                      if (snap.hasError) {
+                        if (!isCreator) {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Kon notitie niet laden.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: onSurface(context, a55),
+                                    height: 1.35,
+                                  ),
+                            ),
+                            if (widget.onManageNote != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: FilledButton.tonalIcon(
+                                  onPressed: _noteActionBusy
+                                      ? null
+                                      : () async {
+                                          if (_noteActionBusy) return;
+                                          setState(
+                                            () => _noteActionBusy = true,
+                                          );
+                                          try {
+                                            await widget.onManageNote!();
+                                          } finally {
+                                            if (mounted) {
+                                              setState(
+                                                () => _noteActionBusy = false,
+                                              );
+                                            }
+                                          }
+                                        },
+                                  icon: const Icon(
+                                    Icons.note_add_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    'Notitie toevoegen',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ),
+                              ),
+                            if (isCreator)
+                              StreamBuilder<
+                                DocumentSnapshot<Map<String, dynamic>>
+                              >(
+                                stream: FirebaseFirestore.instance
+                                    .doc(
+                                      'households/${widget.householdId}/expenses/${widget.expenseId}',
+                                    )
+                                    .snapshots(),
+                                builder: (context, expSnap) {
+                                  final ed = expSnap.data?.data();
+                                  final currentTitle =
+                                      ((ed?['title'] as String?) ??
+                                              widget.title)
+                                          .trim();
+                                  final currentCents =
+                                      (ed?['amountCents'] as num?)?.toInt() ??
+                                      widget.amountCents;
+                                  final currentChildIds =
+                                      (ed?['childIds'] as List?)
+                                          ?.whereType<String>()
+                                          .toList() ??
+                                      widget.childIds;
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      top: widget.onManageNote != null ? 8 : 16,
+                                    ),
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: () => _openEditAmountDialog(
+                                        currentAmountCents: currentCents,
+                                        currentTitle: currentTitle.isEmpty
+                                            ? widget.title
+                                            : currentTitle,
+                                        currentChildIds: currentChildIds,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        'Uitgave bewerken',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
+                        );
+                      }
+
                       final data = snap.data?.data();
                       final note = (data?['note'] as String?)?.trim() ?? '';
                       final hasNoteLive = note.isNotEmpty;
-                      final isCreator =
-                          widget.uid == widget.createdByUid.trim();
+                      final sharedWithViewer =
+                          _ExpenseDetailPage._privateNoteIsSharedWithViewer(
+                            data,
+                            widget.uid,
+                          );
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (hasNoteLive)
+                          if (isCreator && hasNoteLive)
                             ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(
@@ -9116,7 +9345,17 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               ),
                               subtitle: Text(note),
                             ),
-                          if (widget.onManageNote != null)
+                          if (!isCreator && sharedWithViewer && hasNoteLive)
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Gedeelde notitie',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: onSurface(context, a70)),
+                              ),
+                              subtitle: Text(note),
+                            ),
+                          if (widget.onManageNote != null && isCreator)
                             Padding(
                               padding: const EdgeInsets.only(top: 16),
                               child: FilledButton.tonalIcon(
@@ -15946,10 +16185,127 @@ class _RecurringMasterDetailPageState
                       StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                         stream: FirebaseFirestore.instance
                             .doc(
-                              'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${widget.uid}',
+                              'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
                             )
                             .snapshots(),
                         builder: (context, snap) {
+                          if (snap.hasError) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Kon notitie niet laden.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: onSurface(context, a55),
+                                    height: 1.35,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: _noteActionBusy
+                                        ? null
+                                        : () async {
+                                            if (_noteActionBusy) return;
+                                            setState(
+                                              () => _noteActionBusy = true,
+                                            );
+                                            try {
+                                              await _doManageRecurringMasterPrivateNote(
+                                                context,
+                                                householdId: widget.householdId,
+                                                masterId: widget.masterId,
+                                                uid: widget.uid,
+                                              );
+                                            } finally {
+                                              if (mounted) {
+                                                setState(
+                                                  () => _noteActionBusy = false,
+                                                );
+                                              }
+                                            }
+                                          },
+                                    icon: const Icon(
+                                      Icons.note_add_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Notitie toevoegen',
+                                      style: textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: () => _openEditRecurringDialog(
+                                      currentAmountCents: amountCents,
+                                      currentTitle: title.isEmpty
+                                          ? widget.title
+                                          : title,
+                                      currentChildIds: childIds,
+                                      currentDueDayOfMonth:
+                                          dueDay ?? (startDate?.day ?? 1),
+                                      currentParentSplitSnapshot:
+                                          parentSplitSnapshot,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Maandelijkse uitgave bewerken',
+                                      style: textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: _pauseActionBusy
+                                        ? null
+                                        : () => _onTogglePauseResumePressed(
+                                            currentStatus: status ?? 'active',
+                                          ),
+                                    icon: Icon(
+                                      status == 'paused'
+                                          ? Icons.play_arrow_outlined
+                                          : Icons.pause_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      status == 'paused'
+                                          ? 'Hervatten'
+                                          : 'Pauzeren',
+                                      style: textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: TextButton.icon(
+                                    onPressed: _deleteActionBusy
+                                        ? null
+                                        : _onDeletePressed,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      'Verwijderen',
+                                      style: textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
                           // Freeze the note section on its last healthy
                           // data during delete: the privateNotes doc gets
                           // removed in step 2 and would otherwise flash
@@ -16104,6 +16460,37 @@ class _RecurringMasterDetailPageState
                     ],
                     if (!isCreator) ...[
                       const SizedBox(height: 12),
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .doc(
+                              'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
+                            )
+                            .snapshots(),
+                        builder: (context, noteSnap) {
+                          if (noteSnap.hasError) {
+                            return const SizedBox.shrink();
+                          }
+                          final nd = noteSnap.data?.data();
+                          final note = (nd?['note'] as String?)?.trim() ?? '';
+                          if (!_ExpenseDetailPage._privateNoteIsSharedWithViewer(
+                                nd,
+                                widget.uid,
+                              ) ||
+                              note.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              'Gedeelde notitie',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: onSurface(context, a70),
+                              ),
+                            ),
+                            subtitle: Text(note),
+                          );
+                        },
+                      ),
                       Text(
                         'Alleen de maker kan deze maandelijkse uitgave bewerken of pauzeren.',
                         style: textTheme.bodySmall?.copyWith(
