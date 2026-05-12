@@ -14615,8 +14615,10 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
   // settings changes never alter existing monthly masters.
   final materializationSnapshot = master.parentSplitSnapshot;
 
-  // Master-note éénmalig inlezen; lege/ontbrekende note → geen kopie.
+  // Master-note éénmalig inlezen (zelfde snapshot als sharedWithUids);
+  // lege/ontbrekende note → geen note-doc kopie.
   String? masterNote;
+  List<String> masterSharedWithUids = const [];
   try {
     final noteSnap = await firestore
         .doc(
@@ -14624,8 +14626,10 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
           '${master.masterId}/privateNotes/$uid',
         )
         .get();
-    final raw = (noteSnap.data()?['note'] as String?)?.trim() ?? '';
+    final data = noteSnap.data();
+    final raw = (data?['note'] as String?)?.trim() ?? '';
     if (raw.isNotEmpty) masterNote = raw;
+    masterSharedWithUids = _parsePrivateNoteSharedWithUids(data);
   } catch (e) {
     // Note-bron niet leesbaar → we slaan note-kopie simpelweg over. De
     // expense-creates zelf moeten hier niet op struikelen.
@@ -14633,6 +14637,7 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
       debugPrint('Recurring materialize: read master note failed: $e');
     }
     masterNote = null;
+    masterSharedWithUids = const [];
   }
 
   final created = <String>[];
@@ -14729,6 +14734,8 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
       final notePayload = <String, dynamic>{
         'note': masterNote,
         'updatedAt': FieldValue.serverTimestamp(),
+        if (masterSharedWithUids.isNotEmpty)
+          'sharedWithUids': masterSharedWithUids,
       };
 
       var noteCopied = false;
