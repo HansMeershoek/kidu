@@ -183,16 +183,10 @@ List<String> _parsePrivateNoteSharedWithUids(Map<String, dynamic>? data) {
 }
 
 class _PrivateNoteShareUiContext {
-  const _PrivateNoteShareUiContext({
-    required this.coParentUid,
-    required this.shareSwitchDisabledSubtitle,
-  });
+  const _PrivateNoteShareUiContext({this.coParentUid});
 
   /// Set only when exactly one other household member exists (single co-parent).
   final String? coParentUid;
-
-  /// `null` when the share switch should be enabled; otherwise short hint text.
-  final String? shareSwitchDisabledSubtitle;
 }
 
 Future<_PrivateNoteShareUiContext> _resolvePrivateNoteShareUiContext(
@@ -200,17 +194,11 @@ Future<_PrivateNoteShareUiContext> _resolvePrivateNoteShareUiContext(
 ) async {
   final trimmed = householdId.trim();
   if (trimmed.isEmpty) {
-    return const _PrivateNoteShareUiContext(
-      coParentUid: null,
-      shareSwitchDisabledSubtitle: 'Geen co-ouder gekoppeld.',
-    );
+    return const _PrivateNoteShareUiContext();
   }
   final uid = FirebaseAuth.instance.currentUser?.uid.trim();
   if (uid == null || uid.isEmpty) {
-    return const _PrivateNoteShareUiContext(
-      coParentUid: null,
-      shareSwitchDisabledSubtitle: 'Geen co-ouder gekoppeld.',
-    );
+    return const _PrivateNoteShareUiContext();
   }
   try {
     final snap = await FirebaseFirestore.instance
@@ -222,27 +210,11 @@ Future<_PrivateNoteShareUiContext> _resolvePrivateNoteShareUiContext(
         .toSet()
         .toList(growable: false);
     if (others.length == 1) {
-      return _PrivateNoteShareUiContext(
-        coParentUid: others.single,
-        shareSwitchDisabledSubtitle: null,
-      );
+      return _PrivateNoteShareUiContext(coParentUid: others.single);
     }
-    if (others.isEmpty) {
-      return const _PrivateNoteShareUiContext(
-        coParentUid: null,
-        shareSwitchDisabledSubtitle: 'Geen co-ouder gekoppeld.',
-      );
-    }
-    return const _PrivateNoteShareUiContext(
-      coParentUid: null,
-      shareSwitchDisabledSubtitle:
-          'Delen niet beschikbaar voor dit huishouden.',
-    );
+    return const _PrivateNoteShareUiContext();
   } catch (_) {
-    return const _PrivateNoteShareUiContext(
-      coParentUid: null,
-      shareSwitchDisabledSubtitle: 'Delen nu niet beschikbaar.',
-    );
+    return const _PrivateNoteShareUiContext();
   }
 }
 
@@ -252,16 +224,12 @@ class _PrivateNoteDialogContent extends StatefulWidget {
     required this.hasInitialNote,
     required this.initialSharedWithUids,
     this.coParentUid,
-    this.sharingDisabledSubtitle,
   });
 
   final String initialNote;
   final bool hasInitialNote;
   final List<String> initialSharedWithUids;
   final String? coParentUid;
-
-  /// Shown under the sharing switch when collaboration is ambiguous/unavailable.
-  final String? sharingDisabledSubtitle;
 
   @override
   State<_PrivateNoteDialogContent> createState() =>
@@ -292,7 +260,12 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
 
   List<String> _resolvedSharedWithUidsForSave() {
     final co = widget.coParentUid?.trim();
-    if (!_shareWithCoParent || co == null || co.isEmpty) return const [];
+    if (!_shareWithCoParent ||
+        co == null ||
+        co.isEmpty ||
+        _draftNote.trim().isEmpty) {
+      return const [];
+    }
     return [co];
   }
 
@@ -340,45 +313,31 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
                           ),
-                          onChanged: (v) => _draftNote = v,
+                          onChanged: (v) => setState(() {
+                            _draftNote = v;
+                            if (v.trim().isEmpty) {
+                              _shareWithCoParent = false;
+                            }
+                          }),
                           onFieldSubmitted: (_) =>
                               FocusScope.of(context).unfocus(),
                         ),
                       ),
                     ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Notitie delen',
-                        style: TextStyle(fontWeight: FontWeight.w500),
+                    if (widget.coParentUid != null &&
+                        widget.coParentUid!.trim().isNotEmpty)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Notitie delen',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        value:
+                            _shareWithCoParent && _draftNote.trim().isNotEmpty,
+                        onChanged: _draftNote.trim().isEmpty
+                            ? null
+                            : (v) => setState(() => _shareWithCoParent = v),
                       ),
-                      subtitle: widget.coParentUid == null
-                          ? Text(
-                              widget.sharingDisabledSubtitle ??
-                                  'Geen co-ouder gekoppeld.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Theme.of(
-                                  context,
-                                ).textTheme.bodySmall?.color,
-                                height: 1.35,
-                              ),
-                            )
-                          : Text(
-                              'Alleen lezen voor je co-ouder.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                                height: 1.35,
-                              ),
-                            ),
-                      value: widget.coParentUid != null && _shareWithCoParent,
-                      onChanged: widget.coParentUid == null
-                          ? null
-                          : (v) => setState(() => _shareWithCoParent = v),
-                    ),
                     const SizedBox(height: 12),
                     Wrap(
                       alignment: WrapAlignment.end,
@@ -587,7 +546,6 @@ Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
   required bool hasInitialNote,
   List<String>? initialSharedWithUids,
   String? coParentUid,
-  String? sharingDisabledSubtitle,
 }) async {
   final shareList = initialSharedWithUids ?? const <String>[];
   final result = await showDialog<PrivateNoteDialogResult>(
@@ -619,7 +577,6 @@ Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
             hasInitialNote: hasInitialNote,
             initialSharedWithUids: shareList,
             coParentUid: coParentUid,
-            sharingDisabledSubtitle: sharingDisabledSubtitle,
           ),
         ],
       ),
@@ -656,7 +613,6 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
       hasInitialNote: initialNote.isNotEmpty,
       initialSharedWithUids: initialShared,
       coParentUid: shareUi.coParentUid,
-      sharingDisabledSubtitle: shareUi.shareSwitchDisabledSubtitle,
     );
 
     if (result is PrivateNoteDialogCancelled) return null;
@@ -737,7 +693,6 @@ Future<PrivateNoteDialogResult?> _doManageRecurringMasterPrivateNote(
       hasInitialNote: initialNote.isNotEmpty,
       initialSharedWithUids: initialShared,
       coParentUid: shareUi.coParentUid,
-      sharingDisabledSubtitle: shareUi.shareSwitchDisabledSubtitle,
     );
 
     if (result is PrivateNoteDialogCancelled) return null;
@@ -3418,6 +3373,7 @@ class _DashboardPageState extends State<DashboardPage> {
     String? note,
     String? coparentNameForPendingMessage,
     List<String>? childIds,
+    bool sharePrivateNoteWithCoParent = false,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -3439,17 +3395,18 @@ class _DashboardPageState extends State<DashboardPage> {
       // for the actual 2 members (old bps is never reapplied to a
       // different uid). Solo / >2-member households receive no
       // snapshot and fall through to legacy 50/50 in the dashboard.
+      var memberUidsForShare = <String>{};
       try {
         final memberSnap = await FirebaseFirestore.instance
             .collection('households/$householdId/members')
             .get();
-        final memberUids = memberSnap.docs.map((d) => d.id).toSet();
+        memberUidsForShare = memberSnap.docs.map((d) => d.id).toSet();
         final defaults = await HouseholdSplitSettingsRepository().load(
           householdId,
         );
         final snapshot = buildSnapshotForNewExpense(
           defaults: defaults,
-          currentMemberUids: memberUids,
+          currentMemberUids: memberUidsForShare,
         );
         if (snapshot != null) {
           data.addAll(snapshot.toExpenseFields());
@@ -3467,10 +3424,19 @@ class _DashboardPageState extends State<DashboardPage> {
       final noteTrimmed = note?.trim();
       if (noteTrimmed != null && noteTrimmed.isNotEmpty) {
         try {
-          await ref.collection('privateNotes').doc(uid).set({
+          final noteData = <String, dynamic>{
             'note': noteTrimmed,
             'updatedAt': FieldValue.serverTimestamp(),
-          });
+          };
+          if (sharePrivateNoteWithCoParent) {
+            final others = memberUidsForShare
+                .where((id) => id != uid)
+                .toList(growable: false);
+            if (others.length == 1) {
+              noteData['sharedWithUids'] = [others.single];
+            }
+          }
+          await ref.collection('privateNotes').doc(uid).set(noteData);
         } catch (noteErr) {
           if (kDebugMode) debugPrint('Private note write error: $noteErr');
           noteErrMsg = mapUserFacingError(
@@ -3839,7 +3805,12 @@ class _DashboardPageState extends State<DashboardPage> {
     _freezeExpensesVN.value = true;
 
     try {
+      final shareUi = await _resolvePrivateNoteShareUiContext(householdId);
+      if (!mounted) return;
+      final String? coParentUidForShare = shareUi.coParentUid;
+
       didShow = true;
+      var sharePrivateNoteWithCoParent = false;
       await showDialog<void>(
         context: context,
         useSafeArea: true,
@@ -4002,6 +3973,17 @@ class _DashboardPageState extends State<DashboardPage> {
                                         TextCapitalization.sentences,
                                     maxLength: 180,
                                     textInputAction: TextInputAction.done,
+                                    onChanged: (text) {
+                                      if (text.trim().isEmpty &&
+                                          sharePrivateNoteWithCoParent) {
+                                        setLocalState(
+                                          () => sharePrivateNoteWithCoParent =
+                                              false,
+                                        );
+                                      } else {
+                                        setLocalState(() {});
+                                      }
+                                    },
                                     buildCounter:
                                         (
                                           context, {
@@ -4016,6 +3998,28 @@ class _DashboardPageState extends State<DashboardPage> {
                                       border: OutlineInputBorder(),
                                     ),
                                   ),
+                                  if (coParentUidForShare != null) ...[
+                                    SwitchListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text(
+                                        'Notitie delen',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      value:
+                                          sharePrivateNoteWithCoParent &&
+                                          noteController.text.trim().isNotEmpty,
+                                      onChanged:
+                                          noteController.text.trim().isEmpty
+                                          ? null
+                                          : (v) => setLocalState(
+                                              () =>
+                                                  sharePrivateNoteWithCoParent =
+                                                      v,
+                                            ),
+                                    ),
+                                  ],
                                   // Child selection stays out of the main dialog for
                                   // 2+ children so the form remains compact.
                                   if (children.length > 1) ...[
@@ -4165,6 +4169,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   coparentName,
                                               childIds:
                                                   effectiveSelectedChildIds,
+                                              sharePrivateNoteWithCoParent:
+                                                  coParentUidForShare != null &&
+                                                  sharePrivateNoteWithCoParent &&
+                                                  noteController.text
+                                                      .trim()
+                                                      .isNotEmpty,
                                             );
                                         if (mounted && createResult != null) {
                                           setState(() {
@@ -16705,22 +16715,6 @@ class _AddRecurringExpenseDialogState
     return others.single;
   }
 
-  String _subtitleWhenPrivateNoteShareToggleUnavailable() {
-    if (_parentSplitHasError) return 'Delen nu niet beschikbaar.';
-    final myUid = FirebaseAuth.instance.currentUser?.uid.trim();
-    if (myUid == null || myUid.isEmpty) return 'Geen co-ouder gekoppeld.';
-    final others = _parentSplitMembers
-        .map((m) => m.uid.trim())
-        .where((id) => id.isNotEmpty && id != myUid)
-        .toSet()
-        .toList(growable: false);
-    if (others.isEmpty) return 'Geen co-ouder gekoppeld.';
-    if (others.length > 1) {
-      return 'Delen niet beschikbaar voor dit huishouden.';
-    }
-    return 'Geen co-ouder gekoppeld.';
-  }
-
   List<String> get _effectiveSelectedChildIds {
     if (_children.isEmpty) return const [];
     if (_hasCustomChildSelection) return _customSelectedChildIds;
@@ -17078,6 +17072,13 @@ class _AddRecurringExpenseDialogState
                   textCapitalization: TextCapitalization.sentences,
                   maxLength: 180,
                   textInputAction: TextInputAction.next,
+                  onChanged: (text) {
+                    if (text.trim().isEmpty && _sharePrivateNoteWithCoParent) {
+                      setState(() => _sharePrivateNoteWithCoParent = false);
+                    } else {
+                      setState(() {});
+                    }
+                  },
                   buildCounter:
                       (
                         context, {
@@ -17096,27 +17097,18 @@ class _AddRecurringExpenseDialogState
                     builder: (ctx) {
                       final coParent =
                           _eligibleCoParentUidForPrivateNoteShare();
+                      if (coParent == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final noteEmpty = _noteController.text.trim().isEmpty;
                       return SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text(
                           'Notitie delen',
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
-                        subtitle: Text(
-                          coParent == null
-                              ? _subtitleWhenPrivateNoteShareToggleUnavailable()
-                              : 'Alleen lezen voor je co-ouder.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: coParent == null
-                                ? textTheme.bodySmall?.color
-                                : cs.onSurfaceVariant,
-                            height: 1.35,
-                          ),
-                        ),
-                        value:
-                            coParent != null && _sharePrivateNoteWithCoParent,
-                        onChanged: coParent == null
+                        value: _sharePrivateNoteWithCoParent && !noteEmpty,
+                        onChanged: noteEmpty
                             ? null
                             : (v) => setState(
                                 () => _sharePrivateNoteWithCoParent = v,
