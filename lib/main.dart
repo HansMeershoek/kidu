@@ -2121,7 +2121,7 @@ class _SettingsPage extends StatelessWidget {
                         'Huishouden',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: onSurface(context, a70),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -2132,12 +2132,12 @@ class _SettingsPage extends StatelessWidget {
                           leading: Icon(
                             Icons.child_care_outlined,
                             size: 18,
-                            color: onSurface(context, a50),
+                            color: onSurface(context, a45),
                           ),
                           title: Text(
                             'Kinderen',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
+                                ?.copyWith(color: onSurface(context, 0.80)),
                           ),
                           onTap: () {
                             Navigator.of(context).push(
@@ -2155,12 +2155,12 @@ class _SettingsPage extends StatelessWidget {
                           leading: Icon(
                             Icons.menu_book_outlined,
                             size: 18,
-                            color: onSurface(context, a50),
+                            color: onSurface(context, a45),
                           ),
                           title: Text(
                             'Logboek',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
+                                ?.copyWith(color: onSurface(context, 0.80)),
                           ),
                           onTap: () {
                             // Zelfde route-lokale fade als bij
@@ -2208,12 +2208,12 @@ class _SettingsPage extends StatelessWidget {
                           leading: Icon(
                             Icons.percent_outlined,
                             size: 18,
-                            color: onSurface(context, a50),
+                            color: onSurface(context, a45),
                           ),
                           title: Text(
                             'Uitgavenverdeling',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
+                                ?.copyWith(color: onSurface(context, 0.80)),
                           ),
                           onTap: () async {
                             final messenger = ScaffoldMessenger.of(context);
@@ -2269,12 +2269,12 @@ class _SettingsPage extends StatelessWidget {
                           leading: Icon(
                             Icons.event_repeat_outlined,
                             size: 18,
-                            color: onSurface(context, a50),
+                            color: onSurface(context, a45),
                           ),
                           title: Text(
                             'Maandelijkse uitgaven',
                             style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, a70)),
+                                ?.copyWith(color: onSurface(context, 0.80)),
                           ),
                           onTap: () {
                             // Route-lokale fix voor swipe-back jank op deze
@@ -2323,7 +2323,7 @@ class _SettingsPage extends StatelessWidget {
                         'Privacy',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: onSurface(context, a70),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -2331,14 +2331,14 @@ class _SettingsPage extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         visualDensity: VisualDensity.standard,
                         leading: Icon(
-                          Icons.shield_outlined,
+                          Icons.lock_outline,
                           size: 18,
-                          color: onSurface(context, a50),
+                          color: onSurface(context, a45),
                         ),
                         title: Text(
-                          'Privacy en beveiliging',
+                          'Beveiliging en privacy',
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(context, a70)),
+                              ?.copyWith(color: onSurface(context, 0.80)),
                         ),
                         onTap: () {
                           final sheetAnchorContext = context;
@@ -2356,7 +2356,7 @@ class _SettingsPage extends StatelessWidget {
                         'Info',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: onSurface(context, a70),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -2366,12 +2366,12 @@ class _SettingsPage extends StatelessWidget {
                         leading: Icon(
                           Icons.privacy_tip_outlined,
                           size: 18,
-                          color: onSurface(context, a50),
+                          color: onSurface(context, a45),
                         ),
                         title: Text(
                           'Privacybeleid',
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(context, a70)),
+                              ?.copyWith(color: onSurface(context, 0.80)),
                         ),
                         onTap: () {
                           final settingsRouteContext = context;
@@ -2437,12 +2437,12 @@ class _SettingsPage extends StatelessWidget {
                         leading: Icon(
                           Icons.info_outline,
                           size: 18,
-                          color: onSurface(context, a50),
+                          color: onSurface(context, a45),
                         ),
                         title: Text(
                           'Over KiDu',
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(context, a70)),
+                              ?.copyWith(color: onSurface(context, 0.80)),
                         ),
                         onTap: () {
                           showDialog<void>(
@@ -2468,7 +2468,7 @@ class _SettingsPage extends StatelessWidget {
                         'Account',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: onSurface(context, a70),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -2478,12 +2478,12 @@ class _SettingsPage extends StatelessWidget {
                         leading: Icon(
                           Icons.edit_outlined,
                           size: 18,
-                          color: onSurface(context, a50),
+                          color: onSurface(context, a45),
                         ),
                         title: Text(
-                          'Naam',
+                          'Naam wijzigen',
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(context, a70)),
+                              ?.copyWith(color: onSurface(context, 0.80)),
                         ),
                         onTap: () {
                           Navigator.of(context).push(
@@ -2502,12 +2502,12 @@ class _SettingsPage extends StatelessWidget {
                         leading: Icon(
                           Icons.logout,
                           size: 18,
-                          color: onSurface(context, a50),
+                          color: onSurface(context, a45),
                         ),
                         title: Text(
                           'Uitloggen',
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(context, a70)),
+                              ?.copyWith(color: onSurface(context, 0.80)),
                         ),
                         onTap: () {
                           final settingsContext = context;
@@ -2526,7 +2526,7 @@ class _SettingsPage extends StatelessWidget {
                       'Verbonden met ${(otherName ?? '').trim()}',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: onSurface(context, a40),
+                        color: onSurface(context, a32),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
