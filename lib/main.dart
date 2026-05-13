@@ -1706,26 +1706,40 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                    child: FilledButton.tonalIcon(
+                                    child: FilledButton.tonal(
                                       onPressed: _busy ? null : _save,
-                                      icon: _busy
-                                          ? SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
+                                      child: _busy
+                                          ? Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary,
+                                                      ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'Opslaan',
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodyMedium,
+                                                ),
+                                              ],
                                             )
-                                          : const Icon(Icons.check, size: 18),
-                                      label: Text(
-                                        'Opslaan',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
+                                          : Text(
+                                              'Opslaan',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodyMedium,
+                                            ),
                                     ),
                                   ),
                                 ],
