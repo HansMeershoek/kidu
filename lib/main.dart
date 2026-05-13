@@ -1560,7 +1560,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                const topPadding = 8.0;
+                const topPadding = 24.0;
                 const bottomPadding = _DashboardPageState._pagePadding;
                 final minHeight = max(
                   0.0,
