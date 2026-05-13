@@ -10663,7 +10663,7 @@ class _LogboekPageState extends State<_LogboekPage>
     return 'Alle';
   }
 
-  String _expenseExportPeriodLabel({String whenAllTime = 'Alle tijd'}) {
+  String _expenseExportPeriodLabel({String whenAllTime = 'Geen filter'}) {
     if (_periodFilter == _PeriodFilter.custom &&
         _filterStart != null &&
         _filterEnd != null) {
