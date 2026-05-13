@@ -10134,7 +10134,7 @@ class _LogboekPageState extends State<_LogboekPage>
                             runSpacing: 8,
                             children: [
                               FilterChip(
-                                label: const Text('Allebei'),
+                                label: const Text('Beide'),
                                 selected: _filterParentUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
@@ -10635,11 +10635,11 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   String _expenseExportParentLabel() {
-    if (_filterParentUid == null) return 'Allebei';
+    if (_filterParentUid == null) return 'Beide';
     for (final parent in _parentItems) {
       if (parent.uid == _filterParentUid) return parent.name;
     }
-    return 'Allebei';
+    return 'Beide';
   }
 
   String _expenseExportChildLabel() {
