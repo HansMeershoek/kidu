@@ -9623,8 +9623,6 @@ enum _PeriodFilter { all, custom }
 
 enum _LogboekMode { uitgaven, betalingen, wijzigingen }
 
-enum _ExpenseExportFormat { csv, pdf }
-
 class _WijzigRow {
   const _WijzigRow({
     required this.expenseId,
@@ -12332,88 +12330,56 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showExpenseExportConfirmSheet() {
     final summaryRows = _expenseExportSummaryRows();
-    var selectedFormat = _ExpenseExportFormat.pdf;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setModalState) => SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: 8,
-              bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Exporteer selectie',
-                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Kies een formaat voor de huidige selectie.',
-                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                    color: onSurface(sheetContext, a68),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                for (final row in summaryRows)
-                  _buildExportSummaryRow(row.label, row.value),
-                const SizedBox(height: 4),
-                Text(
-                  'Formaat',
-                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                    color: onSurface(sheetContext, a60),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    FilterChip(
-                      label: const Text('PDF'),
-                      selected: selectedFormat == _ExpenseExportFormat.pdf,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.pdf,
-                      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 8,
+            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exporteer selectie',
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 20),
+              for (final row in summaryRows)
+                _buildExportSummaryRow(row.label, row.value),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _exportExpensesPdf();
+                      },
+                      child: const Text('Export PDF'),
                     ),
-                    FilterChip(
-                      label: const Text('CSV'),
-                      selected: selectedFormat == _ExpenseExportFormat.csv,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.csv,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () async {
-                    Navigator.of(sheetContext).pop();
-                    if (selectedFormat == _ExpenseExportFormat.pdf) {
-                      await _exportExpensesPdf();
-                      return;
-                    }
-                    await _exportExpensesCsv();
-                  },
-                  child: Text(
-                    selectedFormat == _ExpenseExportFormat.pdf
-                        ? 'Exporteer PDF'
-                        : 'Exporteer CSV',
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _exportExpensesCsv();
+                      },
+                      child: const Text('Export CSV'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -12422,88 +12388,56 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showPaymentExportConfirmSheet() {
     final summaryRows = _paymentExportSummaryRows();
-    var selectedFormat = _ExpenseExportFormat.pdf;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setModalState) => SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: 8,
-              bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Exporteer selectie',
-                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Kies een formaat voor de huidige selectie.',
-                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                    color: onSurface(sheetContext, a68),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                for (final row in summaryRows)
-                  _buildExportSummaryRow(row.label, row.value),
-                const SizedBox(height: 4),
-                Text(
-                  'Formaat',
-                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                    color: onSurface(sheetContext, a60),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    FilterChip(
-                      label: const Text('PDF'),
-                      selected: selectedFormat == _ExpenseExportFormat.pdf,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.pdf,
-                      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 8,
+            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exporteer selectie',
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 20),
+              for (final row in summaryRows)
+                _buildExportSummaryRow(row.label, row.value),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _exportPaymentsPdf();
+                      },
+                      child: const Text('Export PDF'),
                     ),
-                    FilterChip(
-                      label: const Text('CSV'),
-                      selected: selectedFormat == _ExpenseExportFormat.csv,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.csv,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () async {
-                    Navigator.of(sheetContext).pop();
-                    if (selectedFormat == _ExpenseExportFormat.pdf) {
-                      await _exportPaymentsPdf();
-                      return;
-                    }
-                    await _exportPaymentsCsv();
-                  },
-                  child: Text(
-                    selectedFormat == _ExpenseExportFormat.pdf
-                        ? 'Exporteer PDF'
-                        : 'Exporteer CSV',
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _exportPaymentsCsv();
+                      },
+                      child: const Text('Export CSV'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -12512,88 +12446,56 @@ class _LogboekPageState extends State<_LogboekPage>
 
   void _showWijzigingenExportConfirmSheet() {
     final summaryRows = _wijzigExportSummaryRows();
-    var selectedFormat = _ExpenseExportFormat.pdf;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setModalState) => SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 24,
-              right: 24,
-              top: 8,
-              bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Exporteer selectie',
-                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Kies een formaat voor de huidige selectie.',
-                  style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                    color: onSurface(sheetContext, a68),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                for (final row in summaryRows)
-                  _buildExportSummaryRow(row.label, row.value),
-                const SizedBox(height: 4),
-                Text(
-                  'Formaat',
-                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                    color: onSurface(sheetContext, a60),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    FilterChip(
-                      label: const Text('PDF'),
-                      selected: selectedFormat == _ExpenseExportFormat.pdf,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.pdf,
-                      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 8,
+            bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Exporteer selectie',
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 20),
+              for (final row in summaryRows)
+                _buildExportSummaryRow(row.label, row.value),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _exportWijzigingenPdf();
+                      },
+                      child: const Text('Export PDF'),
                     ),
-                    FilterChip(
-                      label: const Text('CSV'),
-                      selected: selectedFormat == _ExpenseExportFormat.csv,
-                      showCheckmark: false,
-                      onSelected: (_) => setModalState(
-                        () => selectedFormat = _ExpenseExportFormat.csv,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () async {
-                    Navigator.of(sheetContext).pop();
-                    if (selectedFormat == _ExpenseExportFormat.pdf) {
-                      await _exportWijzigingenPdf();
-                      return;
-                    }
-                    await _exportWijzigingenCsv();
-                  },
-                  child: Text(
-                    selectedFormat == _ExpenseExportFormat.pdf
-                        ? 'Exporteer PDF'
-                        : 'Exporteer CSV',
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        await _exportWijzigingenCsv();
+                      },
+                      child: const Text('Export CSV'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
