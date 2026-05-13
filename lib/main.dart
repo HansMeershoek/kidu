@@ -10148,6 +10148,12 @@ class _LogboekPageState extends State<_LogboekPage>
                             children: [
                               FilterChip(
                                 label: const Text('Beide'),
+                                labelStyle: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall,
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                                 selected: _filterParentUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
@@ -10165,6 +10171,12 @@ class _LogboekPageState extends State<_LogboekPage>
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  labelStyle: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall,
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                   selected: _filterParentUid == p.uid,
                                   showCheckmark: false,
                                   onSelected: (v) {
@@ -10195,6 +10207,12 @@ class _LogboekPageState extends State<_LogboekPage>
                             children: [
                               FilterChip(
                                 label: const Text('Alle'),
+                                labelStyle: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall,
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                                 selected: _filterChildId == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
@@ -10212,6 +10230,12 @@ class _LogboekPageState extends State<_LogboekPage>
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  labelStyle: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall,
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                   selected: _filterChildId == c.id,
                                   showCheckmark: false,
                                   onSelected: (v) {
