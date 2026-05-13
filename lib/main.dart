@@ -2106,13 +2106,15 @@ class _SettingsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    isPaired ? 'Instellingen' : 'Koppel met co-parent',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                  if (!isPaired) ...[
+                    Text(
+                      'Koppel met co-parent',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                  ],
                   if (isPaired)
                     Text(
                       trimmedOther == 'Co-parent'
