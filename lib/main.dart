@@ -10650,7 +10650,7 @@ class _LogboekPageState extends State<_LogboekPage>
     return 'Alle';
   }
 
-  String _expenseExportPeriodLabel() {
+  String _expenseExportPeriodLabel({String whenAllTime = 'Alle tijd'}) {
     if (_periodFilter == _PeriodFilter.custom &&
         _filterStart != null &&
         _filterEnd != null) {
@@ -10662,13 +10662,16 @@ class _LogboekPageState extends State<_LogboekPage>
       }
       return '${_fmtDateWithYear(_filterStart)} t/m ${_fmtDateWithYear(inclusiveEnd)}';
     }
-    return 'Alle tijd';
+    return whenAllTime;
   }
 
   List<({String label, String value})> _expenseExportSummaryRows() => [
     (label: 'Ouder', value: _expenseExportParentLabel()),
     (label: 'Kind', value: _expenseExportChildLabel()),
-    (label: 'Periode', value: _expenseExportPeriodLabel()),
+    (
+      label: 'Periode',
+      value: _expenseExportPeriodLabel(whenAllTime: 'Alle uitgaven'),
+    ),
   ];
 
   String _paymentExportParentLabelFor(String? filterParentUid) {
@@ -10689,7 +10692,10 @@ class _LogboekPageState extends State<_LogboekPage>
       label: 'Ouder',
       value: _paymentExportParentLabelFor(_paymentFilterParentUid),
     ),
-    (label: 'Periode', value: _expenseExportPeriodLabel()),
+    (
+      label: 'Periode',
+      value: _expenseExportPeriodLabel(whenAllTime: 'Alle betalingen'),
+    ),
   ];
 
   String _wijzigExportParentLabel() =>
@@ -10697,7 +10703,10 @@ class _LogboekPageState extends State<_LogboekPage>
 
   List<({String label, String value})> _wijzigExportSummaryRows() => [
     (label: 'Ouder', value: _wijzigExportParentLabel()),
-    (label: 'Periode', value: _expenseExportPeriodLabel()),
+    (
+      label: 'Periode',
+      value: _expenseExportPeriodLabel(whenAllTime: 'Alle wijzigingen'),
+    ),
   ];
 
   static String _csvEscape(String value) => '"${value.replaceAll('"', '""')}"';
@@ -12347,7 +12356,7 @@ class _LogboekPageState extends State<_LogboekPage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Exporteer selectie',
+                'Exporteer uitgaven',
                 style: Theme.of(
                   sheetContext,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -12405,7 +12414,7 @@ class _LogboekPageState extends State<_LogboekPage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Exporteer selectie',
+                'Exporteer betalingen',
                 style: Theme.of(
                   sheetContext,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -12463,7 +12472,7 @@ class _LogboekPageState extends State<_LogboekPage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Exporteer selectie',
+                'Exporteer wijzigingen',
                 style: Theme.of(
                   sheetContext,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
