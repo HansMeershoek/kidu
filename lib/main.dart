@@ -2082,10 +2082,7 @@ class _SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trimmedOther = (otherName ?? '').trim();
-    final isPaired = trimmedOther.isNotEmpty;
     final hasHousehold = householdId.trim().isNotEmpty;
-    final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
 
     return Scaffold(
       appBar: AppBar(
@@ -2115,55 +2112,6 @@ class _SettingsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!isPaired) ...[
-                    Text(
-                      'Koppel met co-parent',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  if (isPaired)
-                    Text(
-                      trimmedOther == 'Co-parent'
-                          ? 'Je bent nog niet gekoppeld'
-                          : 'Verbonden met $effectiveOtherName',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: onSurface(context, a68),
-                        height: 1.35,
-                      ),
-                    )
-                  else
-                    Text(
-                      'Koppel met je co-parent om samen kosten te delen.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: onSurface(context, a68),
-                        height: 1.35,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  if (!isPaired) ...[
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SetupPage()),
-                        );
-                      },
-                      icon: Icon(
-                        Icons.link,
-                        size: 18,
-                        color: onSurface(context, a70),
-                      ),
-                      label: Text(
-                        'Ik heb een invite-code',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                    ),
-                  ],
-                  Divider(height: 24, color: outlineV(context, a40)),
                   Text(
                     'Huishouden',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
