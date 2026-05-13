@@ -2156,40 +2156,6 @@ class _SettingsPage extends StatelessWidget {
                   ],
                   Divider(height: 24, color: outlineV(context, a40)),
                   Text(
-                    'Account',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a70),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.standard,
-                    leading: Icon(
-                      Icons.edit_outlined,
-                      size: 18,
-                      color: onSurface(context, a50),
-                    ),
-                    title: Text(
-                      'Naam',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ProfileNamePage(
-                            fromSettings: true,
-                            initialName: myName,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
                     'Huishouden',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: onSurface(context, a70),
@@ -2535,7 +2501,40 @@ class _SettingsPage extends StatelessWidget {
                       );
                     },
                   ),
-                  Divider(height: 32, color: outlineV(context, a40)),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Account',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a70),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.standard,
+                    leading: Icon(
+                      Icons.edit_outlined,
+                      size: 18,
+                      color: onSurface(context, a50),
+                    ),
+                    title: Text(
+                      'Naam',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ProfileNamePage(
+                            fromSettings: true,
+                            initialName: myName,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     visualDensity: VisualDensity.standard,
