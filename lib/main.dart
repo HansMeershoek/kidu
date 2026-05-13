@@ -11018,9 +11018,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Geen uitgaven gevonden voor deze selectie.'),
-          ),
+          const SnackBar(content: Text('Geen uitgaven voor deze selectie.')),
         );
         return;
       }
@@ -11163,7 +11161,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+              fallback: 'Exporteren lukt niet. Probeer opnieuw.',
             ),
           ),
         ),
@@ -11184,9 +11182,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Geen uitgaven gevonden voor deze selectie.'),
-          ),
+          const SnackBar(content: Text('Geen uitgaven voor deze selectie.')),
         );
         return;
       }
@@ -11539,7 +11535,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'PDF-export mislukt. Probeer opnieuw.',
+              fallback: 'Exporteren lukt niet. Probeer opnieuw.',
             ),
           ),
         ),
@@ -11554,9 +11550,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Geen betalingen gevonden voor deze selectie.'),
-          ),
+          const SnackBar(content: Text('Geen betalingen voor deze selectie.')),
         );
         return;
       }
@@ -11602,7 +11596,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+              fallback: 'Exporteren lukt niet. Probeer opnieuw.',
             ),
           ),
         ),
@@ -11679,9 +11673,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Geen betalingen gevonden voor deze selectie.'),
-          ),
+          const SnackBar(content: Text('Geen betalingen voor deze selectie.')),
         );
         return;
       }
@@ -11974,7 +11966,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'PDF-export mislukt. Probeer opnieuw.',
+              fallback: 'Exporteren lukt niet. Probeer opnieuw.',
             ),
           ),
         ),
@@ -11990,11 +11982,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Geen bedragwijzigingen gevonden voor deze selectie.',
-            ),
-          ),
+          const SnackBar(content: Text('Geen wijzigingen voor deze selectie.')),
         );
         return;
       }
@@ -12042,7 +12030,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'CSV-export mislukt. Probeer opnieuw.',
+              fallback: 'Exporteren lukt niet. Probeer opnieuw.',
             ),
           ),
         ),
@@ -12076,11 +12064,7 @@ class _LogboekPageState extends State<_LogboekPage>
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Geen bedragwijzigingen gevonden voor deze selectie.',
-            ),
-          ),
+          const SnackBar(content: Text('Geen wijzigingen voor deze selectie.')),
         );
         return;
       }
@@ -12300,7 +12284,7 @@ class _LogboekPageState extends State<_LogboekPage>
           content: Text(
             mapUserFacingError(
               e,
-              fallback: 'PDF-export mislukt. Probeer opnieuw.',
+              fallback: 'Exporteren lukt niet. Probeer opnieuw.',
             ),
           ),
         ),
