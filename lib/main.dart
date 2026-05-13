@@ -10096,26 +10096,39 @@ class _LogboekPageState extends State<_LogboekPage>
                           children: [
                             Expanded(
                               child: Text(
-                                'Filter',
+                                'Filters',
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _filterParentUid = null;
-                                  _filterChildId = null;
-                                  _periodFilter = _PeriodFilter.all;
-                                  _filterStart = null;
-                                  _filterEnd = null;
-                                  _rebuildExpensesStream();
-                                  _rebuildPaymentsStream();
-                                });
-                                setModalState(() {});
-                              },
-                              child: const Text('Alle filters wissen'),
-                            ),
+                            if (_filterParentUid != null ||
+                                _filterChildId != null ||
+                                _periodFilter != _PeriodFilter.all)
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 0,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _filterParentUid = null;
+                                    _filterChildId = null;
+                                    _periodFilter = _PeriodFilter.all;
+                                    _filterStart = null;
+                                    _filterEnd = null;
+                                    _rebuildExpensesStream();
+                                    _rebuildPaymentsStream();
+                                  });
+                                  setModalState(() {});
+                                },
+                                child: const Text('Wis filters'),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
