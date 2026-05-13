@@ -10667,7 +10667,8 @@ class _LogboekPageState extends State<_LogboekPage>
 
   List<({String label, String value})> _expenseExportSummaryRows() => [
     (label: 'Ouder', value: _expenseExportParentLabel()),
-    (label: 'Kind', value: _expenseExportChildLabel()),
+    if ((_childrenLoaded && _children.length > 1) || _filterChildId != null)
+      (label: 'Kind', value: _expenseExportChildLabel()),
     (
       label: 'Periode',
       value: _expenseExportPeriodLabel(whenAllTime: 'Alle uitgaven'),
