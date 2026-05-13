@@ -2088,7 +2088,16 @@ class _SettingsPage extends StatelessWidget {
     final effectiveOtherName = isPaired ? trimmedOther : 'Co-parent';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Instellingen')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Instellingen',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
