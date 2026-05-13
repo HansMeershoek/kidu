@@ -1656,7 +1656,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                                     enabledBorder: InputBorder.none,
                                     contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 18,
-                                      vertical: 14,
+                                      vertical: 12,
                                     ),
                                     counterText: '',
                                   ),
