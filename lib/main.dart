@@ -15004,7 +15004,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
         body: SafeArea(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
               child: Text(
                 'Beschikbaar na koppelen',
                 textAlign: TextAlign.center,
@@ -15079,7 +15079,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
 
             if (docs.isEmpty) {
               return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
@@ -15105,7 +15105,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
             }
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
               child: Align(
                 alignment: Alignment.topCenter,
                 child: ConstrainedBox(
