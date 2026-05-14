@@ -285,9 +285,11 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Notitie bewerken',
-                      style: TextStyle(
+                    Text(
+                      widget.hasInitialNote
+                          ? 'Notitie bewerken'
+                          : 'Notitie toevoegen',
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
                       ),
@@ -6623,7 +6625,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     if (mounted) {
                                                                       _showSnackBar(
                                                                         hasNote
-                                                                            ? 'Je bent offline. Notitie wijzigen kan alleen met internet.'
+                                                                            ? 'Je bent offline. Notitie bewerken kan alleen met internet.'
                                                                             : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
                                                                       );
                                                                     }
@@ -9389,7 +9391,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                 ),
                                 label: Text(
                                   hasNoteLive
-                                      ? 'Notitie wijzigen'
+                                      ? 'Notitie bewerken'
                                       : 'Notitie toevoegen',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
@@ -16327,7 +16329,7 @@ class _RecurringMasterDetailPageState
                                   ),
                                   label: Text(
                                     hasNoteLive
-                                        ? 'Notitie wijzigen'
+                                        ? 'Notitie bewerken'
                                         : 'Notitie toevoegen',
                                     style: textTheme.bodyMedium,
                                   ),
