@@ -9272,7 +9272,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     size: 18,
                                   ),
                                   label: Text(
-                                    'Notitie toevoegen',
+                                    'Notitie',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.bodyMedium,
@@ -9319,7 +9319,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                         size: 18,
                                       ),
                                       label: Text(
-                                        'Uitgave bewerken',
+                                        'Uitgave',
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodyMedium,
@@ -9390,9 +9390,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   size: 18,
                                 ),
                                 label: Text(
-                                  hasNoteLive
-                                      ? 'Notitie bewerken'
-                                      : 'Notitie toevoegen',
+                                  hasNoteLive ? 'Notitie' : 'Notitie',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ),
@@ -9436,7 +9434,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                       size: 18,
                                     ),
                                     label: Text(
-                                      'Uitgave bewerken',
+                                      'Uitgave',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.bodyMedium,
@@ -16180,7 +16178,7 @@ class _RecurringMasterDetailPageState
                                       size: 18,
                                     ),
                                     label: Text(
-                                      'Notitie toevoegen',
+                                      'Notitie',
                                       style: textTheme.bodyMedium,
                                     ),
                                   ),
@@ -16204,7 +16202,7 @@ class _RecurringMasterDetailPageState
                                       size: 18,
                                     ),
                                     label: Text(
-                                      'Maandelijkse uitgave bewerken',
+                                      'Uitgave',
                                       style: textTheme.bodyMedium,
                                     ),
                                   ),
@@ -16328,9 +16326,7 @@ class _RecurringMasterDetailPageState
                                     size: 18,
                                   ),
                                   label: Text(
-                                    hasNoteLive
-                                        ? 'Notitie bewerken'
-                                        : 'Notitie toevoegen',
+                                    hasNoteLive ? 'Notitie' : 'Notitie',
                                     style: textTheme.bodyMedium,
                                   ),
                                 ),
@@ -16354,7 +16350,7 @@ class _RecurringMasterDetailPageState
                                     size: 18,
                                   ),
                                   label: Text(
-                                    'Maandelijkse uitgave bewerken',
+                                    'Uitgave',
                                     style: textTheme.bodyMedium,
                                   ),
                                 ),
