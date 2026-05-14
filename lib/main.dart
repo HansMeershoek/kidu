@@ -15468,8 +15468,8 @@ class _RecurringMasterDetailPageState
   // the screen visually calm while we tear down changes / privateNotes /
   // master: the live streams keep firing (and will briefly emit empty or
   // error snapshots as docs disappear), but the builders render from the
-  // cache so the user does not see the note flash back to "Nog geen
-  // notitie." or the history list collapse under their finger.
+  // cache so the user does not see the note section regress to an empty
+  // state or the history list collapse under their finger.
   Map<String, dynamic>? _lastMasterData;
   List<QueryDocumentSnapshot<Map<String, dynamic>>>? _lastChangesDocs;
   Map<String, dynamic>? _lastNoteData;
@@ -16262,11 +16262,11 @@ class _RecurringMasterDetailPageState
                           }
                           // Freeze the note section on its last healthy
                           // data during delete: the privateNotes doc gets
-                          // removed in step 2 and would otherwise flash
-                          // back to "Nog geen notitie." right under the
-                          // user's thumb. We cache both the raw data and
-                          // the "has-snapshot" bit so the first frame
-                          // after delete confirmation never regresses.
+                          // removed in step 2 and would otherwise flash to
+                          // an empty state right under the user's thumb.
+                          // We cache both the raw data and the "has-snapshot"
+                          // bit so the first frame after delete confirmation
+                          // never regresses.
                           if (!_deleteActionBusy && snap.hasData) {
                             _lastNoteData = snap.data?.data();
                             _hasNoteCache = true;
@@ -16292,14 +16292,6 @@ class _RecurringMasterDetailPageState
                                     ),
                                   ),
                                   subtitle: Text(note),
-                                )
-                              else
-                                Text(
-                                  'Nog geen notitie.',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: onSurface(context, a55),
-                                    height: 1.35,
-                                  ),
                                 ),
                               Padding(
                                 padding: const EdgeInsets.only(top: 16),
