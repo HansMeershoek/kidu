@@ -8919,6 +8919,39 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     );
   }
 
+  Widget _expenseEditTonalButtonStream({required bool wrapWithTopPadding}) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .doc('households/${widget.householdId}/expenses/${widget.expenseId}')
+          .snapshots(),
+      builder: (context, expSnap) {
+        final ed = expSnap.data?.data();
+        final currentTitle = ((ed?['title'] as String?) ?? widget.title).trim();
+        final currentCents =
+            (ed?['amountCents'] as num?)?.toInt() ?? widget.amountCents;
+        final currentChildIds =
+            (ed?['childIds'] as List?)?.whereType<String>().toList() ??
+            widget.childIds;
+        final button = FilledButton.tonalIcon(
+          onPressed: () => _openEditAmountDialog(
+            currentAmountCents: currentCents,
+            currentTitle: currentTitle.isEmpty ? widget.title : currentTitle,
+            currentChildIds: currentChildIds,
+          ),
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: Text('Uitgave', style: Theme.of(context).textTheme.bodyMedium),
+        );
+        if (wrapWithTopPadding) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: button,
+          );
+        }
+        return button;
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -9367,81 +9400,55 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           if (widget.onManageNote != null && isCreator)
                             Padding(
                               padding: const EdgeInsets.only(top: 16),
-                              child: FilledButton.tonalIcon(
-                                onPressed: _noteActionBusy
-                                    ? null
-                                    : () async {
-                                        if (_noteActionBusy) return;
-                                        setState(() => _noteActionBusy = true);
-                                        try {
-                                          await widget.onManageNote!();
-                                        } finally {
-                                          if (mounted) {
-                                            setState(
-                                              () => _noteActionBusy = false,
-                                            );
-                                          }
-                                        }
-                                      },
-                                icon: Icon(
-                                  hasNoteLive
-                                      ? Icons.edit_note
-                                      : Icons.note_add_outlined,
-                                  size: 18,
-                                ),
-                                label: Text(
-                                  hasNoteLive ? 'Notitie' : 'Notitie',
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: _noteActionBusy
+                                          ? null
+                                          : () async {
+                                              if (_noteActionBusy) return;
+                                              setState(
+                                                () => _noteActionBusy = true,
+                                              );
+                                              try {
+                                                await widget.onManageNote!();
+                                              } finally {
+                                                if (mounted) {
+                                                  setState(
+                                                    () =>
+                                                        _noteActionBusy = false,
+                                                  );
+                                                }
+                                              }
+                                            },
+                                      icon: Icon(
+                                        hasNoteLive
+                                            ? Icons.edit_note
+                                            : Icons.note_add_outlined,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        hasNoteLive ? 'Notitie' : 'Notitie',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _expenseEditTonalButtonStream(
+                                      wrapWithTopPadding: false,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          if (isCreator)
-                            StreamBuilder<
-                              DocumentSnapshot<Map<String, dynamic>>
-                            >(
-                              stream: FirebaseFirestore.instance
-                                  .doc(
-                                    'households/${widget.householdId}/expenses/${widget.expenseId}',
-                                  )
-                                  .snapshots(),
-                              builder: (context, expSnap) {
-                                final ed = expSnap.data?.data();
-                                final currentTitle =
-                                    ((ed?['title'] as String?) ?? widget.title)
-                                        .trim();
-                                final currentCents =
-                                    (ed?['amountCents'] as num?)?.toInt() ??
-                                    widget.amountCents;
-                                final currentChildIds =
-                                    (ed?['childIds'] as List?)
-                                        ?.whereType<String>()
-                                        .toList() ??
-                                    widget.childIds;
-                                return Padding(
-                                  padding: EdgeInsets.only(
-                                    top: widget.onManageNote != null ? 8 : 16,
-                                  ),
-                                  child: FilledButton.tonalIcon(
-                                    onPressed: () => _openEditAmountDialog(
-                                      currentAmountCents: currentCents,
-                                      currentTitle: currentTitle.isEmpty
-                                          ? widget.title
-                                          : currentTitle,
-                                      currentChildIds: currentChildIds,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      size: 18,
-                                    ),
-                                    label: Text(
-                                      'Uitgave',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                  ),
-                                );
-                              },
+                          if (isCreator && widget.onManageNote == null)
+                            _expenseEditTonalButtonStream(
+                              wrapWithTopPadding: true,
                             ),
                         ],
                       );
