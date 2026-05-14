@@ -16295,63 +16295,74 @@ class _RecurringMasterDetailPageState
                                 ),
                               Padding(
                                 padding: const EdgeInsets.only(top: 16),
-                                child: FilledButton.tonalIcon(
-                                  onPressed: _noteActionBusy
-                                      ? null
-                                      : () async {
-                                          if (_noteActionBusy) return;
-                                          setState(
-                                            () => _noteActionBusy = true,
-                                          );
-                                          try {
-                                            await _doManageRecurringMasterPrivateNote(
-                                              context,
-                                              householdId: widget.householdId,
-                                              masterId: widget.masterId,
-                                              uid: widget.uid,
-                                            );
-                                          } finally {
-                                            if (mounted) {
-                                              setState(
-                                                () => _noteActionBusy = false,
-                                              );
-                                            }
-                                          }
-                                        },
-                                  icon: Icon(
-                                    hasNoteLive
-                                        ? Icons.edit_note
-                                        : Icons.note_add_outlined,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    hasNoteLive ? 'Notitie' : 'Notitie',
-                                    style: textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: FilledButton.tonalIcon(
-                                  onPressed: () => _openEditRecurringDialog(
-                                    currentAmountCents: amountCents,
-                                    currentTitle: title.isEmpty
-                                        ? widget.title
-                                        : title,
-                                    currentChildIds: childIds,
-                                    currentDueDayOfMonth:
-                                        dueDay ?? (startDate?.day ?? 1),
-                                    currentParentSplitSnapshot:
-                                        parentSplitSnapshot,
-                                  ),
-                                  icon: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    'Uitgave',
-                                    style: textTheme.bodyMedium,
-                                  ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: _noteActionBusy
+                                            ? null
+                                            : () async {
+                                                if (_noteActionBusy) return;
+                                                setState(
+                                                  () => _noteActionBusy = true,
+                                                );
+                                                try {
+                                                  await _doManageRecurringMasterPrivateNote(
+                                                    context,
+                                                    householdId:
+                                                        widget.householdId,
+                                                    masterId: widget.masterId,
+                                                    uid: widget.uid,
+                                                  );
+                                                } finally {
+                                                  if (mounted) {
+                                                    setState(
+                                                      () => _noteActionBusy =
+                                                          false,
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                        icon: Icon(
+                                          hasNoteLive
+                                              ? Icons.edit_note
+                                              : Icons.note_add_outlined,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          hasNoteLive ? 'Notitie' : 'Notitie',
+                                          style: textTheme.bodyMedium,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: () =>
+                                            _openEditRecurringDialog(
+                                              currentAmountCents: amountCents,
+                                              currentTitle: title.isEmpty
+                                                  ? widget.title
+                                                  : title,
+                                              currentChildIds: childIds,
+                                              currentDueDayOfMonth:
+                                                  dueDay ??
+                                                  (startDate?.day ?? 1),
+                                              currentParentSplitSnapshot:
+                                                  parentSplitSnapshot,
+                                            ),
+                                        icon: const Icon(
+                                          Icons.edit_outlined,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          'Uitgave',
+                                          style: textTheme.bodyMedium,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               Padding(
