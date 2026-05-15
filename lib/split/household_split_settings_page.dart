@@ -270,14 +270,14 @@ class _HouseholdSplitSettingsPageState
     return ListView(
       children: <Widget>[
         Text(
-          'Bepaalt hoe NIEUWE uitgaven tussen jullie worden verdeeld. '
-          'Bestaande uitgaven veranderen hierdoor niet.',
+          'Dit is de standaardverdeling voor nieuwe uitgaven. Per uitgave '
+          'kun je hiervan afwijken.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: colorScheme.onSurface.withValues(alpha: 0.68),
             height: 1.35,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Text(
           summaryText,
           style: Theme.of(
@@ -318,23 +318,13 @@ class _HouseholdSplitSettingsPageState
                   },
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Minimum ${_formatShare(kHouseholdShareBpsMin)} · Maximum '
-          '${_formatShare(kHouseholdShareBpsMax)}. 0% en 100% zijn bewust '
-          'niet toegestaan als standaard.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurface.withValues(alpha: 0.68),
-            height: 1.35,
-          ),
-        ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         FilledButton.tonal(
           onPressed: _saving ? null : _save,
           child: Text(_saving ? 'Opslaan…' : 'Opslaan'),
         ),
         if (lastChangedText != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             lastChangedText,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
