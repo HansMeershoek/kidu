@@ -15503,6 +15503,79 @@ class _RecurringMasterDetailPageState
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _showRecurringManageSheet(BuildContext context, String? status) {
+    final theme = Theme.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: theme.colorScheme.surface,
+      builder: (sheetContext) {
+        final sheetTheme = Theme.of(sheetContext);
+        final textTheme = sheetTheme.textTheme;
+        final isPaused = status == 'paused';
+        final pauseResumeLabel = isPaused ? 'Hervatten' : 'Pauzeren';
+        final pauseResumeIcon = isPaused
+            ? Icons.play_arrow_outlined
+            : Icons.pause_outlined;
+        final softError = sheetTheme.colorScheme.error.withValues(alpha: 0.70);
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  enabled: !_pauseActionBusy,
+                  leading: Icon(
+                    pauseResumeIcon,
+                    size: 22,
+                    color: onSurface(sheetContext, a45),
+                  ),
+                  title: Text(
+                    pauseResumeLabel,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: onSurface(sheetContext, a84),
+                    ),
+                  ),
+                  onTap: !_pauseActionBusy
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          _onTogglePauseResumePressed(
+                            currentStatus: status ?? 'active',
+                          );
+                        }
+                      : null,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  enabled: !_deleteActionBusy,
+                  leading: Icon(
+                    Icons.delete_outline,
+                    size: 22,
+                    color: softError,
+                  ),
+                  title: Text(
+                    'Verwijderen',
+                    style: textTheme.bodyMedium?.copyWith(color: softError),
+                  ),
+                  onTap: !_deleteActionBusy
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          _onDeletePressed();
+                        }
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _openEditRecurringDialog({
     required int currentAmountCents,
     required String currentTitle,
@@ -15835,40 +15908,11 @@ class _RecurringMasterDetailPageState
             ),
             actions: [
               if (isCreator)
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 20),
+                IconButton(
                   tooltip: 'Beheer',
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'pause':
-                        _onTogglePauseResumePressed(
-                          currentStatus: status ?? 'active',
-                        );
-                        break;
-                      case 'delete':
-                        _onDeletePressed();
-                        break;
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    PopupMenuItem<String>(
-                      value: 'pause',
-                      enabled: !_pauseActionBusy,
-                      child: Text(
-                        status == 'paused' ? 'Hervatten' : 'Pauzeren',
-                      ),
-                    ),
-                    PopupMenuItem<String>(
-                      value: 'delete',
-                      enabled: !_deleteActionBusy,
-                      child: Text(
-                        'Verwijderen',
-                        style: TextStyle(
-                          color: Theme.of(ctx).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
+                  iconSize: 20,
+                  icon: const Icon(Icons.more_vert),
+                  onPressed: () => _showRecurringManageSheet(context, status),
                 ),
             ],
           ),
