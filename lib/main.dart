@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
 import 'firebase_options.dart';
+import 'formatting/relative_time_nl.dart';
 import 'privacy/reopen_lock_gate.dart';
 import 'privacy/reopen_lock_service.dart';
 import 'split/household_split_settings_page.dart';
@@ -2922,16 +2923,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return '${negative ? '-' : ''}€$buf,${rem.toString().padLeft(2, '0')}';
   }
 
-  String _formatRelativeNl(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inSeconds < 60) return 'zojuist';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min geleden';
-    if (diff.inHours < 24) return '${diff.inHours} uur geleden';
-    if (diff.inDays == 1) return 'gisteren';
-    if (diff.inDays < 7) return '${diff.inDays} dagen geleden';
-    return '${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}';
-  }
+  String _formatRelativeNl(DateTime dt) => formatRelativeTimeNl(dt);
 
   Future<Map<String, String>> _fetchUserNames({
     required String myUid,
@@ -5548,7 +5540,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                           final createdAt =
                                               e['createdAt'] as Timestamp?;
                                           final timeStr = createdAt == null
-                                              ? 'zojuist'
+                                              ? 'Zojuist'
                                               : _formatRelativeNl(
                                                   createdAt.toDate(),
                                                 );

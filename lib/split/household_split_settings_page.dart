@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../formatting/relative_time_nl.dart';
 import 'household_split_settings_repository.dart';
 import 'parent_split.dart';
 
@@ -183,41 +184,8 @@ class _HouseholdSplitSettingsPageState
     return '${pct.toStringAsFixed(1)}%';
   }
 
-  String _formatLastChangedAgo(DateTime updatedAt) {
-    final now = DateTime.now();
-    final localUpdatedAt = updatedAt.toLocal();
-    if (!localUpdatedAt.isBefore(now)) return 'zojuist';
-
-    final diff = now.difference(localUpdatedAt);
-    if (diff.inSeconds < 60) return 'zojuist';
-
-    if (diff.inMinutes < 60) {
-      final minutes = diff.inMinutes;
-      final unit = minutes == 1 ? 'minuut' : 'minuten';
-      return '$minutes $unit geleden';
-    }
-
-    final sameDay =
-        localUpdatedAt.year == now.year &&
-        localUpdatedAt.month == now.month &&
-        localUpdatedAt.day == now.day;
-    if (sameDay) {
-      final hours = diff.inHours;
-      final minutes = diff.inMinutes.remainder(60);
-      final minuteUnit = minutes == 1 ? 'minuut' : 'minuten';
-      return '$hours uur en $minutes $minuteUnit geleden';
-    }
-
-    final today = DateTime(now.year, now.month, now.day);
-    final changedDay = DateTime(
-      localUpdatedAt.year,
-      localUpdatedAt.month,
-      localUpdatedAt.day,
-    );
-    final days = today.difference(changedDay).inDays.clamp(1, 999999);
-    if (days == 1) return '1 dag geleden';
-    return '$days dagen geleden';
-  }
+  String _formatLastChangedAgo(DateTime updatedAt) =>
+      formatRelativeTimeNl(updatedAt);
 
   String? _lastChangedText() {
     final updatedBy = _updatedBy;
@@ -287,9 +255,8 @@ class _HouseholdSplitSettingsPageState
         coParent = m;
       }
     }
-    int shareFor(String uid) => uid == share0Uid
-        ? _share0Bps
-        : kBpsFull - _share0Bps;
+    int shareFor(String uid) =>
+        uid == share0Uid ? _share0Bps : kBpsFull - _share0Bps;
     final summaryText = viewer == null || coParent == null
         ? '$share0Label: ${_formatShare(_share0Bps)}  ·  '
               '${other.label}: ${_formatShare(kBpsFull - _share0Bps)}'
@@ -313,9 +280,9 @@ class _HouseholdSplitSettingsPageState
         const SizedBox(height: 16),
         Text(
           summaryText,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
