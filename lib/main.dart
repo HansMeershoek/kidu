@@ -15837,12 +15837,9 @@ class _RecurringMasterDetailPageState
               if (isCreator)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, size: 20),
-                  tooltip: 'Meer',
+                  tooltip: 'Beheer',
                   onSelected: (value) {
                     switch (value) {
-                      case 'info':
-                        _showMonthlyExpensesInfoSheet(context);
-                        break;
                       case 'pause':
                         _onTogglePauseResumePressed(
                           currentStatus: status ?? 'active',
@@ -15854,10 +15851,6 @@ class _RecurringMasterDetailPageState
                     }
                   },
                   itemBuilder: (ctx) => [
-                    const PopupMenuItem<String>(
-                      value: 'info',
-                      child: Text('Info'),
-                    ),
                     PopupMenuItem<String>(
                       value: 'pause',
                       enabled: !_pauseActionBusy,
@@ -15876,12 +15869,6 @@ class _RecurringMasterDetailPageState
                       ),
                     ),
                   ],
-                )
-              else
-                IconButton(
-                  tooltip: 'Uitleg over maandelijkse uitgaven',
-                  icon: const Icon(Icons.info_outline, size: 20),
-                  onPressed: () => _showMonthlyExpensesInfoSheet(context),
                 ),
             ],
           ),
