@@ -3365,6 +3365,7 @@ class _DashboardPageState extends State<DashboardPage> {
     String? coparentNameForPendingMessage,
     List<String>? childIds,
     bool sharePrivateNoteWithCoParent = false,
+    ParentSplitSnapshot? parentSplitOverride,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -3392,13 +3393,26 @@ class _DashboardPageState extends State<DashboardPage> {
             .collection('households/$householdId/members')
             .get();
         memberUidsForShare = memberSnap.docs.map((d) => d.id).toSet();
-        final defaults = await HouseholdSplitSettingsRepository().load(
-          householdId,
-        );
-        final snapshot = buildSnapshotForNewExpense(
-          defaults: defaults,
-          currentMemberUids: memberUidsForShare,
-        );
+        ParentSplitSnapshot? snapshot;
+        final o = parentSplitOverride;
+        if (o != null &&
+            memberUidsForShare.length == kParentSplitParticipantCount &&
+            o.participantUids.length == kParentSplitParticipantCount &&
+            o.participantUids.toSet().difference(memberUidsForShare).isEmpty) {
+          snapshot = ParentSplitSnapshot.tryCreate(
+            participantUids: o.participantUids,
+            share0Bps: o.share0Bps,
+          );
+        }
+        if (snapshot == null) {
+          final defaults = await HouseholdSplitSettingsRepository().load(
+            householdId,
+          );
+          snapshot = buildSnapshotForNewExpense(
+            defaults: defaults,
+            currentMemberUids: memberUidsForShare,
+          );
+        }
         if (snapshot != null) {
           data.addAll(snapshot.toExpenseFields());
         }
@@ -3800,6 +3814,27 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
       final String? coParentUidForShare = shareUi.coParentUid;
 
+      ParentSplitSnapshot? initialPendingSplit;
+      try {
+        final memberSnap = await FirebaseFirestore.instance
+            .collection('households/$householdId/members')
+            .get();
+        final memberUidsForShare = memberSnap.docs.map((d) => d.id).toSet();
+        final defaults = await HouseholdSplitSettingsRepository().load(
+          householdId,
+        );
+        initialPendingSplit = buildSnapshotForNewExpense(
+          defaults: defaults,
+          currentMemberUids: memberUidsForShare,
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Add expense: initial split load skipped: $e');
+        }
+      }
+      var pendingSplit = initialPendingSplit;
+
+      if (!mounted) return;
       didShow = true;
       var sharePrivateNoteWithCoParent = false;
       await showDialog<void>(
@@ -3813,7 +3848,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   ? customSelectedChildIds
                   : allChildIds;
               final screenW = MediaQuery.sizeOf(context).width;
-              final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+              final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
+              final textTheme = Theme.of(context).textTheme;
               final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
                   ?.copyWith(
                     color: Theme.of(
@@ -3831,6 +3867,19 @@ class _DashboardPageState extends State<DashboardPage> {
                     ).colorScheme.error.withValues(alpha: 0.88),
                     fontWeight: FontWeight.w400,
                   );
+              final metaLabelStyle = textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w400,
+                color: onSurface(context, a84),
+              );
+              final metaValueStyle = textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: onSurface(context, a84),
+              );
+              final metaActionStyle = TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
               final childSelectionSummary =
                   !hasCustomChildSelection ||
                       effectiveSelectedChildIds.length == children.length
@@ -3859,8 +3908,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     Align(
                       alignment: const Alignment(0, -0.15),
                       child: SizedBox(
-                        width: dialogW,
+                        width: dialogContentW,
                         child: AlertDialog(
+                          insetPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 24,
+                          ),
                           title: const Text('Nieuwe uitgave'),
                           content: ConstrainedBox(
                             constraints: BoxConstraints(
@@ -4091,10 +4144,105 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ],
                                     ),
                                   ],
+                                  if (pendingSplit != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text.rich(
+                                              TextSpan(
+                                                children: [
+                                                  TextSpan(
+                                                    text: 'Verdeling: ',
+                                                    style: metaLabelStyle,
+                                                  ),
+                                                  TextSpan(
+                                                    text:
+                                                        _formatParentSplitCompact(
+                                                          pendingSplit!,
+                                                          FirebaseAuth
+                                                              .instance
+                                                              .currentUser
+                                                              ?.uid,
+                                                        ),
+                                                    style: metaValueStyle,
+                                                  ),
+                                                ],
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: saving
+                                                ? null
+                                                : () async {
+                                                    FocusManager
+                                                        .instance
+                                                        .primaryFocus
+                                                        ?.unfocus();
+                                                    if (!context.mounted) {
+                                                      return;
+                                                    }
+                                                    final ps = pendingSplit;
+                                                    if (ps == null) return;
+                                                    final members =
+                                                        await _loadParentSplitMembers(
+                                                          householdId,
+                                                        );
+                                                    if (members.length !=
+                                                            kParentSplitParticipantCount ||
+                                                        !context.mounted) {
+                                                      return;
+                                                    }
+                                                    final picked =
+                                                        await showDialog<
+                                                          ParentSplitSnapshot
+                                                        >(
+                                                          context: context,
+                                                          builder: (_) =>
+                                                              _RecurringParentSplitDialog(
+                                                                members:
+                                                                    members,
+                                                                initialSnapshot:
+                                                                    ps,
+                                                                viewerUid:
+                                                                    FirebaseAuth
+                                                                        .instance
+                                                                        .currentUser
+                                                                        ?.uid,
+                                                                contextFooterText:
+                                                                    'Deze verdeling hoort alleen bij deze uitgave.',
+                                                              ),
+                                                        );
+                                                    if (picked != null &&
+                                                        context.mounted) {
+                                                      setLocalState(
+                                                        () => pendingSplit =
+                                                            picked,
+                                                      );
+                                                    }
+                                                  },
+                                            style: metaActionStyle,
+                                            child: const Text('Wijzigen'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
                           ),
+                          actionsPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            12,
+                          ),
+                          actionsAlignment: MainAxisAlignment.spaceBetween,
                           actions: [
                             TextButton(
                               onPressed: saving
@@ -4166,6 +4314,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   noteController.text
                                                       .trim()
                                                       .isNotEmpty,
+                                              parentSplitOverride: pendingSplit,
                                             );
                                         if (mounted && createResult != null) {
                                           setState(() {
@@ -14030,11 +14179,14 @@ class _RecurringParentSplitDialog extends StatefulWidget {
     required this.members,
     required this.initialSnapshot,
     required this.viewerUid,
+    this.contextFooterText =
+        'Deze verdeling hoort alleen bij deze maandelijkse uitgave.',
   });
 
   final List<_ParentSplitMember> members;
   final ParentSplitSnapshot initialSnapshot;
   final String? viewerUid;
+  final String contextFooterText;
 
   @override
   State<_RecurringParentSplitDialog> createState() =>
@@ -14117,7 +14269,7 @@ class _RecurringParentSplitDialogState
               ),
             ),
             Text(
-              'Deze verdeling hoort alleen bij deze maandelijkse uitgave.',
+              widget.contextFooterText,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: onSurface(context, a62),
                 height: 1.35,
