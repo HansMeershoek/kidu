@@ -12830,7 +12830,7 @@ class _LogboekPageState extends State<_LogboekPage>
           );
         }
         if (!expSnap.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         final docs = expSnap.data!.docs;
         final sig = docs
@@ -12847,7 +12847,7 @@ class _LogboekPageState extends State<_LogboekPage>
           builder: (context, futSnap) {
             if (futSnap.connectionState == ConnectionState.waiting &&
                 !futSnap.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return const SizedBox.shrink();
             }
             if (futSnap.hasError) {
               return Center(
