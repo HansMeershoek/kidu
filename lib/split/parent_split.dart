@@ -2,10 +2,14 @@
 //
 // - Household default share-bps is v1-constrained to
 //   [kHouseholdShareBpsMin..kHouseholdShareBpsMax]. 0 and 10000
-//   (everything-on-one-parent) are intentionally disallowed; this is
-//   enforced here, in the repository, in the UI slider, and in
-//   firestore.rules. The same range applies to the expense snapshot
-//   field `parentSplit0ShareBps`.
+//   (everything-on-one-parent) are intentionally disallowed for
+//   defaults; enforced here, in the repository, in the settings UI
+//   slider, and in firestore.rules for `settings/defaults` and recurring
+//   masters.
+// - Expense snapshot `parentSplit0ShareBps` on **one-time** expenses
+//   may be [0..kBpsFull] so a single expense can be 100/0 or 0/100;
+//   see `isValidExpenseSnapshotShareBps` and firestore expense create
+//   rules (materialized recurring instances stay 100..9900).
 // - The expense snapshot (`parentSplitParticipantUids`,
 //   `parentSplit0ShareBps`) is immutable once written and applies to
 //   NEW expenses only.
@@ -26,8 +30,11 @@ const int kParentSplitParticipantCount = 2;
 bool isValidHouseholdShareBps(int bps) =>
     bps >= kHouseholdShareBpsMin && bps <= kHouseholdShareBpsMax;
 
-bool isValidSnapshotShareBps(int bps) =>
-    bps >= kHouseholdShareBpsMin && bps <= kHouseholdShareBpsMax;
+/// Per-expense snapshot on `expenses/{id}` (one-time creates only
+/// may use 0 or 10000; recurring materialized rows stay 100..9900 via
+/// rules). Used by [ParentSplitSnapshot.tryCreate] and
+/// [ParentSplitSnapshot.tryReadFromExpense].
+bool isValidExpenseSnapshotShareBps(int bps) => bps >= 0 && bps <= kBpsFull;
 
 List<String> sortedParticipantUids(String a, String b) {
   final list = <String>[a, b]..sort();
@@ -91,7 +98,7 @@ class ParentSplitSnapshot {
     final uid1 = participantUids[1];
     if (uid0.isEmpty || uid1.isEmpty) return null;
     if (uid0 == uid1) return null;
-    if (!isValidSnapshotShareBps(share0Bps)) return null;
+    if (!isValidExpenseSnapshotShareBps(share0Bps)) return null;
     return ParentSplitSnapshot._(
       participantUids: List<String>.unmodifiable(<String>[uid0, uid1]),
       share0Bps: share0Bps,
@@ -167,7 +174,7 @@ ParentSplitSnapshot? buildSnapshotForNewExpense({
     final int snapshotShare0Bps = (sortedUids[0] == defaults.share0Uid)
         ? defaults.share0Bps
         : kBpsFull - defaults.share0Bps;
-    if (isValidSnapshotShareBps(snapshotShare0Bps)) {
+    if (isValidExpenseSnapshotShareBps(snapshotShare0Bps)) {
       return ParentSplitSnapshot._(
         participantUids: sortedUids,
         share0Bps: snapshotShare0Bps,

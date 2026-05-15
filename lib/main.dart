@@ -4216,6 +4216,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         ?.uid,
                                                                 contextFooterText:
                                                                     'Deze verdeling hoort alleen bij deze uitgave.',
+                                                                minShareBps: 0,
+                                                                maxShareBps:
+                                                                    kBpsFull,
                                                               ),
                                                         );
                                                     if (picked != null &&
@@ -14181,12 +14184,20 @@ class _RecurringParentSplitDialog extends StatefulWidget {
     required this.viewerUid,
     this.contextFooterText =
         'Deze verdeling hoort alleen bij deze maandelijkse uitgave.',
-  });
+    this.minShareBps = kHouseholdShareBpsMin,
+    this.maxShareBps = kHouseholdShareBpsMax,
+  }) : assert(minShareBps >= 0),
+       assert(maxShareBps <= kBpsFull),
+       assert(minShareBps <= maxShareBps);
 
   final List<_ParentSplitMember> members;
   final ParentSplitSnapshot initialSnapshot;
   final String? viewerUid;
   final String contextFooterText;
+
+  /// Slider range in bps (household/monthly: 100..9900; one-time new expense: 0..10000).
+  final int minShareBps;
+  final int maxShareBps;
 
   @override
   State<_RecurringParentSplitDialog> createState() =>
@@ -14206,7 +14217,7 @@ class _RecurringParentSplitDialogState
       widget.viewerUid,
     );
     _share0Uid = ordered.firstUid;
-    _share0Bps = ordered.firstBps;
+    _share0Bps = ordered.firstBps.clamp(widget.minShareBps, widget.maxShareBps);
   }
 
   _ParentSplitMember get _share0Member =>
@@ -14257,14 +14268,22 @@ class _RecurringParentSplitDialogState
                 trackHeight: 3,
               ),
               child: Slider(
-                min: kHouseholdShareBpsMin.toDouble(),
-                max: kHouseholdShareBpsMax.toDouble(),
-                divisions:
-                    (kHouseholdShareBpsMax - kHouseholdShareBpsMin) ~/ 100,
-                value: _share0Bps.toDouble(),
+                min: widget.minShareBps.toDouble(),
+                max: widget.maxShareBps.toDouble(),
+                divisions: (widget.maxShareBps - widget.minShareBps) ~/ 100,
+                value: _share0Bps
+                    .toDouble()
+                    .clamp(
+                      widget.minShareBps.toDouble(),
+                      widget.maxShareBps.toDouble(),
+                    )
+                    .toDouble(),
                 label: _formatParentSplitShare(_share0Bps),
                 onChanged: (value) => setState(() {
-                  _share0Bps = value.round();
+                  _share0Bps = value.round().clamp(
+                    widget.minShareBps,
+                    widget.maxShareBps,
+                  );
                 }),
               ),
             ),
