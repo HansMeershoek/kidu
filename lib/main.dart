@@ -15750,109 +15750,147 @@ class _RecurringMasterDetailPageState
     final isCreator =
         widget.uid.isNotEmpty && widget.uid == widget.createdByUid.trim();
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          'Maandelijkse uitgave',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .doc(
+            'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
+          )
+          .snapshots(),
+      builder: (context, masterSnap) {
+        // While idle, keep refreshing the cache from the live
+        // stream. While a delete is in flight we ignore whatever
+        // the stream emits (it will go empty when the master doc
+        // is removed in step 3) and keep rendering on the last
+        // healthy snapshot so the layout does not collapse.
+        final liveData = masterSnap.data?.data();
+        if (!_deleteActionBusy && liveData != null) {
+          _lastMasterData = liveData;
+        }
+        final data = _deleteActionBusy
+            ? (_lastMasterData ?? liveData)
+            : (liveData ?? _lastMasterData);
+        final title = ((data?['title'] as String?) ?? widget.title).trim();
+        final amountCents =
+            (data?['amountCents'] as num?)?.toInt() ?? widget.amountCents;
+        final childIds =
+            (data?['childIds'] as List?)?.whereType<String>().toList() ??
+            widget.childIds;
+        var startDate = widget.startDate;
+        final startRaw = data?['startDate'];
+        if (startRaw is Timestamp) {
+          startDate = startRaw.toDate();
+        }
+        final status = (data?['status'] as String?) ?? widget.status;
+        // Nieuwe semantiek: de vervaldag is de primaire datumwaarde.
+        // Voor context toont het detailscherm óók nog de oorspronkelijke
+        // `Gestart op`-datum, maar uitsluitend op detailniveau; de
+        // lijstregel blijft semantisch op vervaldag leunen.
+        //
+        // Primair lezen we `dueDayOfMonth`; voor legacy masters
+        // zonder dit veld vallen we terug op `startDate.day`, zodat
+        // deze stap geen regressie oplevert voor bestaande masters.
+        final dueDayRaw = data?['dueDayOfMonth'];
+        int? dueDay;
+        if (dueDayRaw is int) {
+          dueDay = dueDayRaw;
+        } else if (dueDayRaw is num) {
+          dueDay = dueDayRaw.toInt();
+        } else {
+          dueDay = startDate?.day;
+        }
+        if (dueDay != null) {
+          if (dueDay < 1) dueDay = 1;
+          if (dueDay > 31) dueDay = 31;
+        }
+        final dueDayLabel = dueDay != null ? '${dueDay}e van de maand' : '—';
+        final showShortMonthHint = dueDay != null && dueDay > 28;
+        final startedOnLabel = startDate != null
+            ? _formatRecurringStartDateNl(startDate)
+            : '—';
+        final statusLabel = _formatRecurringStatusLabel(status);
+
+        // Eerstvolgende concrete vervaldatum: pure display-afleiding,
+        // `null` bij gepauzeerd of onvoldoende data. Gebruikt dezelfde
+        // clamp-regel als de runner (29/30/31 → laatste dag in korte
+        // maanden) en respecteert `materializeFromDate` als floor.
+        // `existingPeriodKeys` wordt hieronder via een smalle stream
+        // op de master-gerelateerde expense-instances aangeleverd
+        // zodat de rij mee-schuift zodra de huidige periode is
+        // gematerialiseerd.
+        final matFromRaw = data?['materializeFromDate'];
+        final materializeFromDate = matFromRaw is Timestamp
+            ? matFromRaw.toDate()
+            : null;
+        final parentSplitSnapshot = _tryReadRecurringParentSplit(data);
+
+        return Scaffold(
+          appBar: AppBar(
+            centerTitle: true,
+            title: Text(
+              'Maandelijkse uitgave',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
+            ),
+            actions: [
+              if (isCreator)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  tooltip: 'Meer',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'info':
+                        _showMonthlyExpensesInfoSheet(context);
+                        break;
+                      case 'pause':
+                        _onTogglePauseResumePressed(
+                          currentStatus: status ?? 'active',
+                        );
+                        break;
+                      case 'delete':
+                        _onDeletePressed();
+                        break;
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem<String>(
+                      value: 'info',
+                      child: Text('Info'),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'pause',
+                      enabled: !_pauseActionBusy,
+                      child: Text(
+                        status == 'paused' ? 'Hervatten' : 'Pauzeren',
+                      ),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      enabled: !_deleteActionBusy,
+                      child: Text(
+                        'Verwijderen',
+                        style: TextStyle(
+                          color: Theme.of(ctx).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                IconButton(
+                  tooltip: 'Uitleg over maandelijkse uitgaven',
+                  icon: const Icon(Icons.info_outline, size: 20),
+                  onPressed: () => _showMonthlyExpensesInfoSheet(context),
+                ),
+            ],
           ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Uitleg over maandelijkse uitgaven',
-            icon: const Icon(Icons.info_outline, size: 20),
-            onPressed: () => _showMonthlyExpensesInfoSheet(context),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          child: Padding(
+          body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .doc(
-                    'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
-                  )
-                  .snapshots(),
-              builder: (context, masterSnap) {
-                // While idle, keep refreshing the cache from the live
-                // stream. While a delete is in flight we ignore whatever
-                // the stream emits (it will go empty when the master doc
-                // is removed in step 3) and keep rendering on the last
-                // healthy snapshot so the layout does not collapse.
-                final liveData = masterSnap.data?.data();
-                if (!_deleteActionBusy && liveData != null) {
-                  _lastMasterData = liveData;
-                }
-                final data = _deleteActionBusy
-                    ? (_lastMasterData ?? liveData)
-                    : (liveData ?? _lastMasterData);
-                final title = ((data?['title'] as String?) ?? widget.title)
-                    .trim();
-                final amountCents =
-                    (data?['amountCents'] as num?)?.toInt() ??
-                    widget.amountCents;
-                final childIds =
-                    (data?['childIds'] as List?)
-                        ?.whereType<String>()
-                        .toList() ??
-                    widget.childIds;
-                var startDate = widget.startDate;
-                final startRaw = data?['startDate'];
-                if (startRaw is Timestamp) {
-                  startDate = startRaw.toDate();
-                }
-                final status = (data?['status'] as String?) ?? widget.status;
-                // Nieuwe semantiek: de vervaldag is de primaire datumwaarde.
-                // Voor context toont het detailscherm óók nog de oorspronkelijke
-                // `Gestart op`-datum, maar uitsluitend op detailniveau; de
-                // lijstregel blijft semantisch op vervaldag leunen.
-                //
-                // Primair lezen we `dueDayOfMonth`; voor legacy masters
-                // zonder dit veld vallen we terug op `startDate.day`, zodat
-                // deze stap geen regressie oplevert voor bestaande masters.
-                final dueDayRaw = data?['dueDayOfMonth'];
-                int? dueDay;
-                if (dueDayRaw is int) {
-                  dueDay = dueDayRaw;
-                } else if (dueDayRaw is num) {
-                  dueDay = dueDayRaw.toInt();
-                } else {
-                  dueDay = startDate?.day;
-                }
-                if (dueDay != null) {
-                  if (dueDay < 1) dueDay = 1;
-                  if (dueDay > 31) dueDay = 31;
-                }
-                final dueDayLabel = dueDay != null
-                    ? '${dueDay}e van de maand'
-                    : '—';
-                final showShortMonthHint = dueDay != null && dueDay > 28;
-                final startedOnLabel = startDate != null
-                    ? _formatRecurringStartDateNl(startDate)
-                    : '—';
-                final statusLabel = _formatRecurringStatusLabel(status);
-
-                // Eerstvolgende concrete vervaldatum: pure display-afleiding,
-                // `null` bij gepauzeerd of onvoldoende data. Gebruikt dezelfde
-                // clamp-regel als de runner (29/30/31 → laatste dag in korte
-                // maanden) en respecteert `materializeFromDate` als floor.
-                // `existingPeriodKeys` wordt hieronder via een smalle stream
-                // op de master-gerelateerde expense-instances aangeleverd
-                // zodat de rij mee-schuift zodra de huidige periode is
-                // gematerialiseerd.
-                final matFromRaw = data?['materializeFromDate'];
-                final materializeFromDate = matFromRaw is Timestamp
-                    ? matFromRaw.toDate()
-                    : null;
-                final parentSplitSnapshot = _tryReadRecurringParentSplit(data);
-
-                return Column(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ListTile(
@@ -16214,49 +16252,6 @@ class _RecurringMasterDetailPageState
                                     ),
                                   ),
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: FilledButton.tonalIcon(
-                                    onPressed: _pauseActionBusy
-                                        ? null
-                                        : () => _onTogglePauseResumePressed(
-                                            currentStatus: status ?? 'active',
-                                          ),
-                                    icon: Icon(
-                                      status == 'paused'
-                                          ? Icons.play_arrow_outlined
-                                          : Icons.pause_outlined,
-                                      size: 18,
-                                    ),
-                                    label: Text(
-                                      status == 'paused'
-                                          ? 'Hervatten'
-                                          : 'Pauzeren',
-                                      style: textTheme.bodyMedium,
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: TextButton.icon(
-                                    onPressed: _deleteActionBusy
-                                        ? null
-                                        : _onDeletePressed,
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Theme.of(
-                                        context,
-                                      ).colorScheme.error,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      size: 18,
-                                    ),
-                                    label: Text(
-                                      'Verwijderen',
-                                      style: textTheme.bodyMedium,
-                                    ),
-                                  ),
-                                ),
                               ],
                             );
                           }
@@ -16365,49 +16360,6 @@ class _RecurringMasterDetailPageState
                                   ],
                                 ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: FilledButton.tonalIcon(
-                                  onPressed: _pauseActionBusy
-                                      ? null
-                                      : () => _onTogglePauseResumePressed(
-                                          currentStatus: status ?? 'active',
-                                        ),
-                                  icon: Icon(
-                                    status == 'paused'
-                                        ? Icons.play_arrow_outlined
-                                        : Icons.pause_outlined,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    status == 'paused'
-                                        ? 'Hervatten'
-                                        : 'Pauzeren',
-                                    style: textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: TextButton.icon(
-                                  onPressed: _deleteActionBusy
-                                      ? null
-                                      : _onDeletePressed,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Theme.of(
-                                      context,
-                                    ).colorScheme.error,
-                                  ),
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    'Verwijderen',
-                                    style: textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ),
                             ],
                           );
                         },
@@ -16455,12 +16407,12 @@ class _RecurringMasterDetailPageState
                       ),
                     ],
                   ],
-                );
-              },
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
