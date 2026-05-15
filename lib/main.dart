@@ -13541,10 +13541,12 @@ class _KinderenPageState extends State<_KinderenPage> {
           if (active.isNotEmpty) {
             items.add(
               Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                padding: const EdgeInsets.only(top: 24, bottom: 4),
                 child: Text(
                   'Actief',
-                  style: Theme.of(context).textTheme.labelMedium,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: onSurface(context, a55),
+                  ),
                 ),
               ),
             );
@@ -13592,12 +13594,15 @@ class _KinderenPageState extends State<_KinderenPage> {
           }
 
           if (archived.isNotEmpty) {
+            final archiefTop = active.isNotEmpty ? 40.0 : 24.0;
             items.add(
               Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 4),
+                padding: EdgeInsets.only(top: archiefTop, bottom: 4),
                 child: Text(
                   'Archief',
-                  style: Theme.of(context).textTheme.labelMedium,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: onSurface(context, a55),
+                  ),
                 ),
               ),
             );
@@ -13606,31 +13611,34 @@ class _KinderenPageState extends State<_KinderenPage> {
               final name = (d.data()['name'] as String?)?.trim() ?? '?';
               if (i > 0) items.add(const Divider(height: 1));
               items.add(
-                ListTile(
-                  title: Text(
-                    name,
-                    style: TextStyle(color: onSurface(context, a62)),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.unarchive_outlined, size: 20),
-                        tooltip: 'Herstellen',
-                        onPressed: _busy ? null : () => _restoreChild(d.id),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.delete_outline,
-                          size: 20,
-                          color: Theme.of(context).colorScheme.error,
+                Opacity(
+                  opacity: 0.72,
+                  child: ListTile(
+                    title: Text(
+                      name,
+                      style: TextStyle(color: onSurface(context, a62)),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.unarchive_outlined, size: 20),
+                          tooltip: 'Herstellen',
+                          onPressed: _busy ? null : () => _restoreChild(d.id),
                         ),
-                        tooltip: 'Definitief verwijderen',
-                        onPressed: _busy
-                            ? null
-                            : () => _softDeleteChild(d.id, name),
-                      ),
-                    ],
+                        IconButton(
+                          icon: Icon(
+                            Icons.delete_outline,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                          tooltip: 'Definitief verwijderen',
+                          onPressed: _busy
+                              ? null
+                              : () => _softDeleteChild(d.id, name),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -13648,10 +13656,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                     ),
                   )
                 : ListView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     children: items,
                   ),
           );
