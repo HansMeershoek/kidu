@@ -13561,7 +13561,9 @@ class _KinderenPageState extends State<_KinderenPage> {
                         .toLowerCase(),
                   )
                   .toList();
-              if (i > 0) items.add(const Divider(height: 1));
+              if (i > 0) {
+                items.add(Divider(height: 1, color: outlineV(context, a32)));
+              }
               items.add(
                 ListTile(
                   title: Text(name),
@@ -13569,6 +13571,10 @@ class _KinderenPageState extends State<_KinderenPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        visualDensity: VisualDensity.compact,
+                        style: IconButton.styleFrom(
+                          foregroundColor: onSurface(context, a50),
+                        ),
                         icon: const Icon(Icons.edit_outlined, size: 20),
                         tooltip: 'Naam wijzigen',
                         onPressed: _busy
@@ -13580,6 +13586,10 @@ class _KinderenPageState extends State<_KinderenPage> {
                               ),
                       ),
                       IconButton(
+                        visualDensity: VisualDensity.compact,
+                        style: IconButton.styleFrom(
+                          foregroundColor: onSurface(context, a50),
+                        ),
                         icon: const Icon(Icons.archive_outlined, size: 20),
                         tooltip: 'Archiveren',
                         onPressed: _busy
@@ -13609,7 +13619,9 @@ class _KinderenPageState extends State<_KinderenPage> {
             for (int i = 0; i < archived.length; i++) {
               final d = archived[i];
               final name = (d.data()['name'] as String?)?.trim() ?? '?';
-              if (i > 0) items.add(const Divider(height: 1));
+              if (i > 0) {
+                items.add(Divider(height: 1, color: outlineV(context, a32)));
+              }
               items.add(
                 Opacity(
                   opacity: 0.72,
@@ -13622,16 +13634,22 @@ class _KinderenPageState extends State<_KinderenPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
+                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            foregroundColor: onSurface(context, a50),
+                          ),
                           icon: const Icon(Icons.unarchive_outlined, size: 20),
                           tooltip: 'Herstellen',
                           onPressed: _busy ? null : () => _restoreChild(d.id),
                         ),
                         IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.error,
+                          visualDensity: VisualDensity.compact,
+                          style: IconButton.styleFrom(
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error.withValues(alpha: 0.78),
                           ),
+                          icon: const Icon(Icons.delete_outline, size: 20),
                           tooltip: 'Definitief verwijderen',
                           onPressed: _busy
                               ? null
