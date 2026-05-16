@@ -45,6 +45,19 @@ const double a85 = 0.85;
 /// Product UI limit for expense titles; stays below the Firestore rules cap.
 const int _kAddExpenseTitleMaxLength = 60;
 
+/// Grace period after expense creation: amount-only corrections skip [amountEdits].
+const Duration _expenseAmountCorrectionWindow = Duration(minutes: 15);
+
+/// Whether [createdAt] falls within the post-creation correction window as of [now].
+///
+/// Returns `false` when [createdAt] is null, in the future relative to [now], or
+/// when more than [_expenseAmountCorrectionWindow] has elapsed ([`<=`] at exact 15m).
+bool _isWithinExpenseAmountCorrectionWindow(DateTime? createdAt, DateTime now) {
+  if (createdAt == null) return false;
+  if (createdAt.isAfter(now)) return false;
+  return now.difference(createdAt) <= _expenseAmountCorrectionWindow;
+}
+
 /// Calm green for success overlays (e.g. join/connect confirmation).
 const Color _kSuccessGreen = Color(0xFF2E7D32);
 
@@ -7515,6 +7528,7 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     this.initialChildren,
     required this.initialParentSplitMembers,
     this.initialExpenseSplit,
+    this.initialCreatedAt,
   });
 
   final String householdId;
@@ -7523,6 +7537,9 @@ class _EditExpenseAmountDialog extends StatefulWidget {
   final String currentTitle;
   final List<String> currentChildIds;
   final Future<List<_ChildItem>> childrenFuture;
+
+  /// UI hint only; [_EditExpenseAmountDialogState._submit] uses a fresh server read.
+  final DateTime? initialCreatedAt;
 
   /// Preloaded via [_ExpenseDetailPageState._openEditAmountDialog] zodat de
   /// `Voor:`-rij op frame 1 stabiel is. `null` → [childrenFuture] als fallback.
@@ -7956,6 +7973,18 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       final childIdsChanged =
           _didChangeChildSelection &&
           !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
+      final createdAtRaw = fresh.data()?['createdAt'];
+      DateTime? expenseCreatedAt;
+      if (createdAtRaw is Timestamp) {
+        expenseCreatedAt = createdAtRaw.toDate().toLocal();
+      } else if (createdAtRaw is DateTime) {
+        expenseCreatedAt = createdAtRaw.toLocal();
+      }
+      final withinCorrectionWindow = _isWithinExpenseAmountCorrectionWindow(
+        expenseCreatedAt,
+        DateTime.now(),
+      );
+      final needsAmountEdit = amountChanged && !withinCorrectionWindow;
       if (!amountChanged &&
           !titleChanged &&
           !childIdsChanged &&
@@ -7968,30 +7997,42 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         return;
       }
       if (amountChanged) {
-        if (reasonTrimmed.isEmpty) {
-          if (mounted) {
-            setState(() => _reasonHasError = true);
-            _reasonFocusNode.requestFocus();
+        if (needsAmountEdit) {
+          if (reasonTrimmed.isEmpty) {
+            if (mounted) {
+              setState(() {
+                _showReasonField = true;
+                _reasonHasError = true;
+              });
+              _reasonFocusNode.requestFocus();
+            }
+            setState(() => _saving = false);
+            return;
           }
-          setState(() => _saving = false);
-          return;
+          final batch = FirebaseFirestore.instance.batch();
+          final editRef = expRef.collection('amountEdits').doc();
+          batch.set(editRef, {
+            'fromAmountCents': fromCents,
+            'toAmountCents': parsed,
+            'reason': reasonTrimmed,
+            'editedBy': uid,
+            'editedAt': FieldValue.serverTimestamp(),
+          });
+          batch.update(expRef, {
+            'amountCents': parsed,
+            if (titleChanged) 'title': title,
+            if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+            if (splitChanged) ...pendingSplit.toExpenseFields(),
+          });
+          await batch.commit();
+        } else {
+          await expRef.update({
+            'amountCents': parsed,
+            if (titleChanged) 'title': title,
+            if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+            if (splitChanged) ...pendingSplit.toExpenseFields(),
+          });
         }
-        final batch = FirebaseFirestore.instance.batch();
-        final editRef = expRef.collection('amountEdits').doc();
-        batch.set(editRef, {
-          'fromAmountCents': fromCents,
-          'toAmountCents': parsed,
-          'reason': reasonTrimmed,
-          'editedBy': uid,
-          'editedAt': FieldValue.serverTimestamp(),
-        });
-        batch.update(expRef, {
-          'amountCents': parsed,
-          if (titleChanged) 'title': title,
-          if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
-          if (splitChanged) ...pendingSplit.toExpenseFields(),
-        });
-        await batch.commit();
       } else {
         final plainUpdates = <String, dynamic>{
           if (titleChanged) 'title': title,
@@ -8128,7 +8169,12 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     final nextAmountHasError =
                         trimmed.isNotEmpty && (parsed == null || parsed < 0);
                     var shouldSetState = false;
-                    final nextShowReasonField = validAndChanged;
+                    final nextShowReasonField =
+                        validAndChanged &&
+                        !_isWithinExpenseAmountCorrectionWindow(
+                          widget.initialCreatedAt,
+                          DateTime.now(),
+                        );
                     if (nextShowReasonField != _showReasonField) {
                       shouldSetState = true;
                     }
@@ -8144,6 +8190,12 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                       setState(() {
                         _showReasonField = nextShowReasonField;
                         _amountHasError = nextAmountHasError;
+                        if (!nextShowReasonField) {
+                          _reasonHasError = false;
+                          if (_reasonController.text.isNotEmpty) {
+                            _reasonController.clear();
+                          }
+                        }
                       });
                     }
                   },
@@ -9352,6 +9404,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 initialChildren: preload,
                 initialParentSplitMembers: initialParentSplitMembers,
                 initialExpenseSplit: initialExpenseSplit,
+                initialCreatedAt: widget.createdAt,
               ),
             ),
           ],
