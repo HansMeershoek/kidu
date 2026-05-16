@@ -7008,31 +7008,9 @@ Widget _balanceRow({required String label, required String value}) {
   );
 }
 
-Future<List<_ChildItem>> _loadExpenseEditChildren(String householdId) async {
-  final snap = await FirebaseFirestore.instance
-      .collection('households/$householdId/children')
-      .get();
-  final docs = snap.docs.toList()
-    ..sort((a, b) {
-      final aTs = a.data()['createdAt'];
-      final bTs = b.data()['createdAt'];
-      if (aTs is Timestamp && bTs is Timestamp) {
-        return aTs.compareTo(bTs);
-      }
-      return 0;
-    });
-  return docs
-      .map(
-        (d) => _ChildItem(
-          id: d.id,
-          name: (d.data()['name'] as String?)?.trim() ?? '?',
-        ),
-      )
-      .toList();
-}
-
 /// Actieve kinderen voor [_EditRecurringMasterExpenseDialog] (zelfde semantiek
 /// als `_DashboardPageState._loadActiveChildren` / nieuwe-uitgaveflows).
+/// Ook gebruikt voor [_EditExpenseAmountDialog] (parity kindselectie / stale ids).
 Future<List<_ChildItem>> _loadRecurringMasterEditChildren(
   String householdId,
 ) async {
@@ -7767,12 +7745,94 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     });
   }
 
+  bool _expenseReferencesInactiveChildren(List<_ChildItem> activeChildren) {
+    if (widget.currentChildIds.isEmpty) return false;
+    final activeIds = activeChildren.map((c) => c.id).toSet();
+    return widget.currentChildIds.any((id) => !activeIds.contains(id));
+  }
+
+  Widget _inactiveChildrenOnExpenseBanner(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Controleer de kinderen',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Deze uitgave bevat kinderen die niet meer actief zijn. De kindselectie blijft ongewijzigd zolang je die niet aanpast.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            height: 1.35,
+            color: onSurface(context, a70),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _expenseEditVoorChildrenBlock(
     BuildContext context, {
     required List<_ChildItem> children,
     required bool selectionDataReady,
   }) {
-    if (children.length <= 1) return const SizedBox.shrink();
+    final showStaleBanner =
+        selectionDataReady && _expenseReferencesInactiveChildren(children);
+    if (children.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showStaleBanner) ...[
+              _inactiveChildrenOnExpenseBanner(context),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              'Voeg eerst een kind toe.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _saving
+                    ? null
+                    : () async {
+                        await Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                _KinderenPage(householdId: widget.householdId),
+                          ),
+                        );
+                        if (!mounted) return;
+                        setState(() {
+                          _syncChildren = null;
+                          _childrenFuture = _loadRecurringMasterEditChildren(
+                            widget.householdId,
+                          );
+                        });
+                      },
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Kinderen'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final showChildSelectionUi =
+        children.length >= 2 || (children.length == 1 && showStaleBanner);
+    if (!showChildSelectionUi) {
+      return const SizedBox.shrink();
+    }
+
     final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
     final childSelectionSummary =
         _isAllChildrenSelection(children, effectiveSelectedChildIds)
@@ -7783,6 +7843,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (showStaleBanner) ...[
+            _inactiveChildrenOnExpenseBanner(context),
+            const SizedBox(height: 12),
+          ],
           Text('Voor:', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 4),
           Row(
@@ -7841,7 +7905,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       }
       return;
     }
-    if (children.length > 1 && effectiveSelectedChildIds.isEmpty) {
+    if (_didChangeChildSelection && effectiveSelectedChildIds.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecteer minimaal één kind.')),
@@ -7889,10 +7953,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
           !_expenseSplitsEqual(baselineSplit, pendingSplit);
       final titleChanged = title != currentTitle;
       final amountChanged = parsed != fromCents;
-      final childIdsChanged = !_sameChildIds(
-        effectiveSelectedChildIds,
-        currentChildIds,
-      );
+      final childIdsChanged =
+          _didChangeChildSelection &&
+          !_sameChildIds(effectiveSelectedChildIds, currentChildIds);
       if (!amountChanged &&
           !titleChanged &&
           !childIdsChanged &&
@@ -9145,7 +9208,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   @override
   void initState() {
     super.initState();
-    _expenseEditChildrenFuture = _loadExpenseEditChildren(widget.householdId);
+    _expenseEditChildrenFuture = _loadRecurringMasterEditChildren(
+      widget.householdId,
+    );
   }
 
   void _handleBack() {
