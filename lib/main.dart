@@ -14195,7 +14195,7 @@ class _RecurringParentSplitDialog extends StatefulWidget {
   final String? viewerUid;
   final String contextFooterText;
 
-  /// Slider range in bps (household/monthly: 100..9900; one-time new expense: 0..10000).
+  /// Slider range in bps (defaults 0..kBpsFull unless overridden).
   final int minShareBps;
   final int maxShareBps;
 

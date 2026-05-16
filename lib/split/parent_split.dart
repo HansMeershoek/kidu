@@ -1,15 +1,13 @@
 // Household parent-split primitives.
 //
-// - Household default share-bps is v1-constrained to
-//   [kHouseholdShareBpsMin..kHouseholdShareBpsMax]. 0 and 10000
-//   (everything-on-one-parent) are intentionally disallowed for
-//   defaults; enforced here, in the repository, in the settings UI
-//   slider, and in firestore.rules for `settings/defaults` and recurring
-//   masters.
-// - Expense snapshot `parentSplit0ShareBps` on **one-time** expenses
-//   may be [0..kBpsFull] so a single expense can be 100/0 or 0/100;
-//   see `isValidExpenseSnapshotShareBps` and firestore expense create
-//   rules (materialized recurring instances stay 100..9900).
+// - Household default share-bps uses the same band as expense snapshots:
+//   [kHouseholdShareBpsMin..kHouseholdShareBpsMax], i.e. 0..10000 bps
+//   (full 0%/100% splits allowed). Enforced here, in the repository, in
+//   the settings UI slider, and in firestore.rules for `settings/defaults`
+//   and recurring masters.
+// - Expense snapshot `parentSplit0ShareBps` uses [0..kBpsFull] for both
+//   one-time creates and materialized recurring instances; see
+//   `isValidExpenseSnapshotShareBps` and firestore expense create rules.
 // - The expense snapshot (`parentSplitParticipantUids`,
 //   `parentSplit0ShareBps`) is immutable once written and applies to
 //   NEW expenses only.
@@ -22,17 +20,16 @@
 //   legacy 50/50 path handles them.
 
 const int kBpsFull = 10000;
-const int kHouseholdShareBpsMin = 100;
-const int kHouseholdShareBpsMax = 9900;
+const int kHouseholdShareBpsMin = 0;
+const int kHouseholdShareBpsMax = kBpsFull;
 const int kHouseholdShareBpsNeutral = 5000;
 const int kParentSplitParticipantCount = 2;
 
 bool isValidHouseholdShareBps(int bps) =>
     bps >= kHouseholdShareBpsMin && bps <= kHouseholdShareBpsMax;
 
-/// Per-expense snapshot on `expenses/{id}` (one-time creates only
-/// may use 0 or 10000; recurring materialized rows stay 100..9900 via
-/// rules). Used by [ParentSplitSnapshot.tryCreate] and
+/// Per-expense snapshot on `expenses/{id}` (`parentSplit0ShareBps` in
+/// [0..kBpsFull]). Used by [ParentSplitSnapshot.tryCreate] and
 /// [ParentSplitSnapshot.tryReadFromExpense].
 bool isValidExpenseSnapshotShareBps(int bps) => bps >= 0 && bps <= kBpsFull;
 
@@ -146,7 +143,7 @@ class ParentSplitSnapshot {
 /// Contract:
 /// - Exactly 2 current members + settings that are structurally valid
 ///   AND map 1:1 to those two members → snapshot derived from settings
-///   (sorted participant uids, share0Bps in [100..9900]).
+///   (sorted participant uids, share0Bps in [0..kBpsFull]).
 /// - Exactly 2 current members + settings that are missing,
 ///   structurally invalid, or stale → EXPLICIT neutral 50/50 snapshot
 ///   for those two current members. The stale share0Bps is discarded;

@@ -11,8 +11,8 @@ import 'parent_split.dart';
 /// Load-logica spiegelt exact `buildSnapshotForNewExpense`: bij 2
 /// actuele members en missende/structureel-ongeldige/stale settings
 /// toont de UI neutraal 50/50. Stale bps wordt niet preloaded tegen
-/// een andere uid. Slider staat strikt op [kHouseholdShareBpsMin..
-/// kHouseholdShareBpsMax].
+/// een andere uid. Slider staat op [kHouseholdShareBpsMin..
+/// kHouseholdShareBpsMax] (0..100%).
 class HouseholdSplitSettingsPage extends StatefulWidget {
   const HouseholdSplitSettingsPage({super.key, required this.householdId});
 

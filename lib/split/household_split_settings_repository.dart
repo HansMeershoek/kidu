@@ -5,9 +5,10 @@ import 'parent_split.dart';
 
 /// Reads/writes `households/{householdId}/settings/defaults`.
 ///
-/// `save()` enforces the v1 range [100..9900] and rejects identical
-/// uids client-side so the UI never round-trips an invalid state;
-/// Firestore rules enforce the same invariants server-side.
+/// `save()` enforces share0Bps in [0..kBpsFull] (via
+/// `isValidHouseholdShareBps`) and rejects identical uids client-side
+/// so the UI never round-trips an invalid state; Firestore rules
+/// enforce the same invariants server-side.
 class HouseholdSplitSettingsRepository {
   HouseholdSplitSettingsRepository({
     FirebaseFirestore? firestore,

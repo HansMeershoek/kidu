@@ -60,15 +60,56 @@ void main() {
   });
 
   group('isValidHouseholdShareBps', () {
-    test('rejects 0 and 10000', () {
-      expect(isValidHouseholdShareBps(0), false);
-      expect(isValidHouseholdShareBps(10000), false);
+    test('accepts 0 and full bps', () {
+      expect(isValidHouseholdShareBps(0), true);
+      expect(isValidHouseholdShareBps(kBpsFull), true);
     });
 
-    test('accepts interior range', () {
+    test('accepts typical interior shares', () {
       expect(isValidHouseholdShareBps(100), true);
       expect(isValidHouseholdShareBps(9900), true);
       expect(isValidHouseholdShareBps(5000), true);
+    });
+
+    test('rejects out of range', () {
+      expect(isValidHouseholdShareBps(-1), false);
+      expect(isValidHouseholdShareBps(10001), false);
+    });
+  });
+
+  group('HouseholdSplitDefaults structural validity', () {
+    test('allows share0Bps at 0 and 10000', () {
+      const d0 = HouseholdSplitDefaults(
+        share0Uid: uid0,
+        share1Uid: uid1,
+        share0Bps: 0,
+      );
+      const dFull = HouseholdSplitDefaults(
+        share0Uid: uid0,
+        share1Uid: uid1,
+        share0Bps: kBpsFull,
+      );
+      expect(d0.isStructurallyValid(), true);
+      expect(dFull.isStructurallyValid(), true);
+    });
+
+    test('rejects invalid uids despite valid share0Bps', () {
+      expect(
+        const HouseholdSplitDefaults(
+          share0Uid: uid0,
+          share1Uid: uid1,
+          share0Bps: 5000,
+        ).isStructurallyValid(),
+        true,
+      );
+      expect(
+        const HouseholdSplitDefaults(
+          share0Uid: '',
+          share1Uid: uid1,
+          share0Bps: 5000,
+        ).isStructurallyValid(),
+        false,
+      );
     });
   });
 

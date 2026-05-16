@@ -249,10 +249,9 @@ service cloud.firestore {
             || (request.resource.data.childIds is list
                 && request.resource.data.childIds.size() <= 7))
         // Parent-split snapshot: both fields together, or neither; two
-        // distinct member-uids. One-time expenses (no recurringExpenseId)
-        // may use 0..10000 bps; materialized recurring instances keep
-        // 100..9900. Snapshot is immutable because the expense update-rule
-        // below does not allow these fields in affectedKeys().
+        // distinct member-uids. Snapshot bps may be 0..10000 (one-time or
+        // materialized recurring). Immutable after create (expense
+        // update-rule does not allow these fields in affectedKeys()).
         && (('parentSplitParticipantUids' in request.resource.data)
             == ('parentSplit0ShareBps' in request.resource.data))
         && (!('parentSplitParticipantUids' in request.resource.data)
@@ -267,12 +266,8 @@ service cloud.firestore {
                 && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[0]))
                 && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[1]))
                 && request.resource.data.parentSplit0ShareBps is int
-                && ((!('recurringExpenseId' in request.resource.data)
-                    && request.resource.data.parentSplit0ShareBps >= 0
-                    && request.resource.data.parentSplit0ShareBps <= 10000)
-                    || (('recurringExpenseId' in request.resource.data)
-                    && request.resource.data.parentSplit0ShareBps >= 100
-                    && request.resource.data.parentSplit0ShareBps <= 9900))))
+                && request.resource.data.parentSplit0ShareBps >= 0
+                && request.resource.data.parentSplit0ShareBps <= 10000))
         && (!('materializedAt' in request.resource.data)
             || request.resource.data.materializedAt is timestamp)
         && (('recurringExpenseId' in request.resource.data)
@@ -359,8 +354,8 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[0]))
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[1]))
         && request.resource.data.recurringParentSplit0ShareBps is int
-        && request.resource.data.recurringParentSplit0ShareBps >= 100
-        && request.resource.data.recurringParentSplit0ShareBps <= 9900
+        && request.resource.data.recurringParentSplit0ShareBps >= 0
+        && request.resource.data.recurringParentSplit0ShareBps <= 10000
         && request.resource.data.createdAt == request.time
         && (!('updatedAt' in request.resource.data)
             || request.resource.data.updatedAt == request.time);
@@ -399,8 +394,8 @@ service cloud.firestore {
                 && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[0]))
                 && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.recurringParentSplitParticipantUids[1]))
                 && request.resource.data.recurringParentSplit0ShareBps is int
-                && request.resource.data.recurringParentSplit0ShareBps >= 100
-                && request.resource.data.recurringParentSplit0ShareBps <= 9900))
+                && request.resource.data.recurringParentSplit0ShareBps >= 0
+                && request.resource.data.recurringParentSplit0ShareBps <= 10000))
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title'])
             || (request.resource.data.title is string
                 && request.resource.data.title.size() >= 1
@@ -777,11 +772,10 @@ service cloud.firestore {
     }
 
     // Household-wide default split for NEW expenses only. Read by any
-    // member; written by any member. `share0Bps` MUST stay strictly
-    // inside [100..9900] — 0 or 10000 (everything on one parent) is
-    // intentionally disallowed for v1. Both uids must currently exist
-    // as household members. Document is immutable-by-omission: delete
-    // is disallowed, only create/update with strict hasOnly.
+    // member; written by any member. `share0Bps` MUST be [0..10000]
+    // bps inclusive. Both uids must currently exist as household members.
+    // Document is immutable-by-omission: delete is disallowed, only
+    // create/update with strict hasOnly.
     match /households/{householdId}/settings/defaults {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
 
@@ -802,8 +796,8 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.share0Uid))
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.share1Uid))
         && request.resource.data.share0Bps is int
-        && request.resource.data.share0Bps >= 100
-        && request.resource.data.share0Bps <= 9900
+        && request.resource.data.share0Bps >= 0
+        && request.resource.data.share0Bps <= 10000
         && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.updatedAt == request.time;
 
