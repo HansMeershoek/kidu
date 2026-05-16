@@ -1008,15 +1008,19 @@ class AuthGate extends StatelessWidget {
             }
 
             if (userDocSnapshot.hasError) {
-              _PostSignInHandoffController.clear();
-              return const ProfileNamePage();
+              if (_PostSignInHandoffController.isActive) {
+                return _PostSignInHandoffGate(child: dashboard);
+              }
+              return dashboard;
             }
 
             final data = userDocSnapshot.data?.data();
             final profileName = (data?['profileName'] as String?)?.trim();
             if (profileName == null || profileName.isEmpty) {
-              _PostSignInHandoffController.clear();
-              return const ProfileNamePage();
+              if (_PostSignInHandoffController.isActive) {
+                return _PostSignInHandoffGate(child: dashboard);
+              }
+              return dashboard;
             }
 
             if (_PostSignInHandoffController.isActive) {
@@ -1771,6 +1775,332 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Eerste naam binnen [DashboardPage] (settings in AppBar); zelfde save/huishouden-logica als [ProfileNamePage].
+class _DashboardOnboardingNameCard extends StatefulWidget {
+  const _DashboardOnboardingNameCard();
+
+  @override
+  State<_DashboardOnboardingNameCard> createState() =>
+      _DashboardOnboardingNameCardState();
+}
+
+class _DashboardOnboardingNameCardState
+    extends State<_DashboardOnboardingNameCard> {
+  static final RegExp _allowedNameCharacter = RegExp(
+    r"[\p{L}\p{M} '\-]",
+    unicode: true,
+  );
+  static final RegExp _allowedName = RegExp(
+    r"^[\p{L}\p{M} '\-]+$",
+    unicode: true,
+  );
+  static const String _connectionError = 'Geen verbinding';
+  static const Duration _saveTimeout = Duration(seconds: 6);
+
+  final _controller = TextEditingController();
+  final FocusNode _nameFocus = FocusNode();
+  bool _busy = false;
+  String? _nameInlineHint;
+
+  @override
+  void dispose() {
+    _nameFocus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _normalizedName(String value) {
+    return value.trim().replaceAll(RegExp(r' +'), ' ');
+  }
+
+  String? _profileNameError(String value) {
+    if (value.length > 16) {
+      return 'Gebruik maximaal 16 tekens.';
+    }
+    if (value.length < 2) {
+      return 'Vul minimaal 2 tekens in.';
+    }
+    if (value.contains(RegExp(r'[\r\n]')) || !_allowedName.hasMatch(value)) {
+      return "Gebruik alleen letters, spaties, - of '.";
+    }
+    return null;
+  }
+
+  Future<void> _writeProfileNameOnline({
+    required String uid,
+    required String name,
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.doc('users/$uid');
+
+    await firestore
+        .runTransaction((transaction) async {
+          await transaction.get(userRef);
+          transaction.set(userRef, {
+            'profileName': name,
+          }, SetOptions(merge: true));
+        })
+        .timeout(_saveTimeout);
+  }
+
+  Future<void> _save() async {
+    if (_busy) {
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final name = _normalizedName(_controller.text);
+    if (name.length < 2) {
+      setState(() => _nameInlineHint = 'Vul minimaal 2 tekens in.');
+      _nameFocus.requestFocus();
+      return;
+    }
+
+    final validationError = _profileNameError(name);
+    if (validationError != null) {
+      setState(() => _nameInlineHint = validationError);
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final stillUser = FirebaseAuth.instance.currentUser;
+      if (stillUser == null) {
+        return;
+      }
+
+      final uid = stillUser.uid;
+      if (!await _checkCanWriteNow()) {
+        if (mounted) {
+          setState(() => _nameInlineHint = _connectionError);
+        }
+        return;
+      }
+
+      await _writeProfileNameOnline(uid: uid, name: name);
+
+      if (!mounted) {
+        return;
+      }
+
+      try {
+        await _kiduEnsureHouseholdForCurrentUserIfNeeded();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Household bootstrap after profile name: $e');
+        }
+      }
+    } on TimeoutException catch (e) {
+      if (kDebugMode) debugPrint('Save profileName timeout: $e');
+      if (mounted) {
+        setState(() => _nameInlineHint = _connectionError);
+      }
+    } on FirebaseException catch (e) {
+      if (kDebugMode) debugPrint('Save profileName error: $e');
+      final isConnectionError =
+          e.code == 'unavailable' ||
+          e.code == 'network-request-failed' ||
+          e.code == 'deadline-exceeded';
+      if (mounted) {
+        setState(() {
+          _nameInlineHint = isConnectionError
+              ? _connectionError
+              : mapUserFacingError(
+                  e,
+                  fallback: 'Opslaan mislukt. Probeer opnieuw.',
+                );
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('Save profileName error: $e');
+      if (mounted) {
+        setState(() {
+          _nameInlineHint = mapUserFacingError(
+            e,
+            fallback: 'Opslaan mislukt. Probeer opnieuw.',
+          );
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _signOut() async {
+    if (_busy) {
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {}
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {}
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthGate()),
+        (route) => false,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KiduCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Welke naam wil je gebruiken?',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Zo ziet je co-parent jou straks in KiDu.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: onSurface(context, a62),
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Color.alphaBlend(
+                Theme.of(context).colorScheme.primary.withValues(alpha: a06),
+                Theme.of(context).colorScheme.surface,
+              ),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: outlineV(context, a45)),
+            ),
+            child: TextField(
+              controller: _controller,
+              focusNode: _nameFocus,
+              textCapitalization: TextCapitalization.sentences,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(_allowedNameCharacter),
+                LengthLimitingTextInputFormatter(16),
+              ],
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
+              onChanged: (_) {
+                final currentError = _profileNameError(
+                  _normalizedName(_controller.text),
+                );
+                if (_nameInlineHint != null && currentError == null) {
+                  setState(() => _nameInlineHint = null);
+                }
+              },
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.12,
+              ),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 12,
+                ),
+                counterText: '',
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 18,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: _nameInlineHint == null
+                  ? const SizedBox.shrink()
+                  : Text(
+                      _nameInlineHint!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a62),
+                        height: 1.35,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _signOut,
+                    child: Text(
+                      'Uitloggen',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _busy ? null : _save,
+                    child: _busy
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Verder',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          )
+                        : Text(
+                            'Verder',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -4942,18 +5272,77 @@ class _DashboardPageState extends State<DashboardPage> {
 
         final data = snapshot.data!.data();
         final myProfileName = (data?['profileName'] as String?)?.trim();
+
+        if (myProfileName == null || myProfileName.isEmpty) {
+          _reportPreviewReady(true);
+          return Scaffold(
+            resizeToAvoidBottomInset: false,
+            appBar: AppBar(
+              centerTitle: true,
+              title: Text(
+                'KiDu',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () => _openSettingsPage(
+                    householdId: '',
+                    myUid: user.uid,
+                    otherName: null,
+                    canInvite: false,
+                    isCoParentLinked: false,
+                    myName: null,
+                  ),
+                  icon: const Icon(Icons.settings_rounded),
+                  tooltip: 'Instellingen',
+                ),
+              ],
+            ),
+            floatingActionButton: null,
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            _pagePadding,
+                            24,
+                            _pagePadding,
+                            _pagePadding,
+                          ),
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              child: const _DashboardOnboardingNameCard(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+
         final householdId = (data?['householdId'] as String?)?.trim();
         final hasHousehold =
             householdId != null && householdId.trim().isNotEmpty;
 
-        final myFallbackName =
-            (myProfileName != null && myProfileName.isNotEmpty)
-            ? myProfileName
-            : (user.displayName != null && user.displayName!.trim().isNotEmpty)
-            ? user.displayName!.trim()
-            : (user.email != null && user.email!.trim().isNotEmpty)
-            ? user.email!.trim()
-            : 'Jij';
+        final myFallbackName = myProfileName;
 
         final householdIdStr = hasHousehold ? householdId.trim() : '';
 
@@ -5037,13 +5426,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 !canAddExpenses && membersAwaitingFirstSnapshot;
             final showsStableSoloDashboard =
                 !canAddExpenses && !membersAwaitingFirstSnapshot;
-            final myDashboardName =
-                (myProfileName != null && myProfileName.isNotEmpty)
-                ? myProfileName
-                : ((user.displayName != null &&
-                          user.displayName!.trim().isNotEmpty)
-                      ? user.displayName!.trim()
-                      : 'Jij');
+            final myDashboardName = myProfileName;
 
             // While the first members snapshot is pending, keep the same ungekoppeld
             // subtree as when docs=1 (avoids a full-screen spinner flash when
@@ -5112,11 +5495,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                         children: [
                                           KiduCard(
                                             child: Column(
+                                              mainAxisSize: MainAxisSize.min,
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.stretch,
                                               children: [
                                                 Text(
-                                                  'Balans',
+                                                  'Welkom $myDashboardName',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .titleMedium
@@ -5126,58 +5510,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       ),
                                                 ),
                                                 const SizedBox(height: 8),
-                                                _balanceRow(
-                                                  label:
-                                                      'Totaal samen uitgegeven',
-                                                  value: _formatEur(0),
-                                                ),
-                                                const SizedBox(height: 8),
                                                 Text(
-                                                  '$myDashboardName ${_formatEur(0)} • Co-parent ${_formatEur(0)}',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                                  'KiDu helpt jullie om kosten voor de kinderen rustig en eerlijk bij te houden.',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
-                                                      ?.copyWith(
-                                                        color: onSurface(
-                                                          context,
-                                                          a68,
-                                                        ),
-                                                        height: 1.3,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Divider(
-                                                  height: 1,
-                                                  color: outlineV(context, a40),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: _cardGap),
-                                          KiduCard(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                Text(
-                                                  'Recente uitgaven',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .titleMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 10),
-                                                Text(
-                                                  'Zodra je co-parent koppelt, zie je hier jullie uitgaven.',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
                                                       ?.copyWith(
                                                         color: onSurface(
                                                           context,
@@ -5186,24 +5523,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         height: 1.35,
                                                       ),
                                                 ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: _cardGap),
-                                          KiduCard(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
+                                                const SizedBox(height: 8),
                                                 Text(
-                                                  'Je bent nog niet gekoppeld',
+                                                  'Je bent nog niet gekoppeld.',
                                                   style: Theme.of(context)
                                                       .textTheme
-                                                      .titleMedium
+                                                      .bodySmall
                                                       ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w700,
+                                                        color: onSurface(
+                                                          context,
+                                                          a62,
+                                                        ),
+                                                        height: 1.35,
                                                       ),
                                                 ),
                                                 const SizedBox(height: 8),
