@@ -7534,6 +7534,7 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     required this.currentTitle,
     required this.currentChildIds,
     required this.childrenFuture,
+    this.initialChildren,
     required this.initialParentSplitMembers,
     this.initialExpenseSplit,
   });
@@ -7544,6 +7545,10 @@ class _EditExpenseAmountDialog extends StatefulWidget {
   final String currentTitle;
   final List<String> currentChildIds;
   final Future<List<_ChildItem>> childrenFuture;
+
+  /// Preloaded via [_ExpenseDetailPageState._openEditAmountDialog] zodat de
+  /// `Voor:`-rij op frame 1 stabiel is. `null` → [childrenFuture] als fallback.
+  final List<_ChildItem>? initialChildren;
 
   /// Zoals op [_ExpenseDetailPage]: bij precies twee leden synchroon gebruikt;
   /// bij lege lijst wordt `_loadParentSplitMembers` als fallback gestart.
@@ -7565,6 +7570,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   late final FocusNode _amountFocusNode;
   late final FocusNode _reasonFocusNode;
   late final Future<List<_ChildItem>> _childrenFuture;
+  List<_ChildItem>? _syncChildren;
   bool _showReasonField = false;
   bool _showNoChangesMessage = false;
   bool _titleHasError = false;
@@ -7604,7 +7610,14 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     _titleFocusNode = FocusNode();
     _amountFocusNode = FocusNode();
     _reasonFocusNode = FocusNode();
-    _childrenFuture = widget.childrenFuture;
+    final pre = widget.initialChildren;
+    if (pre != null) {
+      _syncChildren = List<_ChildItem>.from(pre);
+      _childrenFuture = Future<List<_ChildItem>>.value(_syncChildren!);
+    } else {
+      _syncChildren = null;
+      _childrenFuture = widget.childrenFuture;
+    }
 
     final seeded = widget.initialParentSplitMembers;
     if (seeded.length == kParentSplitParticipantCount) {
@@ -7752,6 +7765,53 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         _customSelectedChildIds = pickedChildIds;
       }
     });
+  }
+
+  Widget _expenseEditVoorChildrenBlock(
+    BuildContext context, {
+    required List<_ChildItem> children,
+    required bool selectionDataReady,
+  }) {
+    if (children.length <= 1) return const SizedBox.shrink();
+    final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
+    final childSelectionSummary =
+        _isAllChildrenSelection(children, effectiveSelectedChildIds)
+        ? 'Alle kinderen'
+        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Voor:', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  childSelectionSummary,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              TextButton(
+                onPressed: _saving || !selectionDataReady
+                    ? null
+                    : () async {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        await _openChildSelectionDialog(children);
+                      },
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Selectie'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -8057,65 +8117,24 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     ),
                   ),
                 ],
-                FutureBuilder<List<_ChildItem>>(
-                  future: _childrenFuture,
-                  builder: (context, snap) {
-                    final children = snap.data ?? const <_ChildItem>[];
-                    if (children.length <= 1) return const SizedBox.shrink();
-                    final effectiveSelectedChildIds =
-                        _effectiveSelectedChildIds(children);
-                    final childSelectionSummary =
-                        _isAllChildrenSelection(
-                          children,
-                          effectiveSelectedChildIds,
-                        )
-                        ? 'Alle kinderen'
-                        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Voor:',
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  childSelectionSummary,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: _saving || !snap.hasData
-                                    ? null
-                                    : () async {
-                                        FocusManager.instance.primaryFocus
-                                            ?.unfocus();
-                                        await _openChildSelectionDialog(
-                                          children,
-                                        );
-                                      },
-                                style: TextButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                  ),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text('Selectie'),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                if (_syncChildren != null)
+                  _expenseEditVoorChildrenBlock(
+                    context,
+                    children: _syncChildren!,
+                    selectionDataReady: true,
+                  )
+                else
+                  FutureBuilder<List<_ChildItem>>(
+                    future: _childrenFuture,
+                    builder: (context, snap) {
+                      final children = snap.data ?? const <_ChildItem>[];
+                      return _expenseEditVoorChildrenBlock(
+                        context,
+                        children: children,
+                        selectionDataReady: snap.hasData,
+                      );
+                    },
+                  ),
                 if (_pendingSplit != null) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -8227,6 +8246,7 @@ class _EditRecurringMasterExpenseDialog extends StatefulWidget {
     required this.currentParentSplitSnapshot,
     required this.parentSplitMembersFuture,
     required this.childrenFuture,
+    this.initialChildren,
   });
 
   final String householdId;
@@ -8243,6 +8263,10 @@ class _EditRecurringMasterExpenseDialog extends StatefulWidget {
   final Future<List<_ParentSplitMember>> parentSplitMembersFuture;
   final Future<List<_ChildItem>> childrenFuture;
 
+  /// Preloaded vóór `showDialog`; `null` → [childrenFuture] (o.a. refresh na
+  /// `Kinderen`-navigatie).
+  final List<_ChildItem>? initialChildren;
+
   @override
   State<_EditRecurringMasterExpenseDialog> createState() =>
       _EditRecurringMasterExpenseDialogState();
@@ -8255,6 +8279,7 @@ class _EditRecurringMasterExpenseDialogState
   late final FocusNode _titleFocusNode;
   late final FocusNode _amountFocusNode;
   late Future<List<_ChildItem>> _childrenFuture;
+  List<_ChildItem>? _syncChildren;
   bool _showNoChangesMessage = false;
   bool _titleHasError = false;
   bool _amountHasError = false;
@@ -8285,7 +8310,14 @@ class _EditRecurringMasterExpenseDialogState
     );
     _titleFocusNode = FocusNode();
     _amountFocusNode = FocusNode();
-    _childrenFuture = widget.childrenFuture;
+    final pre = widget.initialChildren;
+    if (pre != null) {
+      _syncChildren = List<_ChildItem>.from(pre);
+      _childrenFuture = Future<List<_ChildItem>>.value(_syncChildren!);
+    } else {
+      _syncChildren = null;
+      _childrenFuture = widget.childrenFuture;
+    }
     final rawDue = widget.currentDueDayOfMonth;
     _selectedDueDay = rawDue < 1 ? 1 : (rawDue > 31 ? 31 : rawDue);
     _loadParentSplit();
@@ -8550,6 +8582,116 @@ class _EditRecurringMasterExpenseDialogState
           ),
         ),
       ],
+    );
+  }
+
+  Widget _recurringMasterVoorChildrenSlot(
+    BuildContext context, {
+    required List<_ChildItem> children,
+    required bool waiting,
+    required bool selectionDataReady,
+    required TextStyle? metaLabelStyle,
+    required TextStyle? metaValueStyle,
+    required ButtonStyle metaActionStyle,
+  }) {
+    final showStaleBanner =
+        !waiting && _masterReferencesInactiveChildren(children);
+    if (children.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showStaleBanner) ...[
+              _inactiveChildrenOnMasterBanner(context),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              'Voeg eerst een kind toe.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _saving
+                    ? null
+                    : () async {
+                        await Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                _KinderenPage(householdId: widget.householdId),
+                          ),
+                        );
+                        if (!mounted) return;
+                        setState(() {
+                          _syncChildren = null;
+                          _childrenFuture = _loadRecurringMasterEditChildren(
+                            widget.householdId,
+                          );
+                        });
+                      },
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Kinderen'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final showChildSelectionUi =
+        children.length >= 2 || (children.length == 1 && showStaleBanner);
+    if (!showChildSelectionUi) {
+      return const SizedBox.shrink();
+    }
+
+    final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
+    final childSelectionSummary =
+        _isAllChildrenSelection(children, effectiveSelectedChildIds)
+        ? 'Alle kinderen'
+        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+    final selectionSection = Row(
+      children: [
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: 'Voor: ', style: metaLabelStyle),
+                TextSpan(text: childSelectionSummary, style: metaValueStyle),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        TextButton(
+          onPressed: _saving || !selectionDataReady
+              ? null
+              : () async {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  await _openChildSelectionDialog(children);
+                },
+          style: metaActionStyle,
+          child: const Text('Selectie'),
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showStaleBanner) ...[
+            _inactiveChildrenOnMasterBanner(context),
+            const SizedBox(height: 12),
+          ],
+          selectionSection,
+        ],
+      ),
     );
   }
 
@@ -8877,128 +9019,36 @@ class _EditRecurringMasterExpenseDialogState
                     ],
                   ),
                 ),
-                FutureBuilder<List<_ChildItem>>(
-                  future: _childrenFuture,
-                  builder: (context, snap) {
-                    final waiting =
-                        snap.connectionState == ConnectionState.waiting &&
-                        !snap.hasData;
-                    final children = snap.data ?? const <_ChildItem>[];
-                    final showStaleBanner =
-                        !waiting && _masterReferencesInactiveChildren(children);
-                    if (waiting) return const SizedBox.shrink();
-
-                    if (children.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (showStaleBanner) ...[
-                              _inactiveChildrenOnMasterBanner(context),
-                              const SizedBox(height: 12),
-                            ],
-                            Text(
-                              'Voeg eerst een kind toe.',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton(
-                                onPressed: _saving
-                                    ? null
-                                    : () async {
-                                        await Navigator.of(context).push<void>(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) => _KinderenPage(
-                                              householdId: widget.householdId,
-                                            ),
-                                          ),
-                                        );
-                                        if (!mounted) return;
-                                        setState(() {
-                                          _childrenFuture =
-                                              _loadRecurringMasterEditChildren(
-                                                widget.householdId,
-                                              );
-                                        });
-                                      },
-                                style: TextButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 0,
-                                  ),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text('Kinderen'),
-                              ),
-                            ),
-                          ],
-                        ),
+                if (_syncChildren != null)
+                  _recurringMasterVoorChildrenSlot(
+                    context,
+                    children: _syncChildren!,
+                    waiting: false,
+                    selectionDataReady: true,
+                    metaLabelStyle: metaLabelStyle,
+                    metaValueStyle: metaValueStyle,
+                    metaActionStyle: metaActionStyle,
+                  )
+                else
+                  FutureBuilder<List<_ChildItem>>(
+                    future: _childrenFuture,
+                    builder: (context, snap) {
+                      final waiting =
+                          snap.connectionState == ConnectionState.waiting &&
+                          !snap.hasData;
+                      if (waiting) return const SizedBox.shrink();
+                      final children = snap.data ?? const <_ChildItem>[];
+                      return _recurringMasterVoorChildrenSlot(
+                        context,
+                        children: children,
+                        waiting: false,
+                        selectionDataReady: snap.hasData,
+                        metaLabelStyle: metaLabelStyle,
+                        metaValueStyle: metaValueStyle,
+                        metaActionStyle: metaActionStyle,
                       );
-                    }
-
-                    final showChildSelectionUi =
-                        children.length >= 2 ||
-                        (children.length == 1 && showStaleBanner);
-                    if (!showChildSelectionUi) {
-                      return const SizedBox.shrink();
-                    }
-
-                    final effectiveSelectedChildIds =
-                        _effectiveSelectedChildIds(children);
-                    final childSelectionSummary =
-                        _isAllChildrenSelection(
-                          children,
-                          effectiveSelectedChildIds,
-                        )
-                        ? 'Alle kinderen'
-                        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
-                    final selectionSection = Row(
-                      children: [
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(text: 'Voor: ', style: metaLabelStyle),
-                                TextSpan(
-                                  text: childSelectionSummary,
-                                  style: metaValueStyle,
-                                ),
-                              ],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _saving || !snap.hasData
-                              ? null
-                              : () async {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  await _openChildSelectionDialog(children);
-                                },
-                          style: metaActionStyle,
-                          child: const Text('Selectie'),
-                        ),
-                      ],
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (showStaleBanner) ...[
-                            _inactiveChildrenOnMasterBanner(context),
-                            const SizedBox(height: 12),
-                          ],
-                          selectionSection,
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                    },
+                  ),
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Row(
@@ -9194,6 +9244,13 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
       return;
     }
     if (!mounted) return;
+    List<_ChildItem>? preload;
+    try {
+      preload = await _expenseEditChildrenFuture;
+    } catch (_) {
+      preload = null;
+    }
+    if (!mounted) return;
     await showDialog<bool>(
       context: context,
       useSafeArea: true,
@@ -9227,6 +9284,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 currentTitle: currentTitle,
                 currentChildIds: currentChildIds,
                 childrenFuture: _expenseEditChildrenFuture,
+                initialChildren: preload,
                 initialParentSplitMembers: initialParentSplitMembers,
                 initialExpenseSplit: initialExpenseSplit,
               ),
@@ -15829,6 +15887,7 @@ class _RecurringMasterDetailPageState
   bool _pauseActionBusy = false;
   bool _deleteActionBusy = false;
   late final Future<List<_ParentSplitMember>> _parentSplitMembersFuture;
+  late final Future<List<_ChildItem>> _recurringMasterEditChildrenFuture;
   List<String> _memoChildIdsForNames = const [];
   Future<List<String>>? _memoChildNamesFuture;
 
@@ -15849,6 +15908,9 @@ class _RecurringMasterDetailPageState
   void initState() {
     super.initState();
     _parentSplitMembersFuture = _loadParentSplitMembers(widget.householdId);
+    _recurringMasterEditChildrenFuture = _loadRecurringMasterEditChildren(
+      widget.householdId,
+    );
   }
 
   Future<List<String>> _childNamesFutureFor(List<String> childIds) {
@@ -15960,9 +16022,13 @@ class _RecurringMasterDetailPageState
       return;
     }
     if (!mounted) return;
-    final recurringEditChildrenFuture = _loadRecurringMasterEditChildren(
-      widget.householdId,
-    );
+    List<_ChildItem>? preload;
+    try {
+      preload = await _recurringMasterEditChildrenFuture;
+    } catch (_) {
+      preload = null;
+    }
+    if (!mounted) return;
     await showDialog<bool>(
       context: context,
       useSafeArea: true,
@@ -15998,7 +16064,12 @@ class _RecurringMasterDetailPageState
                 currentDueDayOfMonth: currentDueDayOfMonth,
                 currentParentSplitSnapshot: currentParentSplitSnapshot,
                 parentSplitMembersFuture: _parentSplitMembersFuture,
-                childrenFuture: recurringEditChildrenFuture,
+                childrenFuture: preload != null
+                    ? Future<List<_ChildItem>>.value(
+                        List<_ChildItem>.from(preload),
+                      )
+                    : _recurringMasterEditChildrenFuture,
+                initialChildren: preload,
               ),
             ),
           ],
