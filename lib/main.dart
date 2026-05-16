@@ -3767,7 +3767,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       .map((child) => child.id)
                                                       .toList(),
                                                 ),
-                                          child: const Text('Gereed'),
+                                          child: const Text('Opslaan'),
                                         ),
                                       ],
                                     ),
@@ -7332,7 +7332,7 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                                     .map((child) => child.id)
                                                     .toList(),
                                               ),
-                                        child: const Text('Gereed'),
+                                        child: const Text('Opslaan'),
                                       ),
                                     ],
                                   ),
@@ -17948,7 +17948,7 @@ class _RecurringChildSelectionDialogState
                                       : () => Navigator.of(
                                           context,
                                         ).pop(_selected.toList()),
-                                  child: const Text('Gereed'),
+                                  child: const Text('Opslaan'),
                                 ),
                               ],
                             ),
