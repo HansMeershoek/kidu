@@ -7534,6 +7534,8 @@ class _EditExpenseAmountDialog extends StatefulWidget {
     required this.currentTitle,
     required this.currentChildIds,
     required this.childrenFuture,
+    required this.initialParentSplitMembers,
+    this.initialExpenseSplit,
   });
 
   final String householdId;
@@ -7542,6 +7544,13 @@ class _EditExpenseAmountDialog extends StatefulWidget {
   final String currentTitle;
   final List<String> currentChildIds;
   final Future<List<_ChildItem>> childrenFuture;
+
+  /// Zoals op [_ExpenseDetailPage]: bij precies twee leden synchroon gebruikt;
+  /// bij lege lijst wordt `_loadParentSplitMembers` als fallback gestart.
+  final List<_ParentSplitMember> initialParentSplitMembers;
+
+  /// Snapshot zoals op het expense-doc bij openen (`tryReadFromExpense`).
+  final ParentSplitSnapshot? initialExpenseSplit;
 
   @override
   State<_EditExpenseAmountDialog> createState() =>
@@ -7565,6 +7574,24 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   bool _hasCustomChildSelection = false;
   List<String> _customSelectedChildIds = const <String>[];
   bool _saving = false;
+  ParentSplitSnapshot? _pendingSplit;
+  List<_ParentSplitMember> _parentSplitMembers = const <_ParentSplitMember>[];
+
+  void _applyMembersToSplitState(List<_ParentSplitMember> members) {
+    if (members.length != kParentSplitParticipantCount) {
+      _parentSplitMembers = members;
+      _pendingSplit = null;
+      return;
+    }
+    final memberUids = members.map((m) => m.uid).toSet();
+    var snapshot = widget.initialExpenseSplit;
+    if (snapshot == null ||
+        snapshot.participantUids.toSet().difference(memberUids).isNotEmpty) {
+      snapshot = _neutralParentSplitForMembers(members);
+    }
+    _parentSplitMembers = members;
+    _pendingSplit = snapshot;
+  }
 
   @override
   void initState() {
@@ -7578,6 +7605,15 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     _amountFocusNode = FocusNode();
     _reasonFocusNode = FocusNode();
     _childrenFuture = widget.childrenFuture;
+
+    final seeded = widget.initialParentSplitMembers;
+    if (seeded.length == kParentSplitParticipantCount) {
+      _applyMembersToSplitState(seeded);
+    } else if (seeded.isEmpty) {
+      _loadSplitUiAsync();
+    } else {
+      _applyMembersToSplitState(seeded);
+    }
   }
 
   @override
@@ -7589,6 +7625,70 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     _amountFocusNode.dispose();
     _reasonFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSplitUiAsync() async {
+    try {
+      final members = await _loadParentSplitMembers(widget.householdId);
+      if (!mounted) return;
+      setState(() => _applyMembersToSplitState(members));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _pendingSplit = null;
+      });
+    }
+  }
+
+  ParentSplitSnapshot? _baselineSplitFromFreshExpense(
+    Map<String, dynamic>? freshData,
+    List<_ParentSplitMember> members,
+  ) {
+    if (members.length != kParentSplitParticipantCount) return null;
+    final fromDoc = ParentSplitSnapshot.tryReadFromExpense(
+      freshData ?? const <String, dynamic>{},
+    );
+    final memberUids = members.map((m) => m.uid).toSet();
+    if (fromDoc != null &&
+        fromDoc.participantUids.toSet().difference(memberUids).isEmpty) {
+      return fromDoc;
+    }
+    return _neutralParentSplitForMembers(members);
+  }
+
+  bool _expenseSplitsEqual(ParentSplitSnapshot a, ParentSplitSnapshot b) {
+    if (a.share0Bps != b.share0Bps) return false;
+    final au = a.participantUids;
+    final bu = b.participantUids;
+    if (au.length != bu.length) return false;
+    for (var i = 0; i < au.length; i++) {
+      if (au[i] != bu[i]) return false;
+    }
+    return true;
+  }
+
+  Future<void> _openParentSplitDialog() async {
+    final snapshot = _pendingSplit;
+    if (snapshot == null ||
+        _parentSplitMembers.length != kParentSplitParticipantCount) {
+      return;
+    }
+    final picked = await showDialog<ParentSplitSnapshot>(
+      context: context,
+      builder: (_) => _RecurringParentSplitDialog(
+        members: _parentSplitMembers,
+        initialSnapshot: snapshot,
+        viewerUid: FirebaseAuth.instance.currentUser?.uid,
+        contextFooterText: 'Deze verdeling hoort alleen bij deze uitgave.',
+        minShareBps: 0,
+        maxShareBps: kBpsFull,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _pendingSplit = picked;
+      _showNoChangesMessage = false;
+    });
   }
 
   List<String> _allChildIds(List<_ChildItem> children) =>
@@ -7717,13 +7817,26 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       final fromCents =
           (fresh.data()?['amountCents'] as num?)?.toInt() ??
           widget.currentAmountCents;
+      final splitMembers = await _loadParentSplitMembers(widget.householdId);
+      final baselineSplit = _baselineSplitFromFreshExpense(
+        fresh.data(),
+        splitMembers,
+      );
+      final pendingSplit = _pendingSplit;
+      final splitChanged =
+          baselineSplit != null &&
+          pendingSplit != null &&
+          !_expenseSplitsEqual(baselineSplit, pendingSplit);
       final titleChanged = title != currentTitle;
       final amountChanged = parsed != fromCents;
       final childIdsChanged = !_sameChildIds(
         effectiveSelectedChildIds,
         currentChildIds,
       );
-      if (!amountChanged && !titleChanged && !childIdsChanged) {
+      if (!amountChanged &&
+          !titleChanged &&
+          !childIdsChanged &&
+          !splitChanged) {
         if (!mounted) return;
         setState(() {
           _saving = false;
@@ -7753,13 +7866,16 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
           'amountCents': parsed,
           if (titleChanged) 'title': title,
           if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+          if (splitChanged) ...pendingSplit.toExpenseFields(),
         });
         await batch.commit();
       } else {
-        await expRef.update({
-          'title': title,
+        final plainUpdates = <String, dynamic>{
+          if (titleChanged) 'title': title,
           if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
-        });
+          if (splitChanged) ...pendingSplit.toExpenseFields(),
+        };
+        await expRef.update(plainUpdates);
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -7801,6 +7917,20 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     final titleErrorHint = titleTrimmed.isEmpty
         ? 'Vul een titel in'
         : 'Titel mag maximaal $_kAddExpenseTitleMaxLength tekens hebben.';
+    final textTheme = Theme.of(context).textTheme;
+    final splitMetaLabelStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w400,
+      color: onSurface(context, a84),
+    );
+    final splitMetaValueStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w500,
+      color: onSurface(context, a84),
+    );
+    final splitMetaActionStyle = TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
     return Align(
       alignment: const Alignment(0, -0.15),
       child: SizedBox(
@@ -7986,6 +8116,46 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     );
                   },
                 ),
+                if (_pendingSplit != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Verdeling: ',
+                                  style: splitMetaLabelStyle,
+                                ),
+                                TextSpan(
+                                  text: _formatParentSplitCompact(
+                                    _pendingSplit!,
+                                    FirebaseAuth.instance.currentUser?.uid,
+                                  ),
+                                  style: splitMetaValueStyle,
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _saving
+                              ? null
+                              : () async {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  await _openParentSplitDialog();
+                                },
+                          style: splitMetaActionStyle,
+                          child: const Text('Wijzigen'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_showNoChangesMessage)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -9014,6 +9184,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     required int currentAmountCents,
     required String currentTitle,
     required List<String> currentChildIds,
+    ParentSplitSnapshot? initialExpenseSplit,
+    required List<_ParentSplitMember> initialParentSplitMembers,
   }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
@@ -9055,6 +9227,8 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                 currentTitle: currentTitle,
                 currentChildIds: currentChildIds,
                 childrenFuture: _expenseEditChildrenFuture,
+                initialParentSplitMembers: initialParentSplitMembers,
+                initialExpenseSplit: initialExpenseSplit,
               ),
             ),
           ],
@@ -9081,6 +9255,10 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
             currentAmountCents: currentCents,
             currentTitle: currentTitle.isEmpty ? widget.title : currentTitle,
             currentChildIds: currentChildIds,
+            initialExpenseSplit: ParentSplitSnapshot.tryReadFromExpense(
+              ed ?? const <String, dynamic>{},
+            ),
+            initialParentSplitMembers: widget.parentSplitMembers,
           ),
           icon: const Icon(Icons.edit_outlined, size: 18),
           label: Text('Uitgave', style: Theme.of(context).textTheme.bodyMedium),
@@ -9490,6 +9668,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                             ? widget.title
                                             : currentTitle,
                                         currentChildIds: currentChildIds,
+                                        initialExpenseSplit:
+                                            ParentSplitSnapshot.tryReadFromExpense(
+                                              ed ?? const <String, dynamic>{},
+                                            ),
+                                        initialParentSplitMembers:
+                                            widget.parentSplitMembers,
                                       ),
                                       icon: const Icon(
                                         Icons.edit_outlined,

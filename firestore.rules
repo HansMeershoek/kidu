@@ -250,8 +250,8 @@ service cloud.firestore {
                 && request.resource.data.childIds.size() <= 7))
         // Parent-split snapshot: both fields together, or neither; two
         // distinct member-uids. Snapshot bps may be 0..10000 (one-time or
-        // materialized recurring). Immutable after create (expense
-        // update-rule does not allow these fields in affectedKeys()).
+        // materialized recurring). Concrete expenses may update snapshot
+        // fields via expense update-rule (creator-only; see below).
         && (('parentSplitParticipantUids' in request.resource.data)
             == ('parentSplit0ShareBps' in request.resource.data))
         && (!('parentSplitParticipantUids' in request.resource.data)
@@ -288,7 +288,9 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'amountCents',
           'title',
-          'childIds'
+          'childIds',
+          'parentSplitParticipantUids',
+          'parentSplit0ShareBps'
         ])
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents >= 0
@@ -298,7 +300,27 @@ service cloud.firestore {
         && (!('childIds' in request.resource.data)
             || request.resource.data.childIds == null
             || (request.resource.data.childIds is list
-                && request.resource.data.childIds.size() <= 7));
+                && request.resource.data.childIds.size() <= 7))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'parentSplitParticipantUids',
+              'parentSplit0ShareBps'
+            ])
+            || (
+              ('parentSplitParticipantUids' in request.resource.data)
+              && ('parentSplit0ShareBps' in request.resource.data)
+              && request.resource.data.parentSplitParticipantUids is list
+              && request.resource.data.parentSplitParticipantUids.size() == 2
+              && request.resource.data.parentSplitParticipantUids[0] is string
+              && request.resource.data.parentSplitParticipantUids[1] is string
+              && request.resource.data.parentSplitParticipantUids[0].size() > 0
+              && request.resource.data.parentSplitParticipantUids[1].size() > 0
+              && request.resource.data.parentSplitParticipantUids[0]
+                 != request.resource.data.parentSplitParticipantUids[1]
+              && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[0]))
+              && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[1]))
+              && request.resource.data.parentSplit0ShareBps is int
+              && request.resource.data.parentSplit0ShareBps >= 0
+              && request.resource.data.parentSplit0ShareBps <= 10000));
 
       allow delete: if false;
     }
