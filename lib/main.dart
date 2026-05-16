@@ -5091,7 +5091,12 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           child: IntrinsicHeight(
                             child: Padding(
-                              padding: const EdgeInsets.all(_pagePadding),
+                              padding: const EdgeInsets.fromLTRB(
+                                _pagePadding,
+                                24,
+                                _pagePadding,
+                                _pagePadding,
+                              ),
                               child: Stack(
                                 children: [
                                   Align(
