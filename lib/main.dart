@@ -5428,7 +5428,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'KiDu helpt jullie om kosten voor de kinderen rustig en eerlijk bij te houden.',
+                                                  'Alles staat klaar om samen te beginnen.',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
@@ -5440,37 +5440,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         height: 1.35,
                                                       ),
                                                 ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Je bent nog niet gekoppeld.',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: onSurface(
-                                                          context,
-                                                          a62,
-                                                        ),
-                                                        height: 1.35,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Nodig je co-parent uit, of voer een code in die je hebt ontvangen.',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodySmall
-                                                      ?.copyWith(
-                                                        color: onSurface(
-                                                          context,
-                                                          a62,
-                                                        ),
-                                                        height: 1.35,
-                                                      ),
-                                                ),
-                                                const SizedBox(height: 8),
+                                                const SizedBox(height: 26),
                                                 SizedBox(
-                                                  height: 48,
+                                                  height: 38,
                                                   child: ElevatedButton(
                                                     onPressed:
                                                         (_inviteBusy ||
@@ -5495,13 +5467,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                                             }
                                                           },
                                                     child: const Text(
-                                                      'Co-parent uitnodigen',
+                                                      'Uitnodigen',
                                                     ),
                                                   ),
                                                 ),
                                                 const SizedBox(height: 8),
                                                 SizedBox(
-                                                  height: 48,
+                                                  height: 38,
                                                   child: OutlinedButton(
                                                     onPressed: () {
                                                       Navigator.of(
@@ -5514,7 +5486,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                       );
                                                     },
                                                     child: const Text(
-                                                      'Ik heb een code',
+                                                      'Code invoeren',
                                                     ),
                                                   ),
                                                 ),
