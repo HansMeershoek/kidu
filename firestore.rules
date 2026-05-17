@@ -642,7 +642,8 @@ service cloud.firestore {
           'toAmountCents',
           'reason',
           'editedBy',
-          'editedAt'
+          'editedAt',
+          'changeBatchId'
         ])
         && request.resource.data.editedBy == request.auth.uid
         && request.resource.data.fromAmountCents is int
@@ -655,7 +656,87 @@ service cloud.firestore {
         && request.resource.data.reason.size() <= 500
         && request.resource.data.editedAt == request.time
         && request.resource.data.fromAmountCents
-         == get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.amountCents;
+         == get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.amountCents
+        && (!('changeBatchId' in request.resource.data)
+            || (request.resource.data.changeBatchId is string
+                && request.resource.data.changeBatchId.size() > 0
+                && request.resource.data.changeBatchId.size() <= 128));
+
+      allow update, delete: if false;
+    }
+
+    match /households/{householdId}/expenses/{expenseId}/expenseChanges/{changeId} {
+      allow read: if isSignedIn() && isHouseholdMember(householdId);
+
+      allow create: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
+        && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'editedBy',
+          'editedAt',
+          'reason',
+          'priorChildIds',
+          'childIds',
+          'priorSplitParticipantUids',
+          'priorSplit0ShareBps',
+          'splitParticipantUids',
+          'split0ShareBps',
+          'changeBatchId'
+        ])
+        && request.resource.data.editedBy == request.auth.uid
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 1
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.editedAt == request.time
+        && request.resource.data.priorChildIds is list
+        && request.resource.data.priorChildIds.size() <= 7
+        && request.resource.data.childIds is list
+        && request.resource.data.childIds.size() <= 7
+        && (!('changeBatchId' in request.resource.data)
+            || (request.resource.data.changeBatchId is string
+                && request.resource.data.changeBatchId.size() > 0
+                && request.resource.data.changeBatchId.size() <= 128))
+        && (
+          (!('priorSplitParticipantUids' in request.resource.data)
+            && !('priorSplit0ShareBps' in request.resource.data)
+            && !('splitParticipantUids' in request.resource.data)
+            && !('split0ShareBps' in request.resource.data))
+          ||
+          ('priorSplitParticipantUids' in request.resource.data
+            && ('priorSplit0ShareBps' in request.resource.data)
+            && ('splitParticipantUids' in request.resource.data)
+            && ('split0ShareBps' in request.resource.data)
+          )
+        )
+        && ((!('priorSplitParticipantUids' in request.resource.data))
+            || (
+              request.resource.data.priorSplitParticipantUids is list
+              && request.resource.data.priorSplitParticipantUids.size() == 2
+              && request.resource.data.priorSplitParticipantUids[0] is string
+              && request.resource.data.priorSplitParticipantUids[1] is string
+              && request.resource.data.priorSplitParticipantUids[0].size() > 0
+              && request.resource.data.priorSplitParticipantUids[1].size() > 0
+              && request.resource.data.priorSplitParticipantUids[0]
+                 != request.resource.data.priorSplitParticipantUids[1]
+              && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.priorSplitParticipantUids[0]))
+              && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.priorSplitParticipantUids[1]))
+              && request.resource.data.priorSplit0ShareBps is int
+              && request.resource.data.priorSplit0ShareBps >= 0
+              && request.resource.data.priorSplit0ShareBps <= 10000
+              && request.resource.data.splitParticipantUids is list
+              && request.resource.data.splitParticipantUids.size() == 2
+              && request.resource.data.splitParticipantUids[0] is string
+              && request.resource.data.splitParticipantUids[1] is string
+              && request.resource.data.splitParticipantUids[0].size() > 0
+              && request.resource.data.splitParticipantUids[1].size() > 0
+              && request.resource.data.splitParticipantUids[0]
+                 != request.resource.data.splitParticipantUids[1]
+              && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.splitParticipantUids[0]))
+              && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.splitParticipantUids[1]))
+              && request.resource.data.split0ShareBps is int
+              && request.resource.data.split0ShareBps >= 0
+              && request.resource.data.split0ShareBps <= 10000));
 
       allow update, delete: if false;
     }

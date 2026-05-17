@@ -45,7 +45,8 @@ const double a85 = 0.85;
 /// Product UI limit for expense titles; stays below the Firestore rules cap.
 const int _kAddExpenseTitleMaxLength = 60;
 
-/// Grace period after expense creation: amount-only corrections skip [amountEdits].
+/// Grace period na aanmaken: correcties zonder reden en zonder audit
+/// (`amountEdits` / `expenseChanges`).
 const Duration _expenseAmountCorrectionWindow = Duration(minutes: 15);
 
 /// Whether [createdAt] falls within the post-creation correction window as of [now].
@@ -56,6 +57,44 @@ bool _isWithinExpenseAmountCorrectionWindow(DateTime? createdAt, DateTime now) {
   if (createdAt == null) return false;
   if (createdAt.isAfter(now)) return false;
   return now.difference(createdAt) <= _expenseAmountCorrectionWindow;
+}
+
+/// Firestore payload for [`expenseChanges`] audit docs from expense edit saves.
+///
+/// When [priorSplit]/[nextSplit] are omitted, snapshot keys are omitted (solo
+/// household or no uitgaveverdeling snapshot on the expense).
+Map<String, dynamic> _expenseChangeWriteMap({
+  required String uid,
+  required String reason,
+  String? changeBatchId,
+  required List<String> priorChildIds,
+  required List<String> nextChildIds,
+  ParentSplitSnapshot? priorSplit,
+  ParentSplitSnapshot? nextSplit,
+}) {
+  assert(
+    (priorSplit == null && nextSplit == null) ||
+        (priorSplit != null && nextSplit != null),
+  );
+  final m = <String, dynamic>{
+    'editedBy': uid,
+    'reason': reason,
+    'editedAt': FieldValue.serverTimestamp(),
+    'priorChildIds': priorChildIds,
+    'childIds': nextChildIds,
+  };
+  if (changeBatchId != null) {
+    m['changeBatchId'] = changeBatchId;
+  }
+  if (priorSplit != null && nextSplit != null) {
+    m['priorSplitParticipantUids'] =
+        List<String>.from(priorSplit.participantUids);
+    m['priorSplit0ShareBps'] = priorSplit.share0Bps;
+    m['splitParticipantUids'] =
+        List<String>.from(nextSplit.participantUids);
+    m['split0ShareBps'] = nextSplit.share0Bps;
+  }
+  return m;
 }
 
 /// Calm green for success overlays (e.g. join/connect confirmation).
@@ -7868,6 +7907,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   bool _saving = false;
   ParentSplitSnapshot? _pendingSplit;
   List<_ParentSplitMember> _parentSplitMembers = const <_ParentSplitMember>[];
+  /// Baseline uitgaveverdeling toen de dialoog stabiel stond, voor drafts
+  /// buiten het correctievenster ([_refreshAuditReasonGate]).
+  ParentSplitSnapshot? _splitBaselineForGate;
 
   void _applyMembersToSplitState(List<_ParentSplitMember> members) {
     if (members.length != kParentSplitParticipantCount) {
@@ -7913,6 +7955,79 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     } else {
       _applyMembersToSplitState(seeded);
     }
+    _splitBaselineForGate = _pendingSplit;
+  }
+
+  bool _draftSplitDirtyForAuditReason() {
+    final a = _splitBaselineForGate;
+    final b = _pendingSplit;
+    if (a == null && b == null) return false;
+    if (a == null || b == null) return true;
+    return !_expenseSplitsEqual(a, b);
+  }
+
+  void _enqueueAuditReasonGateRefresh() {
+    scheduleMicrotask(() async {
+      await _refreshAuditReasonGate();
+    });
+  }
+
+  Future<void> _refreshAuditReasonGate() async {
+    if (!mounted) return;
+
+    final now = DateTime.now();
+    if (_isWithinExpenseAmountCorrectionWindow(
+      widget.initialCreatedAt,
+      now,
+    )) {
+      if (_showReasonField || _reasonHasError) {
+        setState(() {
+          _showReasonField = false;
+          _reasonHasError = false;
+          if (_reasonController.text.isNotEmpty) {
+            _reasonController.clear();
+          }
+        });
+      }
+      return;
+    }
+
+    List<_ChildItem> children;
+    try {
+      children = await _childrenFuture;
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+
+    final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    final amountAuditedDraft =
+        parsed != null &&
+        parsed >= 0 &&
+        parsed != widget.currentAmountCents;
+    final effectiveChildIds = _effectiveSelectedChildIds(children);
+    final childrenAuditedDraft =
+        _didChangeChildSelection &&
+        !_sameChildIds(effectiveChildIds, widget.currentChildIds);
+
+    final nextShow = amountAuditedDraft ||
+        childrenAuditedDraft ||
+        _draftSplitDirtyForAuditReason();
+
+    if (!nextShow && _reasonController.text.isNotEmpty) {
+      _reasonController.clear();
+    }
+
+    final shouldHideErrors = !nextShow;
+    if (nextShow != _showReasonField ||
+        (shouldHideErrors && _reasonHasError)) {
+      setState(() {
+        _showReasonField = nextShow;
+        if (shouldHideErrors) {
+          _reasonHasError = false;
+        }
+      });
+    }
   }
 
   @override
@@ -7930,11 +8045,16 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     try {
       final members = await _loadParentSplitMembers(widget.householdId);
       if (!mounted) return;
-      setState(() => _applyMembersToSplitState(members));
+      setState(() {
+        _applyMembersToSplitState(members);
+        _splitBaselineForGate = _pendingSplit;
+      });
+      _enqueueAuditReasonGateRefresh();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _pendingSplit = null;
+        _splitBaselineForGate = null;
       });
     }
   }
@@ -7988,6 +8108,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       _pendingSplit = picked;
       _showNoChangesMessage = false;
     });
+    _enqueueAuditReasonGateRefresh();
   }
 
   List<String> _allChildIds(List<_ChildItem> children) =>
@@ -8051,6 +8172,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         _customSelectedChildIds = pickedChildIds;
       }
     });
+    _enqueueAuditReasonGateRefresh();
   }
 
   bool _expenseReferencesInactiveChildren(List<_ChildItem> activeChildren) {
@@ -8275,7 +8397,13 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         expenseCreatedAt,
         DateTime.now(),
       );
-      final needsAmountEdit = amountChanged && !withinCorrectionWindow;
+      final needsAmountAuditOutside =
+          !withinCorrectionWindow && amountChanged;
+      final needsAllocationAuditOutside =
+          !withinCorrectionWindow && (childIdsChanged || splitChanged);
+      final needsAnyExpenseAuditOutside =
+          needsAmountAuditOutside || needsAllocationAuditOutside;
+
       if (!amountChanged &&
           !titleChanged &&
           !childIdsChanged &&
@@ -8287,50 +8415,88 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         });
         return;
       }
-      if (amountChanged) {
-        if (needsAmountEdit) {
-          if (reasonTrimmed.isEmpty) {
-            if (mounted) {
-              setState(() {
-                _showReasonField = true;
-                _reasonHasError = true;
-              });
-              _reasonFocusNode.requestFocus();
-            }
-            setState(() => _saving = false);
-            return;
-          }
-          final batch = FirebaseFirestore.instance.batch();
-          final editRef = expRef.collection('amountEdits').doc();
-          batch.set(editRef, {
-            'fromAmountCents': fromCents,
-            'toAmountCents': parsed,
-            'reason': reasonTrimmed,
-            'editedBy': uid,
-            'editedAt': FieldValue.serverTimestamp(),
+      if (needsAnyExpenseAuditOutside && reasonTrimmed.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _showReasonField = true;
+            _reasonHasError = true;
           });
-          batch.update(expRef, {
-            'amountCents': parsed,
-            if (titleChanged) 'title': title,
-            if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
-            if (splitChanged) ...pendingSplit.toExpenseFields(),
-          });
-          await batch.commit();
-        } else {
-          await expRef.update({
-            'amountCents': parsed,
-            if (titleChanged) 'title': title,
-            if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
-            if (splitChanged) ...pendingSplit.toExpenseFields(),
-          });
+          _reasonFocusNode.requestFocus();
         }
+        setState(() => _saving = false);
+        return;
+      }
+
+      final updateFields = <String, dynamic>{
+        if (amountChanged) 'amountCents': parsed,
+        if (titleChanged) 'title': title,
+        if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
+        if (splitChanged)
+          ...pendingSplit.toExpenseFields(),
+      };
+
+      if (withinCorrectionWindow) {
+        await expRef.update(updateFields);
       } else {
-        final plainUpdates = <String, dynamic>{
-          if (titleChanged) 'title': title,
-          if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
-          if (splitChanged) ...pendingSplit.toExpenseFields(),
-        };
-        await expRef.update(plainUpdates);
+        final needsAmountEditDoc = amountChanged;
+        final needsAllocationEditDoc = childIdsChanged || splitChanged;
+
+        if (!needsAmountEditDoc && !needsAllocationEditDoc) {
+          await expRef.update(updateFields);
+        } else {
+          final batch = FirebaseFirestore.instance.batch();
+          String? changeBatchId;
+          if (needsAmountEditDoc && needsAllocationEditDoc) {
+            changeBatchId = expRef.collection('expenseChanges').doc().id;
+          }
+
+          if (needsAmountEditDoc) {
+            final editRef = expRef.collection('amountEdits').doc();
+            final amountPayload = <String, dynamic>{
+              'fromAmountCents': fromCents,
+              'toAmountCents': parsed,
+              'reason': reasonTrimmed,
+              'editedBy': uid,
+              'editedAt': FieldValue.serverTimestamp(),
+            };
+            if (changeBatchId != null) {
+              amountPayload['changeBatchId'] = changeBatchId;
+            }
+            batch.set(editRef, amountPayload);
+          }
+
+          if (needsAllocationEditDoc) {
+            final changeRef = expRef.collection('expenseChanges').doc();
+            final priorChildren = List<String>.from(currentChildIds);
+            final nextChildren = childIdsChanged
+                ? List<String>.from(effectiveSelectedChildIds)
+                : List<String>.from(currentChildIds);
+
+            ParentSplitSnapshot? priorSplit;
+            ParentSplitSnapshot? nextSplit;
+            if (baselineSplit != null && pendingSplit != null) {
+              priorSplit = baselineSplit;
+              nextSplit =
+                  splitChanged ? pendingSplit : baselineSplit;
+            }
+
+            batch.set(
+              changeRef,
+              _expenseChangeWriteMap(
+                uid: uid,
+                reason: reasonTrimmed,
+                changeBatchId: changeBatchId,
+                priorChildIds: priorChildren,
+                nextChildIds: nextChildren,
+                priorSplit: priorSplit,
+                nextSplit: nextSplit,
+              ),
+            );
+          }
+
+          batch.update(expRef, updateFields);
+          await batch.commit();
+        }
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -8452,43 +8618,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     final parsed = _ExpenseDetailPage._parseEurToCents(
                       _amountController.text,
                     );
-                    final backToOriginal =
-                        parsed != null && parsed == widget.currentAmountCents;
-                    final validAndChanged =
-                        parsed != null && parsed != widget.currentAmountCents;
                     final trimmed = value.trim();
                     final nextAmountHasError =
                         trimmed.isNotEmpty && (parsed == null || parsed < 0);
-                    var shouldSetState = false;
-                    final nextShowReasonField =
-                        validAndChanged &&
-                        !_isWithinExpenseAmountCorrectionWindow(
-                          widget.initialCreatedAt,
-                          DateTime.now(),
-                        );
-                    if (nextShowReasonField != _showReasonField) {
-                      shouldSetState = true;
-                    }
-                    if (nextAmountHasError != _amountHasError) {
-                      shouldSetState = true;
-                    }
-                    if (backToOriginal &&
-                        _showReasonField &&
-                        _reasonController.text.isNotEmpty) {
-                      _reasonController.clear();
-                    }
-                    if (shouldSetState) {
-                      setState(() {
-                        _showReasonField = nextShowReasonField;
-                        _amountHasError = nextAmountHasError;
-                        if (!nextShowReasonField) {
-                          _reasonHasError = false;
-                          if (_reasonController.text.isNotEmpty) {
-                            _reasonController.clear();
-                          }
-                        }
-                      });
-                    }
+                    setState(() => _amountHasError = nextAmountHasError);
+                    _enqueueAuditReasonGateRefresh();
                   },
                   decoration: const InputDecoration(
                     labelText: 'Bedrag (EUR)',
