@@ -1755,7 +1755,7 @@ class _NameFormCard extends StatelessWidget {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 48,
+                  height: 40,
                   child: OutlinedButton(
                     onPressed: isSaving ? null : onSecondaryPressed,
                     child: Text(
@@ -1770,7 +1770,7 @@ class _NameFormCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: SizedBox(
-                  height: 48,
+                  height: 40,
                   child: ElevatedButton(
                     onPressed: isSaving ? null : onPrimaryPressed,
                     child: isSaving
@@ -8491,7 +8491,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     }
                   },
                   decoration: const InputDecoration(
-                    labelText: 'Nieuw bedrag (€)',
+                    labelText: 'Bedrag (EUR)',
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: OutlineInputBorder(),
                   ),
                 ),
                 if (_showReasonField) ...[
