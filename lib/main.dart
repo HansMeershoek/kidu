@@ -2335,6 +2335,80 @@ Future<void> _kiduEnsureHouseholdForCurrentUserIfNeeded() async {
   }
 }
 
+/// Zelfde dialog als Settings → Privacybeleid (inclusief route naar volledige
+/// privacyverklaring).
+void _showPrivacyPolicyDialog(BuildContext context) {
+  final routeContext = context;
+  final settingsNavigator = Navigator.of(routeContext);
+  showDialog<void>(
+    context: routeContext,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Privacy in KiDu'),
+      content: SingleChildScrollView(
+        child: Text(
+          'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+          'Wat we wél gebruiken (alleen wat nodig is):\n'
+          '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
+          '• Je Google-account (voor veilig inloggen)\n'
+          '• Jullie gedeelde uitgaven in KiDu\n\n'
+          'Wat KiDu níét vraagt of gebruikt:\n'
+          '• Geen telefoonnummer\n'
+          '• Geen toegang tot je contacten\n'
+          '• Geen locatie\n'
+          '• Geen agenda, microfoon of camera\n'
+          '• Geen push-notificaties of "ping-gedrag"\n\n'
+          'Delen met anderen?\n'
+          '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
+          '• We delen geen gegevens voor marketingdoeleinden.\n'
+          '• We verkopen je gegevens niet.\n\n'
+          'Je houdt de controle:\n'
+          '• Je kunt je naam altijd aanpassen.\n'
+          '• Je kunt uitloggen wanneer je wilt.',
+          style: Theme.of(
+            ctx,
+          ).textTheme.bodyMedium?.copyWith(color: onSurface(ctx, a68)),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            if (!routeContext.mounted) return;
+            settingsNavigator.push(
+              MaterialPageRoute(builder: (_) => const PrivacyPolicyPage()),
+            );
+          },
+          child: const Text('Volledige privacyverklaring'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Sluiten'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Zelfde dialog als Settings → Over KiDu.
+void _showAboutKiduDialog(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('KiDu'),
+      content: const Text(
+        'Rust in gedeelde kosten tussen co-parents.\n'
+        'Koppelen, bijhouden, afrekenen — zonder gedoe.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Sluiten'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// Instellingen als volledig scherm (was bottom sheet).
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
@@ -2650,63 +2724,7 @@ class _SettingsPage extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: onSurface(context, 0.80)),
                         ),
-                        onTap: () {
-                          final settingsRouteContext = context;
-                          final settingsNavigator = Navigator.of(
-                            settingsRouteContext,
-                          );
-                          showDialog<void>(
-                            context: settingsRouteContext,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Privacy in KiDu'),
-                              content: SingleChildScrollView(
-                                child: Text(
-                                  'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
-                                  'Wat we wél gebruiken (alleen wat nodig is):\n'
-                                  '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
-                                  '• Je Google-account (voor veilig inloggen)\n'
-                                  '• Jullie gedeelde uitgaven in KiDu\n\n'
-                                  'Wat KiDu níét vraagt of gebruikt:\n'
-                                  '• Geen telefoonnummer\n'
-                                  '• Geen toegang tot je contacten\n'
-                                  '• Geen locatie\n'
-                                  '• Geen agenda, microfoon of camera\n'
-                                  '• Geen push-notificaties of "ping-gedrag"\n\n'
-                                  'Delen met anderen?\n'
-                                  '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
-                                  '• We delen geen gegevens voor marketingdoeleinden.\n'
-                                  '• We verkopen je gegevens niet.\n\n'
-                                  'Je houdt de controle:\n'
-                                  '• Je kunt je naam altijd aanpassen.\n'
-                                  '• Je kunt uitloggen wanneer je wilt.',
-                                  style: Theme.of(ctx).textTheme.bodyMedium
-                                      ?.copyWith(color: onSurface(ctx, a68)),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(ctx).pop();
-                                    if (!settingsRouteContext.mounted) return;
-                                    settingsNavigator.push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const PrivacyPolicyPage(),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    'Volledige privacyverklaring',
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                        onTap: () => _showPrivacyPolicyDialog(context),
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -2721,24 +2739,7 @@ class _SettingsPage extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: onSurface(context, 0.80)),
                         ),
-                        onTap: () {
-                          showDialog<void>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('KiDu'),
-                              content: const Text(
-                                'Rust in gedeelde kosten tussen co-parents.\n'
-                                'Koppelen, bijhouden, afrekenen — zonder gedoe.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: const Text('Sluiten'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                        onTap: () => _showAboutKiduDialog(context),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -5494,6 +5495,71 @@ class _DashboardPageState extends State<DashboardPage> {
                                             ),
                                           ),
                                         ],
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Opacity(
+                                      opacity: 0.52,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 16,
+                                          bottom: 4,
+                                        ),
+                                        child: Center(
+                                          child: DefaultTextStyle(
+                                            style:
+                                                Theme.of(context)
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: onSurface(
+                                                        context,
+                                                        a45,
+                                                      ),
+                                                    ) ??
+                                                TextStyle(
+                                                  fontSize: 12,
+                                                  color: onSurface(
+                                                    context,
+                                                    a45,
+                                                  ),
+                                                ),
+                                            child: Wrap(
+                                              alignment: WrapAlignment.center,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                GestureDetector(
+                                                  behavior:
+                                                      HitTestBehavior.opaque,
+                                                  onTap: () =>
+                                                      _showAboutKiduDialog(
+                                                        context,
+                                                      ),
+                                                  child: const Text(
+                                                    'Over KiDu',
+                                                  ),
+                                                ),
+                                                const Text(' · '),
+                                                GestureDetector(
+                                                  behavior:
+                                                      HitTestBehavior.opaque,
+                                                  onTap: () =>
+                                                      _showPrivacyPolicyDialog(
+                                                        context,
+                                                      ),
+                                                  child: const Text(
+                                                    'Privacybeleid',
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
