@@ -10621,8 +10621,7 @@ class _LogboekPageState extends State<_LogboekPage>
   static const int _logboekVisibleRowCount = 9;
   static const double _logboekListRowExtent = 64;
   static const double _logboekListSeparatorExtent = 14;
-  static const double _wijzigingTrailingWidth = 168;
-  static const double _wijzigingArrowZoneWidth = 20;
+  static const double _wijzigingTrailingWidth = 118;
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -10690,7 +10689,6 @@ class _LogboekPageState extends State<_LogboekPage>
       fontWeight: FontWeight.w600,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
-    final previousStyle = baseStyle?.copyWith(color: onSurface(context, a68));
 
     Widget buildAmount(String value, TextStyle? style) {
       return Align(
@@ -10709,22 +10707,18 @@ class _LogboekPageState extends State<_LogboekPage>
     return SizedBox(
       width: _wijzigingTrailingWidth,
       child: Row(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(
-            child: buildAmount(_fmtEur(row.fromAmountCents), previousStyle),
+          Icon(
+            Icons.payments_outlined,
+            size: 20,
+            color: outlineV(context, a70),
           ),
-          SizedBox(
-            width: _wijzigingArrowZoneWidth,
-            child: Center(
-              child: Icon(
-                Icons.arrow_forward_rounded,
-                size: 16,
-                color: outlineV(context, a68),
-              ),
-            ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: buildAmount(_fmtEur(row.toAmountCents), baseStyle),
           ),
-          Expanded(child: buildAmount(_fmtEur(row.toAmountCents), baseStyle)),
         ],
       ),
     );
