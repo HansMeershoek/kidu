@@ -10061,14 +10061,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         return const SizedBox.shrink();
                       }
                       final docs = histSnap.data!.docs;
-                      String editorLabel(String? editedByUid) {
-                        final e = editedByUid?.trim() ?? '';
-                        if (e.isEmpty) return 'Co-parent';
-                        if (e == widget.uid) return 'Jij';
-                        final o = widget.otherParentName?.trim();
-                        if (o != null && o.isNotEmpty) return o;
-                        return 'Co-parent';
-                      }
 
                       return Padding(
                         padding: const EdgeInsets.only(top: 16),
@@ -10092,8 +10084,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   (h['toAmountCents'] as num?)?.toInt() ?? 0;
                               final reason =
                                   (h['reason'] as String?)?.trim() ?? '';
-                              final editedBy = (h['editedBy'] as String?)
-                                  ?.trim();
                               final editedAtRaw = h['editedAt'];
                               DateTime? editedAtDt;
                               if (editedAtRaw is Timestamp) {
@@ -10105,7 +10095,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)} · ${editorLabel(editedBy)} · ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
+                                      '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)} · ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
