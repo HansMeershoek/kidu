@@ -9914,20 +9914,34 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final ed = expSnap.data?.data();
                       final currentTitle =
                           ((ed?['title'] as String?) ?? widget.title).trim();
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          'Titel',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: onSurface(context, a70)),
-                        ),
-                        subtitle: Text(
-                          currentTitle.isEmpty ? widget.title : currentTitle,
-                        ),
+                      final displayTitle =
+                          currentTitle.isEmpty ? widget.title : currentTitle;
+                      final currentCents =
+                          (ed?['amountCents'] as num?)?.toInt() ??
+                          widget.amountCents;
+                      final textTheme = Theme.of(context).textTheme;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayTitle,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _ExpenseDetailPage._formatEur(currentCents),
+                            style: textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       );
                     },
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 16),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(
@@ -10012,40 +10026,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       );
                     },
                   ),
-                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .doc(
-                          'households/${widget.householdId}/expenses/${widget.expenseId}',
-                        )
-                        .snapshots(),
-                    builder: (context, expSnap) {
-                      final ed = expSnap.data?.data();
-                      final currentCents =
-                          (ed?['amountCents'] as num?)?.toInt() ??
-                          widget.amountCents;
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Bedrag',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: onSurface(context, a70)),
-                              ),
-                              subtitle: Text(
-                                _ExpenseDetailPage._formatEur(currentCents),
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                  const SizedBox(height: 12),
                   StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .collection(
