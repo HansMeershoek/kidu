@@ -433,10 +433,12 @@ service cloud.firestore {
             || (request.resource.data.dueDayOfMonth is int
                 && request.resource.data.dueDayOfMonth >= 1
                 && request.resource.data.dueDayOfMonth <= 31))
+        // Floor mag naar een eerdere toekomstige datum (zolang ≥ startDate);
+        // dubbele maanden blijven afgevangen door deterministic expense-id +
+        // periodKey + create-only transactie in de runner.
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['materializeFromDate'])
             || (request.resource.data.materializeFromDate is timestamp
-                && (!('materializeFromDate' in resource.data)
-                    || request.resource.data.materializeFromDate >= resource.data.materializeFromDate)))
+                && request.resource.data.materializeFromDate >= resource.data.startDate))
         && request.resource.data.status in ['active', 'paused'];
 
       // Creator-only hard delete of the recurring master.

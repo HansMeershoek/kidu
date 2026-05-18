@@ -16586,9 +16586,11 @@ class _RecurringMasterDetailPageState
   ///
   /// Semantiek (v1):
   ///  * `paused`  → status wordt `paused`, `materializeFromDate` blijft staan
-  ///  * `active`  → status wordt `active`, `materializeFromDate` = vandaag 00:00
-  ///                lokaal, zodat maanden die tijdens de pauze voorbijgingen
-  ///                definitief worden overgeslagen (geen backfill).
+  ///  * `active`  → status wordt `active`, `materializeFromDate` =
+  ///                `max(vandaag 00:00 lokaal, bestaande floor)` zodat maanden
+  ///                tijdens pauze niet alsnog worden ingehaald (geen backfill)
+  ///                én een bij bewerken gezette toekomstige floor niet onder
+  ///                vandaag wordt getrokken (Firestore: floor ≥ startDate).
   ///
   /// Na een hervatten triggeren we dezelfde centrale runner opnieuw, zodat de
   /// huidige maand direct materialiseert als die due is en nog ontbreekt.
@@ -16633,6 +16635,9 @@ class _RecurringMasterDetailPageState
     if (confirmed != true || !mounted) return;
     setState(() => _pauseActionBusy = true);
     try {
+      final masterRef = FirebaseFirestore.instance.doc(
+        'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
+      );
       final update = <String, dynamic>{
         'status': willPause ? 'paused' : 'active',
         'updatedAt': FieldValue.serverTimestamp(),
@@ -16640,13 +16645,33 @@ class _RecurringMasterDetailPageState
       if (!willPause) {
         final now = DateTime.now();
         final today = DateTime(now.year, now.month, now.day);
-        update['materializeFromDate'] = Timestamp.fromDate(today);
+        DateTime resumeMaterializeFrom = today;
+        try {
+          final snap = await masterRef.get(
+            const GetOptions(source: Source.server),
+          );
+          final data = snap.data();
+          if (data != null) {
+            DateTime floorDay;
+            final matTs = data['materializeFromDate'];
+            final startTs = data['startDate'];
+            if (matTs is Timestamp) {
+              final raw = matTs.toDate();
+              floorDay = DateTime(raw.year, raw.month, raw.day);
+            } else if (startTs is Timestamp) {
+              final raw = startTs.toDate();
+              floorDay = DateTime(raw.year, raw.month, raw.day);
+            } else {
+              floorDay = today;
+            }
+            resumeMaterializeFrom = today.isBefore(floorDay) ? floorDay : today;
+          }
+        } catch (_) {
+          resumeMaterializeFrom = today;
+        }
+        update['materializeFromDate'] = Timestamp.fromDate(resumeMaterializeFrom);
       }
-      await FirebaseFirestore.instance
-          .doc(
-            'households/${widget.householdId}/recurringExpenses/${widget.masterId}',
-          )
-          .update(update);
+      await masterRef.update(update);
       if (!willPause) {
         // Dezelfde centrale runner; geen tweede materialisatie-implementatie.
         unawaited(_RecurringMaterializationRunner.run());
