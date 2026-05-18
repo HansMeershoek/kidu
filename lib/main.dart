@@ -16825,9 +16825,8 @@ class _RecurringMasterDetailPageState
         }
         final status = (data?['status'] as String?) ?? widget.status;
         // Nieuwe semantiek: de vervaldag is de primaire datumwaarde.
-        // Voor context toont het detailscherm óók nog de oorspronkelijke
-        // `Gestart op`-datum, maar uitsluitend op detailniveau; de
-        // lijstregel blijft semantisch op vervaldag leunen.
+        // `Gestart` volgt de eerste concrete of geplande uitgave; zie expenses-
+        // stream in deze build voor de exacte afleiding.
         //
         // Primair lezen we `dueDayOfMonth`; voor legacy masters
         // zonder dit veld vallen we terug op `startDate.day`, zodat
@@ -16847,9 +16846,6 @@ class _RecurringMasterDetailPageState
         }
         final dueDayLabel = dueDay != null ? '${dueDay}e van de maand' : '—';
         final showShortMonthHint = dueDay != null && dueDay > 28;
-        final startedOnLabel = startDate != null
-            ? _formatRecurringStartDateNl(startDate)
-            : '—';
         final statusLabel = _formatRecurringStatusLabel(status);
 
         // Eerstvolgende concrete vervaldatum: pure display-afleiding,
@@ -17109,6 +17105,35 @@ class _RecurringMasterDetailPageState
                           now: DateTime.now(),
                           existingPeriodKeys: periodKeys,
                         );
+                        DateTime? minCreatedAmongExpenses;
+                        if (exSnap.hasData) {
+                          for (final doc in exSnap.data!.docs) {
+                            final raw = doc.data()['createdAt'];
+                            if (raw is Timestamp) {
+                              final t = raw.toDate();
+                              if (minCreatedAmongExpenses == null ||
+                                  t.isBefore(minCreatedAmongExpenses)) {
+                                minCreatedAmongExpenses = t;
+                              }
+                            }
+                          }
+                        }
+                        final String gestartSubtitle;
+                        if (exSnap.hasError) {
+                          final d = materializeFromDate ?? startDate;
+                          gestartSubtitle =
+                              d != null ? _formatRecurringStartDateNl(d) : '—';
+                        } else if (!exSnap.hasData) {
+                          gestartSubtitle = '—';
+                        } else {
+                          final basis =
+                              minCreatedAmongExpenses ??
+                              materializeFromDate ??
+                              startDate;
+                          gestartSubtitle = basis != null
+                              ? _formatRecurringStartDateNl(basis)
+                              : '—';
+                        }
                         final labelMuted = textTheme.bodySmall?.copyWith(
                           color: onSurface(context, a70),
                         );
@@ -17164,10 +17189,10 @@ class _RecurringMasterDetailPageState
                                   child: ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     title: Text(
-                                      'Gestart',
+                                      'Start',
                                       style: labelMuted,
                                     ),
-                                    subtitle: Text(startedOnLabel),
+                                    subtitle: Text(gestartSubtitle),
                                   ),
                                 ),
                                 Expanded(
