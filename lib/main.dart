@@ -10416,38 +10416,27 @@ class _PaymentDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Beschrijving',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: Text(title),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Bedrag',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                      subtitle: Text(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         _ExpenseDetailPage._formatEur(amountCents),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(
-                      'Datum/tijd',
+                      'Aangemaakt',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: onSurface(context, a70),
                       ),
