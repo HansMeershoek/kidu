@@ -9942,15 +9942,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Betaald door',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${widget.paidByName.trim().isEmpty ? 'Co-parent' : widget.paidByName.trim()} betaalde',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    subtitle: Text(widget.paidByName),
                   ),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
@@ -9978,18 +9975,19 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final splitLine = effectiveSplit == null
                           ? const SizedBox.shrink()
                           : Padding(
-                              padding: const EdgeInsets.only(top: 2, bottom: 2),
-                              child: Text(
-                                _formatParentSplitNamed(
-                                  effectiveSplit,
-                                  widget.parentSplitMembers,
-                                  widget.uid,
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _formatParentSplitNamed(
+                                    effectiveSplit,
+                                    widget.parentSplitMembers,
+                                    widget.uid,
+                                  ),
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.bodyMedium,
                                 ),
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      color: onSurface(context, a60),
-                                      height: 1.25,
-                                    ),
                               ),
                             );
                       if (currentChildIds.isEmpty) {
@@ -10104,50 +10102,57 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       );
                     },
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Datum/tijd',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: Text(
-                      _ExpenseDetailPage._formatDateTime(widget.createdAt),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Status',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: widget.isPending
-                        ? Row(
-                            children: [
-                              Icon(
-                                Icons.cloud_off,
-                                size: 18,
-                                color: onSurface(context, a60),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Nog niet gesynchroniseerd'),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text('Gesynchroniseerd'),
-                            ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _ExpenseDetailPage._formatDateTime(
+                            widget.createdAt,
                           ),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: widget.isPending
+                                ? [
+                                    Icon(
+                                      Icons.cloud_off,
+                                      size: 18,
+                                      color: onSurface(context, a60),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Nog niet gesynchroniseerd',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ]
+                                : [
+                                    Icon(
+                                      Icons.check_circle,
+                                      size: 16,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Gesynchroniseerd',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
