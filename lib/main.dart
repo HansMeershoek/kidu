@@ -13765,7 +13765,7 @@ class _LogboekPageState extends State<_LogboekPage>
         final sig = docs
             .map(
               (d) =>
-                  '${d.id}:${(d.data()['amountCents'] as num?)?.toInt() ?? 0}',
+                  '${d.id}:${(d.data()['amountCents'] as num?)?.toInt() ?? 0}:${(d.data()['title'] as String?)?.trim() ?? '(zonder naam)'}',
             )
             .join('|');
         return FutureBuilder<List<_WijzigRow>>(
