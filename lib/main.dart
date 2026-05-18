@@ -16894,31 +16894,26 @@ class _RecurringMasterDetailPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Titel',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title.isEmpty ? widget.title : title,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            height: 1.25,
+                          ),
                         ),
-                      ),
-                      subtitle: Text(title.isEmpty ? widget.title : title),
+                        const SizedBox(height: 12),
+                        Text(
+                          _formatRecurringEurCents(amountCents),
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Bedrag',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                      subtitle: Text(
-                        _formatRecurringEurCents(amountCents),
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 16),
                     FutureBuilder<List<_ParentSplitMember>>(
                       future: _parentSplitMembersFuture,
                       builder: (context, splitSnap) {
@@ -16930,15 +16925,9 @@ class _RecurringMasterDetailPageState
                         if (effectiveSplit == null) {
                           return const SizedBox.shrink();
                         }
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            'Uitgavenverdeling',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: onSurface(context, a70),
-                            ),
-                          ),
-                          subtitle: Text(
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
                             _formatParentSplitNamed(
                               effectiveSplit,
                               members,
@@ -16946,6 +16935,7 @@ class _RecurringMasterDetailPageState
                               myParentName: widget.myParentName,
                               otherParentName: widget.otherParentName,
                             ),
+                            style: textTheme.bodyMedium,
                           ),
                         );
                       },
@@ -17091,27 +17081,6 @@ class _RecurringMasterDetailPageState
                         );
                       },
                     ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Vervaldag',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                      subtitle: Text(dueDayLabel),
-                    ),
-                    if (showShortMonthHint)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2, bottom: 4),
-                        child: Text(
-                          'In kortere maanden geldt de laatste dag van de maand.',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: onSurface(context, a55),
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
                     StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                       stream: FirebaseFirestore.instance
                           .collection(
@@ -17140,38 +17109,82 @@ class _RecurringMasterDetailPageState
                           now: DateTime.now(),
                           existingPeriodKeys: periodKeys,
                         );
-                        if (nextDue == null) return const SizedBox.shrink();
-                        return ListTile(
+                        final labelMuted = textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                        );
+                        final vervaldagTile = ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
-                            'Volgende uitgave op',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: onSurface(context, a70),
-                            ),
+                            'Vervaldag',
+                            style: labelMuted,
                           ),
-                          subtitle: Text(_formatRecurringStartDateNl(nextDue)),
+                          subtitle: Text(dueDayLabel),
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: vervaldagTile),
+                                if (nextDue != null)
+                                  Expanded(
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        'Volgende uitgave',
+                                        style: labelMuted,
+                                      ),
+                                      subtitle: Text(
+                                        _formatRecurringStartDateNl(nextDue),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (showShortMonthHint)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 2,
+                                  bottom: 4,
+                                ),
+                                child: Text(
+                                  'In kortere maanden geldt de laatste dag van de maand.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: onSurface(context, a55),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      'Gestart',
+                                      style: labelMuted,
+                                    ),
+                                    subtitle: Text(startedOnLabel),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      'Status',
+                                      style: labelMuted,
+                                    ),
+                                    subtitle: Text(statusLabel),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         );
                       },
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Gestart op',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                      subtitle: Text(startedOnLabel),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Status',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                      subtitle: Text(statusLabel),
                     ),
                     if (isCreator) ...[
                       const SizedBox(height: 12),
