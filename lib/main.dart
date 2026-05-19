@@ -9945,7 +9945,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '${widget.paidByName.trim().isEmpty ? 'Co-parent' : widget.paidByName.trim()} betaalde',
+                      'Betaald door ${widget.paidByName.trim().isEmpty ? 'Co-parent' : widget.paidByName.trim()}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
@@ -9990,8 +9990,19 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                 ),
                               ),
                             );
+                      final dateLine = Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(_ExpenseDetailPage._formatDateTime(widget.createdAt), style: Theme.of(context).textTheme.bodyMedium),
+                        ),
+                      );
                       if (currentChildIds.isEmpty) {
-                        return splitLine;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [splitLine, dateLine],
+                        );
                       }
                       final initialChildNames = _initialChildNamesFor(
                         currentChildIds,
@@ -10002,6 +10013,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             splitLine,
+                            dateLine,
                             _buildChildTile(initialChildNames),
                           ],
                         );
@@ -10011,6 +10023,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           splitLine,
+                          dateLine,
                           FutureBuilder<List<String>>(
                             future: _childNamesFutureFor(currentChildIds),
                             builder: (context, snap) {
@@ -10107,49 +10120,40 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _ExpenseDetailPage._formatDateTime(
-                            widget.createdAt,
-                          ),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: widget.isPending
-                                ? [
-                                    Icon(
-                                      Icons.cloud_off,
-                                      size: 18,
-                                      color: onSurface(context, a60),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Nog niet gesynchroniseerd',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                  ]
-                                : [
-                                    Icon(
-                                      Icons.check_circle,
-                                      size: 16,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Gesynchroniseerd',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                  ],
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: widget.isPending
+                              ? [
+                                  Icon(
+                                    Icons.cloud_off,
+                                    size: 18,
+                                    color: onSurface(context, a60),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Nog niet gesynchroniseerd',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ]
+                              : [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 16,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Gesynchroniseerd',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
+                                  ),
+                                ],
                         ),
                       ],
                     ),
