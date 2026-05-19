@@ -155,6 +155,30 @@ bool _auditSplitChanged(Map<String, dynamic> expenseChangeData) {
   return priorBps != nextBps;
 }
 
+/// Snapshotvelden uit een [`expenseChanges`] auditdoc (detailgeschiedenis).
+({
+  List<String> auditPriorChildIds,
+  List<String> auditChildIds,
+  List<String>? auditPriorSplitParticipantUids,
+  int? auditPriorSplit0ShareBps,
+  List<String>? auditSplitParticipantUids,
+  int? auditSplit0ShareBps,
+})
+_auditSnapshotFieldsFromExpenseChange(Map<String, dynamic> h) {
+  return (
+    auditPriorChildIds: _readAuditStringList(h['priorChildIds']),
+    auditChildIds: _readAuditStringList(h['childIds']),
+    auditPriorSplitParticipantUids: h.containsKey('priorSplitParticipantUids')
+        ? _readAuditStringList(h['priorSplitParticipantUids'])
+        : null,
+    auditPriorSplit0ShareBps: _readAuditNullableInt(h['priorSplit0ShareBps']),
+    auditSplitParticipantUids: h.containsKey('splitParticipantUids')
+        ? _readAuditStringList(h['splitParticipantUids'])
+        : null,
+    auditSplit0ShareBps: _readAuditNullableInt(h['split0ShareBps']),
+  );
+}
+
 /// Merged audit registration for one save-actie (Logboek + detailgeschiedenis).
 class _AuditRegistration {
   const _AuditRegistration({
@@ -168,6 +192,12 @@ class _AuditRegistration {
     this.changeBatchId,
     this.fromAmountCents,
     this.toAmountCents,
+    this.auditPriorChildIds,
+    this.auditChildIds,
+    this.auditPriorSplitParticipantUids,
+    this.auditPriorSplit0ShareBps,
+    this.auditSplitParticipantUids,
+    this.auditSplit0ShareBps,
   });
 
   final String registrationKey;
@@ -180,6 +210,12 @@ class _AuditRegistration {
   final bool hasSplitChange;
   final int? fromAmountCents;
   final int? toAmountCents;
+  final List<String>? auditPriorChildIds;
+  final List<String>? auditChildIds;
+  final List<String>? auditPriorSplitParticipantUids;
+  final int? auditPriorSplit0ShareBps;
+  final List<String>? auditSplitParticipantUids;
+  final int? auditSplit0ShareBps;
 }
 
 String _mergeAuditReason({
@@ -239,11 +275,15 @@ List<_AuditRegistration> _mergeAuditRegistrations({
     required String registrationKey,
     String? changeBatchId,
     String expenseChangeReason = '',
+    Map<String, dynamic>? expenseChangeData,
   }) {
     final h = doc.data();
     final editedAt = _readAuditEditedAt(h);
     if (editedAt == null) return null;
     final amountReason = (h['reason'] as String?)?.trim() ?? '';
+    final snapshot = expenseChangeData != null
+        ? _auditSnapshotFieldsFromExpenseChange(expenseChangeData)
+        : null;
     return _AuditRegistration(
       registrationKey: registrationKey,
       changeBatchId: changeBatchId,
@@ -259,6 +299,12 @@ List<_AuditRegistration> _mergeAuditRegistrations({
       hasSplitChange: hasSplitChange,
       fromAmountCents: (h['fromAmountCents'] as num?)?.toInt(),
       toAmountCents: (h['toAmountCents'] as num?)?.toInt(),
+      auditPriorChildIds: snapshot?.auditPriorChildIds,
+      auditChildIds: snapshot?.auditChildIds,
+      auditPriorSplitParticipantUids: snapshot?.auditPriorSplitParticipantUids,
+      auditPriorSplit0ShareBps: snapshot?.auditPriorSplit0ShareBps,
+      auditSplitParticipantUids: snapshot?.auditSplitParticipantUids,
+      auditSplit0ShareBps: snapshot?.auditSplit0ShareBps,
     );
   }
 
@@ -275,6 +321,7 @@ List<_AuditRegistration> _mergeAuditRegistrations({
     final hasSplit = _auditSplitChanged(h);
     if (!hasChildren && !hasSplit) return null;
     final changeReason = (h['reason'] as String?)?.trim() ?? '';
+    final snapshot = _auditSnapshotFieldsFromExpenseChange(h);
     return _AuditRegistration(
       registrationKey: registrationKey,
       changeBatchId: changeBatchId,
@@ -288,6 +335,12 @@ List<_AuditRegistration> _mergeAuditRegistrations({
       hasAmountChange: false,
       hasChildrenChange: hasChildren,
       hasSplitChange: hasSplit,
+      auditPriorChildIds: snapshot.auditPriorChildIds,
+      auditChildIds: snapshot.auditChildIds,
+      auditPriorSplitParticipantUids: snapshot.auditPriorSplitParticipantUids,
+      auditPriorSplit0ShareBps: snapshot.auditPriorSplit0ShareBps,
+      auditSplitParticipantUids: snapshot.auditSplitParticipantUids,
+      auditSplit0ShareBps: snapshot.auditSplit0ShareBps,
     );
   }
 
@@ -304,6 +357,7 @@ List<_AuditRegistration> _mergeAuditRegistrations({
         registrationKey: batchId,
         changeBatchId: batchId,
         expenseChangeReason: (changeData['reason'] as String?)?.trim() ?? '',
+        expenseChangeData: changeData,
       );
       if (reg != null) registrations.add(reg);
     } else if (amountDoc != null) {
@@ -370,19 +424,165 @@ String _auditChangeTypeLabel({
   return 'Gewijzigd';
 }
 
-/// Tweede regel Wijzigingsgeschiedenis op uitgave-detailscherm.
-String _auditHistoryDetailMetaLine({
-  required _AuditRegistration registration,
-  required String Function(DateTime?) formatDateTime,
+Map<String, String> _childNameByIdFromChildrenSnap(
+  Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+) {
+  final map = <String, String>{};
+  for (final doc in docs) {
+    final name = (doc.data()['name'] as String?)?.trim();
+    map[doc.id] = (name != null && name.isNotEmpty) ? name : 'Onbekend kind';
+  }
+  return map;
+}
+
+Future<Map<String, String>> _loadHouseholdChildNameMap(
+  String householdId,
+) async {
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('households/$householdId/children')
+        .get();
+    return _childNameByIdFromChildrenSnap(snap.docs);
+  } catch (_) {
+    return const <String, String>{};
+  }
+}
+
+Set<String> _auditRegistrationChildIds(_AuditRegistration registration) {
+  if (!registration.hasChildrenChange) return const {};
+  return <String>{
+    ...?registration.auditPriorChildIds,
+    ...?registration.auditChildIds,
+  };
+}
+
+bool _auditChildNamesReadyForRegistration(
+  _AuditRegistration registration, {
+  required Map<String, String> mergedChildNameById,
+  required bool householdChildMapLoaded,
+}) {
+  if (!registration.hasChildrenChange) return true;
+  final ids = _auditRegistrationChildIds(registration);
+  if (ids.isEmpty) return true;
+  if (householdChildMapLoaded) return true;
+  return ids.every(mergedChildNameById.containsKey);
+}
+
+String _auditChildNamesLine(List<String> ids, Map<String, String> nameById) {
+  if (ids.isEmpty) return 'Geen kinderen';
+  return ids.map((id) => nameById[id] ?? 'Onbekend kind').join(', ');
+}
+
+ParentSplitSnapshot? _auditSplitSnapshotFromRegistration(
+  _AuditRegistration registration, {
+  required bool prior,
+}) {
+  final uids = prior
+      ? registration.auditPriorSplitParticipantUids
+      : registration.auditSplitParticipantUids;
+  final bps = prior
+      ? registration.auditPriorSplit0ShareBps
+      : registration.auditSplit0ShareBps;
+  if (uids == null || bps == null) return null;
+  return ParentSplitSnapshot.tryCreate(participantUids: uids, share0Bps: bps);
+}
+
+String _auditHistoryDetailDateLine(
+  _AuditRegistration registration,
+  String Function(DateTime?) formatDateTime,
+) {
+  return formatDateTime(registration.editedAt);
+}
+
+String? _auditHistoryAmountValueLine(
+  _AuditRegistration registration, {
+  required bool usePrefix,
   required String Function(int) formatEur,
 }) {
-  final datePart = formatDateTime(registration.editedAt);
-  if (registration.hasAmountChange) {
-    final fromC = registration.fromAmountCents ?? 0;
-    final toC = registration.toAmountCents ?? 0;
-    return '${formatEur(fromC)} → ${formatEur(toC)} · $datePart';
+  if (!registration.hasAmountChange) return null;
+  final fromC = registration.fromAmountCents ?? 0;
+  final toC = registration.toAmountCents ?? 0;
+  final core = '${formatEur(fromC)} → ${formatEur(toC)}';
+  return usePrefix ? 'Bedrag: $core' : core;
+}
+
+String? _auditHistoryChildrenValueLine(
+  _AuditRegistration registration, {
+  required bool usePrefix,
+  required bool childNamesLoaded,
+  required Map<String, String>? childNameById,
+}) {
+  if (!registration.hasChildrenChange) return null;
+  if (!childNamesLoaded) {
+    return 'Kinderen: laden…';
   }
-  return datePart;
+  final nameById = childNameById!;
+  final priorIds = registration.auditPriorChildIds ?? const <String>[];
+  final nextIds = registration.auditChildIds ?? const <String>[];
+  final core =
+      '${_auditChildNamesLine(priorIds, nameById)} → '
+      '${_auditChildNamesLine(nextIds, nameById)}';
+  return usePrefix ? 'Kinderen: $core' : core;
+}
+
+String? _auditHistorySplitValueLine(
+  _AuditRegistration registration, {
+  required bool usePrefix,
+  required String? viewerUid,
+}) {
+  if (!registration.hasSplitChange) return null;
+  final prior = _auditSplitSnapshotFromRegistration(registration, prior: true);
+  final next = _auditSplitSnapshotFromRegistration(registration, prior: false);
+  if (prior == null || next == null) {
+    return usePrefix ? 'Verdeling: Verdeling aangepast' : 'Verdeling aangepast';
+  }
+  final priorLabel = _formatParentSplitCompact(prior, viewerUid);
+  final nextLabel = _formatParentSplitCompact(next, viewerUid);
+  final core = '$priorLabel → $nextLabel';
+  return usePrefix ? 'Verdeling: $core' : core;
+}
+
+int _auditRegistrationChangeTypeCount(_AuditRegistration registration) {
+  var n = 0;
+  if (registration.hasAmountChange) n++;
+  if (registration.hasChildrenChange) n++;
+  if (registration.hasSplitChange) n++;
+  return n;
+}
+
+List<String> _auditHistoryValueLines(
+  _AuditRegistration registration, {
+  required Map<String, String> mergedChildNameById,
+  required bool householdChildMapLoaded,
+  required String? viewerUid,
+  required String Function(int) formatEur,
+}) {
+  final usePrefix = _auditRegistrationChangeTypeCount(registration) > 1;
+  final lines = <String>[];
+  final amountLine = _auditHistoryAmountValueLine(
+    registration,
+    usePrefix: usePrefix,
+    formatEur: formatEur,
+  );
+  if (amountLine != null) lines.add(amountLine);
+  final childrenLine = _auditHistoryChildrenValueLine(
+    registration,
+    usePrefix: usePrefix,
+    childNamesLoaded: _auditChildNamesReadyForRegistration(
+      registration,
+      mergedChildNameById: mergedChildNameById,
+      householdChildMapLoaded: householdChildMapLoaded,
+    ),
+    childNameById: mergedChildNameById,
+  );
+  if (childrenLine != null) lines.add(childrenLine);
+  final splitLine = _auditHistorySplitValueLine(
+    registration,
+    usePrefix: usePrefix,
+    viewerUid: viewerUid,
+  );
+  if (splitLine != null) lines.add(splitLine);
+  return lines;
 }
 
 String _expenseDocWijzigLogbookSignature(
@@ -8016,6 +8216,7 @@ class _ExpenseDetailPage extends StatefulWidget {
     this.otherParentName,
     this.parentSplitSnapshot,
     this.parentSplitMembers = const <_ParentSplitMember>[],
+    this.initialChildNameById,
   });
 
   final String householdId;
@@ -8035,6 +8236,9 @@ class _ExpenseDetailPage extends StatefulWidget {
   // Pre-resolved display names; when non-null the Voor section renders
   // synchronously without a FutureBuilder round-trip.
   final List<String>? childNames;
+
+  /// Household child id → name, seeded from Logboek (Wijzigingsgeschiedenis).
+  final Map<String, String>? initialChildNameById;
 
   /// Resolves child IDs to display names; falls back to "Verwijderd kind".
   static Future<List<String>> _resolveChildNames(
@@ -9978,11 +10182,15 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   List<String>? _resolvedChildNamesIds;
   Future<List<String>>? _resolvedChildNamesFuture;
   late final Future<List<_ChildItem>> _expenseEditChildrenFuture;
+  late final Future<Map<String, String>> _householdChildNameByIdFuture;
 
   @override
   void initState() {
     super.initState();
     _expenseEditChildrenFuture = _loadRecurringMasterEditChildren(
+      widget.householdId,
+    );
+    _householdChildNameByIdFuture = _loadHouseholdChildNameMap(
       widget.householdId,
     );
   }
@@ -10369,64 +10577,119 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                             return const SizedBox.shrink();
                           }
 
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Wijzigingsgeschiedenis',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: onSurface(context, a70),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                const SizedBox(height: 10),
-                                ...registrations.map((reg) {
-                                  final typeLabel = _auditChangeTypeLabel(
-                                    hasAmountChange: reg.hasAmountChange,
-                                    hasChildrenChange: reg.hasChildrenChange,
-                                    hasSplitChange: reg.hasSplitChange,
+                          return FutureBuilder<Map<String, String>>(
+                            future: _householdChildNameByIdFuture,
+                            builder: (context, childMapSnap) {
+                              final householdChildMapLoaded =
+                                  childMapSnap.connectionState ==
+                                      ConnectionState.done &&
+                                  childMapSnap.hasData;
+                              final fullChildNameById = householdChildMapLoaded
+                                  ? childMapSnap.data!
+                                  : const <String, String>{};
+                              final mergedChildNameById = <String, String>{
+                                ...?widget.initialChildNameById,
+                                ...fullChildNameById,
+                              };
+                              final headlineStyle = Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: onSurface(context, a68),
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
                                   );
-                                  final metaLine = _auditHistoryDetailMetaLine(
-                                    registration: reg,
-                                    formatDateTime:
-                                        _ExpenseDetailPage._formatDateTime,
-                                    formatEur: _ExpenseDetailPage._formatEur,
+                              final valueTextStyle = Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: onSurface(context, a68),
+                                    height: 1.35,
                                   );
-                                  final reason = reg.reason.trim();
-                                  final metaTextStyle = Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: onSurface(context, a68),
-                                        height: 1.35,
-                                      );
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(typeLabel, style: metaTextStyle),
-                                        Text(metaLine, style: metaTextStyle),
-                                        if (reason.isNotEmpty) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            reason,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(height: 1.35),
+
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Wijzigingsgeschiedenis',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: onSurface(context, a70),
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                        ],
-                                      ],
                                     ),
-                                  );
-                                }),
-                              ],
-                            ),
+                                    const SizedBox(height: 10),
+                                    ...registrations.map((reg) {
+                                      final typeLabel = _auditChangeTypeLabel(
+                                        hasAmountChange: reg.hasAmountChange,
+                                        hasChildrenChange:
+                                            reg.hasChildrenChange,
+                                        hasSplitChange: reg.hasSplitChange,
+                                      );
+                                      final valueLines =
+                                          _auditHistoryValueLines(
+                                            reg,
+                                            mergedChildNameById:
+                                                mergedChildNameById,
+                                            householdChildMapLoaded:
+                                                householdChildMapLoaded,
+                                            viewerUid: widget.uid,
+                                            formatEur:
+                                                _ExpenseDetailPage._formatEur,
+                                          );
+                                      final dateLine =
+                                          _auditHistoryDetailDateLine(
+                                            reg,
+                                            _ExpenseDetailPage._formatDateTime,
+                                          );
+                                      final reason = reg.reason.trim();
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              typeLabel,
+                                              style: headlineStyle,
+                                            ),
+                                            ...valueLines.map(
+                                              (line) => Text(
+                                                line,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: valueTextStyle,
+                                              ),
+                                            ),
+                                            Text(
+                                              dateLine,
+                                              style: valueTextStyle,
+                                            ),
+                                            if (reason.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                reason,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(height: 1.35),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              );
+                            },
                           );
                         },
                       );
@@ -10969,6 +11232,7 @@ class _LogboekPageState extends State<_LogboekPage>
   static const double _wijzigingIconToAmountGap = 14;
   static const double _wijzigingAmountColumnWidth = 72;
   List<_ChildItem> _children = [];
+  Map<String, String> _childNameById = const {};
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
   bool _parentsLoaded = false;
@@ -11256,6 +11520,8 @@ class _LogboekPageState extends State<_LogboekPage>
           return 0;
         });
 
+      final childNameById = _childNameByIdFromChildrenSnap(childrenSnap.docs);
+
       final children = <_ChildItem>[];
       for (final d in docs) {
         final data = d.data();
@@ -11264,18 +11530,14 @@ class _LogboekPageState extends State<_LogboekPage>
         final active = !isArchived && !isDeleted;
         final hasExpense = childIdsWithExpense.contains(d.id);
         if (active || ((isArchived || isDeleted) && hasExpense)) {
-          children.add(
-            _ChildItem(
-              id: d.id,
-              name: (data['name'] as String?)?.trim() ?? '?',
-            ),
-          );
+          children.add(_ChildItem(id: d.id, name: childNameById[d.id] ?? '?'));
         }
       }
 
       if (mounted) {
         setState(() {
           _children = children;
+          _childNameById = childNameById;
           _childrenLoaded = true;
           if (_filterChildId != null &&
               !_children.any((c) => c.id == _filterChildId)) {
@@ -14313,6 +14575,9 @@ class _LogboekPageState extends State<_LogboekPage>
                                   ),
                                 )
                                 .toList(growable: false),
+                            initialChildNameById: _childrenLoaded
+                                ? _childNameById
+                                : null,
                             childIds: row.childIds,
                             childNames: row.childIds
                                 .map(
@@ -14469,6 +14734,9 @@ class _LogboekPageState extends State<_LogboekPage>
                                   'Verwijderd kind',
                             )
                             .toList(),
+                        initialChildNameById: _childrenLoaded
+                            ? _childNameById
+                            : null,
                       ),
                     ),
                   ),
