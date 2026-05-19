@@ -87,14 +87,316 @@ Map<String, dynamic> _expenseChangeWriteMap({
     m['changeBatchId'] = changeBatchId;
   }
   if (priorSplit != null && nextSplit != null) {
-    m['priorSplitParticipantUids'] =
-        List<String>.from(priorSplit.participantUids);
+    m['priorSplitParticipantUids'] = List<String>.from(
+      priorSplit.participantUids,
+    );
     m['priorSplit0ShareBps'] = priorSplit.share0Bps;
-    m['splitParticipantUids'] =
-        List<String>.from(nextSplit.participantUids);
+    m['splitParticipantUids'] = List<String>.from(nextSplit.participantUids);
     m['split0ShareBps'] = nextSplit.share0Bps;
   }
   return m;
+}
+
+// ── Audit read/merge helpers (Logboek Wijzigingen + detailgeschiedenis) ───
+
+List<String> _readAuditStringList(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value.whereType<String>().toList(growable: false);
+}
+
+int? _readAuditNullableInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return null;
+}
+
+DateTime? _readAuditEditedAt(Map<String, dynamic> data) {
+  final raw = data['editedAt'];
+  if (raw is Timestamp) return raw.toDate().toLocal();
+  if (raw is DateTime) return raw.toLocal();
+  return null;
+}
+
+String? _nonEmptyChangeBatchId(Map<String, dynamic> data) {
+  final id = (data['changeBatchId'] as String?)?.trim();
+  if (id == null || id.isEmpty) return null;
+  return id;
+}
+
+bool _auditChildIdsEqual(List<String> a, List<String> b) {
+  if (a.length != b.length) return false;
+  return a.toSet().containsAll(b);
+}
+
+bool _auditChildIdsChanged(Map<String, dynamic> expenseChangeData) {
+  final prior = _readAuditStringList(expenseChangeData['priorChildIds']);
+  final next = _readAuditStringList(expenseChangeData['childIds']);
+  return !_auditChildIdsEqual(prior, next);
+}
+
+bool _auditSplitChanged(Map<String, dynamic> expenseChangeData) {
+  if (!expenseChangeData.containsKey('priorSplitParticipantUids')) {
+    return false;
+  }
+  final priorUids = _readAuditStringList(
+    expenseChangeData['priorSplitParticipantUids'],
+  );
+  final nextUids = _readAuditStringList(
+    expenseChangeData['splitParticipantUids'],
+  );
+  final priorBps = _readAuditNullableInt(
+    expenseChangeData['priorSplit0ShareBps'],
+  );
+  final nextBps = _readAuditNullableInt(expenseChangeData['split0ShareBps']);
+  if (priorUids.length != nextUids.length) return true;
+  for (var i = 0; i < priorUids.length; i++) {
+    if (priorUids[i] != nextUids[i]) return true;
+  }
+  return priorBps != nextBps;
+}
+
+/// Merged audit registration for one save-actie (Logboek + detailgeschiedenis).
+class _AuditRegistration {
+  const _AuditRegistration({
+    required this.registrationKey,
+    required this.editedBy,
+    required this.editedAt,
+    required this.reason,
+    required this.hasAmountChange,
+    required this.hasChildrenChange,
+    required this.hasSplitChange,
+    this.changeBatchId,
+    this.fromAmountCents,
+    this.toAmountCents,
+  });
+
+  final String registrationKey;
+  final String? changeBatchId;
+  final String editedBy;
+  final DateTime editedAt;
+  final String reason;
+  final bool hasAmountChange;
+  final bool hasChildrenChange;
+  final bool hasSplitChange;
+  final int? fromAmountCents;
+  final int? toAmountCents;
+}
+
+String _mergeAuditReason({
+  required String amountReason,
+  required String expenseChangeReason,
+  required String registrationKey,
+}) {
+  if (amountReason.isNotEmpty) {
+    if (expenseChangeReason.isNotEmpty && expenseChangeReason != amountReason) {
+      debugPrint(
+        'Audit reason mismatch for $registrationKey: '
+        'amountEdits vs expenseChanges',
+      );
+    }
+    return amountReason;
+  }
+  return expenseChangeReason;
+}
+
+List<_AuditRegistration> _mergeAuditRegistrations({
+  required List<QueryDocumentSnapshot<Map<String, dynamic>>> amountEditDocs,
+  required List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseChangeDocs,
+}) {
+  final amountByBatch = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+  final changeByBatch = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+  final standaloneAmount = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+  final standaloneChange = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+  for (final doc in amountEditDocs) {
+    final batchId = _nonEmptyChangeBatchId(doc.data());
+    if (batchId != null) {
+      amountByBatch[batchId] = doc;
+    } else {
+      standaloneAmount.add(doc);
+    }
+  }
+
+  for (final doc in expenseChangeDocs) {
+    final data = doc.data();
+    if (!_auditChildIdsChanged(data) && !_auditSplitChanged(data)) {
+      continue;
+    }
+    final batchId = _nonEmptyChangeBatchId(data);
+    if (batchId != null) {
+      changeByBatch[batchId] = doc;
+    } else {
+      standaloneChange.add(doc);
+    }
+  }
+
+  final registrations = <_AuditRegistration>[];
+
+  _AuditRegistration? registrationFromAmountDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    required bool hasChildrenChange,
+    required bool hasSplitChange,
+    required String registrationKey,
+    String? changeBatchId,
+    String expenseChangeReason = '',
+  }) {
+    final h = doc.data();
+    final editedAt = _readAuditEditedAt(h);
+    if (editedAt == null) return null;
+    final amountReason = (h['reason'] as String?)?.trim() ?? '';
+    return _AuditRegistration(
+      registrationKey: registrationKey,
+      changeBatchId: changeBatchId,
+      editedBy: (h['editedBy'] as String?)?.trim() ?? '',
+      editedAt: editedAt,
+      reason: _mergeAuditReason(
+        amountReason: amountReason,
+        expenseChangeReason: expenseChangeReason,
+        registrationKey: registrationKey,
+      ),
+      hasAmountChange: true,
+      hasChildrenChange: hasChildrenChange,
+      hasSplitChange: hasSplitChange,
+      fromAmountCents: (h['fromAmountCents'] as num?)?.toInt(),
+      toAmountCents: (h['toAmountCents'] as num?)?.toInt(),
+    );
+  }
+
+  _AuditRegistration? registrationFromExpenseChangeDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    required String registrationKey,
+    String? changeBatchId,
+    String amountReason = '',
+  }) {
+    final h = doc.data();
+    final editedAt = _readAuditEditedAt(h);
+    if (editedAt == null) return null;
+    final hasChildren = _auditChildIdsChanged(h);
+    final hasSplit = _auditSplitChanged(h);
+    if (!hasChildren && !hasSplit) return null;
+    final changeReason = (h['reason'] as String?)?.trim() ?? '';
+    return _AuditRegistration(
+      registrationKey: registrationKey,
+      changeBatchId: changeBatchId,
+      editedBy: (h['editedBy'] as String?)?.trim() ?? '',
+      editedAt: editedAt,
+      reason: _mergeAuditReason(
+        amountReason: amountReason,
+        expenseChangeReason: changeReason,
+        registrationKey: registrationKey,
+      ),
+      hasAmountChange: false,
+      hasChildrenChange: hasChildren,
+      hasSplitChange: hasSplit,
+    );
+  }
+
+  final batchIds = <String>{...amountByBatch.keys, ...changeByBatch.keys};
+  for (final batchId in batchIds) {
+    final amountDoc = amountByBatch[batchId];
+    final changeDoc = changeByBatch[batchId];
+    if (amountDoc != null && changeDoc != null) {
+      final changeData = changeDoc.data();
+      final reg = registrationFromAmountDoc(
+        amountDoc,
+        hasChildrenChange: _auditChildIdsChanged(changeData),
+        hasSplitChange: _auditSplitChanged(changeData),
+        registrationKey: batchId,
+        changeBatchId: batchId,
+        expenseChangeReason: (changeData['reason'] as String?)?.trim() ?? '',
+      );
+      if (reg != null) registrations.add(reg);
+    } else if (amountDoc != null) {
+      final reg = registrationFromAmountDoc(
+        amountDoc,
+        hasChildrenChange: false,
+        hasSplitChange: false,
+        registrationKey: batchId,
+        changeBatchId: batchId,
+      );
+      if (reg != null) registrations.add(reg);
+    } else if (changeDoc != null) {
+      final reg = registrationFromExpenseChangeDoc(
+        changeDoc,
+        registrationKey: batchId,
+        changeBatchId: batchId,
+      );
+      if (reg != null) registrations.add(reg);
+    }
+  }
+
+  for (final doc in standaloneAmount) {
+    final reg = registrationFromAmountDoc(
+      doc,
+      hasChildrenChange: false,
+      hasSplitChange: false,
+      registrationKey: 'amountEdits/${doc.id}',
+    );
+    if (reg != null) registrations.add(reg);
+  }
+
+  for (final doc in standaloneChange) {
+    final reg = registrationFromExpenseChangeDoc(
+      doc,
+      registrationKey: 'expenseChanges/${doc.id}',
+    );
+    if (reg != null) registrations.add(reg);
+  }
+
+  registrations.sort((a, b) => b.editedAt.compareTo(a.editedAt));
+  return registrations;
+}
+
+String _auditChangeTypeLabel({
+  required bool hasAmountChange,
+  required bool hasChildrenChange,
+  required bool hasSplitChange,
+}) {
+  if (hasAmountChange && hasChildrenChange && hasSplitChange) {
+    return 'Bedrag, kinderen en verdeling gewijzigd';
+  }
+  if (hasAmountChange && hasChildrenChange) {
+    return 'Bedrag en kinderen gewijzigd';
+  }
+  if (hasAmountChange && hasSplitChange) {
+    return 'Bedrag en verdeling gewijzigd';
+  }
+  if (hasChildrenChange && hasSplitChange) {
+    return 'Kinderen en verdeling gewijzigd';
+  }
+  if (hasAmountChange) return 'Bedrag gewijzigd';
+  if (hasChildrenChange) return 'Kinderen gewijzigd';
+  if (hasSplitChange) return 'Verdeling gewijzigd';
+  return 'Gewijzigd';
+}
+
+/// Tweede regel Wijzigingsgeschiedenis op uitgave-detailscherm.
+String _auditHistoryDetailMetaLine({
+  required _AuditRegistration registration,
+  required String Function(DateTime?) formatDateTime,
+  required String Function(int) formatEur,
+}) {
+  final datePart = formatDateTime(registration.editedAt);
+  if (registration.hasAmountChange) {
+    final fromC = registration.fromAmountCents ?? 0;
+    final toC = registration.toAmountCents ?? 0;
+    return '${formatEur(fromC)} → ${formatEur(toC)} · $datePart';
+  }
+  return datePart;
+}
+
+String _expenseDocWijzigLogbookSignature(
+  String expenseId,
+  Map<String, dynamic> expenseData,
+) {
+  final title = (expenseData['title'] as String?)?.trim() ?? '(zonder naam)';
+  final amountCents = (expenseData['amountCents'] as num?)?.toInt() ?? 0;
+  final childIds = _readAuditStringList(expenseData['childIds'])..sort();
+  final split = ParentSplitSnapshot.tryReadFromExpense(expenseData);
+  final splitSig = split == null
+      ? ''
+      : '${split.participantUids.join(',')}:${split.share0Bps}';
+  return '$expenseId:$amountCents:$title:${childIds.join(',')}:$splitSig';
 }
 
 /// Calm green for success overlays (e.g. join/connect confirmation).
@@ -7907,6 +8209,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   bool _saving = false;
   ParentSplitSnapshot? _pendingSplit;
   List<_ParentSplitMember> _parentSplitMembers = const <_ParentSplitMember>[];
+
   /// Baseline uitgaveverdeling toen de dialoog stabiel stond, voor drafts
   /// buiten het correctievenster ([_refreshAuditReasonGate]).
   ParentSplitSnapshot? _splitBaselineForGate;
@@ -7976,10 +8279,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     if (!mounted) return;
 
     final now = DateTime.now();
-    if (_isWithinExpenseAmountCorrectionWindow(
-      widget.initialCreatedAt,
-      now,
-    )) {
+    if (_isWithinExpenseAmountCorrectionWindow(widget.initialCreatedAt, now)) {
       if (_showReasonField || _reasonHasError) {
         setState(() {
           _showReasonField = false;
@@ -8002,15 +8302,14 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
 
     final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
     final amountAuditedDraft =
-        parsed != null &&
-        parsed >= 0 &&
-        parsed != widget.currentAmountCents;
+        parsed != null && parsed >= 0 && parsed != widget.currentAmountCents;
     final effectiveChildIds = _effectiveSelectedChildIds(children);
     final childrenAuditedDraft =
         _didChangeChildSelection &&
         !_sameChildIds(effectiveChildIds, widget.currentChildIds);
 
-    final nextShow = amountAuditedDraft ||
+    final nextShow =
+        amountAuditedDraft ||
         childrenAuditedDraft ||
         _draftSplitDirtyForAuditReason();
 
@@ -8019,8 +8318,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     }
 
     final shouldHideErrors = !nextShow;
-    if (nextShow != _showReasonField ||
-        (shouldHideErrors && _reasonHasError)) {
+    if (nextShow != _showReasonField || (shouldHideErrors && _reasonHasError)) {
       setState(() {
         _showReasonField = nextShow;
         if (shouldHideErrors) {
@@ -8397,8 +8695,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         expenseCreatedAt,
         DateTime.now(),
       );
-      final needsAmountAuditOutside =
-          !withinCorrectionWindow && amountChanged;
+      final needsAmountAuditOutside = !withinCorrectionWindow && amountChanged;
       final needsAllocationAuditOutside =
           !withinCorrectionWindow && (childIdsChanged || splitChanged);
       final needsAnyExpenseAuditOutside =
@@ -8431,8 +8728,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         if (amountChanged) 'amountCents': parsed,
         if (titleChanged) 'title': title,
         if (childIdsChanged) 'childIds': effectiveSelectedChildIds,
-        if (splitChanged)
-          ...pendingSplit.toExpenseFields(),
+        if (splitChanged) ...pendingSplit.toExpenseFields(),
       };
 
       if (withinCorrectionWindow) {
@@ -8476,8 +8772,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
             ParentSplitSnapshot? nextSplit;
             if (baselineSplit != null && pendingSplit != null) {
               priorSplit = baselineSplit;
-              nextSplit =
-                  splitChanged ? pendingSplit : baselineSplit;
+              nextSplit = splitChanged ? pendingSplit : baselineSplit;
             }
 
             batch.set(
@@ -9914,8 +10209,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final ed = expSnap.data?.data();
                       final currentTitle =
                           ((ed?['title'] as String?) ?? widget.title).trim();
-                      final displayTitle =
-                          currentTitle.isEmpty ? widget.title : currentTitle;
+                      final displayTitle = currentTitle.isEmpty
+                          ? widget.title
+                          : currentTitle;
                       final currentCents =
                           (ed?['amountCents'] as num?)?.toInt() ??
                           widget.amountCents;
@@ -9984,9 +10280,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     widget.parentSplitMembers,
                                     widget.uid,
                                   ),
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodyMedium,
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ),
                             );
@@ -9994,7 +10288,12 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         alignment: Alignment.centerLeft,
                         child: Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(_ExpenseDetailPage._formatDateTime(widget.createdAt), style: Theme.of(context).textTheme.bodyMedium),
+                          child: Text(
+                            _ExpenseDetailPage._formatDateTime(
+                              widget.createdAt,
+                            ),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
                         ),
                       );
                       if (currentChildIds.isEmpty) {
@@ -10045,73 +10344,91 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         )
                         .orderBy('editedAt', descending: true)
                         .snapshots(),
-                    builder: (context, histSnap) {
-                      if (histSnap.hasError) {
-                        return const SizedBox.shrink();
-                      }
-                      if (!histSnap.hasData || histSnap.data!.docs.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      final docs = histSnap.data!.docs;
+                    builder: (context, amountHistSnap) {
+                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection(
+                              'households/${widget.householdId}/expenses/${widget.expenseId}/expenseChanges',
+                            )
+                            .orderBy('editedAt', descending: true)
+                            .snapshots(),
+                        builder: (context, changeHistSnap) {
+                          if (amountHistSnap.hasError ||
+                              changeHistSnap.hasError) {
+                            return const SizedBox.shrink();
+                          }
+                          if (!amountHistSnap.hasData ||
+                              !changeHistSnap.hasData) {
+                            return const SizedBox.shrink();
+                          }
+                          final registrations = _mergeAuditRegistrations(
+                            amountEditDocs: amountHistSnap.data!.docs,
+                            expenseChangeDocs: changeHistSnap.data!.docs,
+                          );
+                          if (registrations.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
 
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Wijzigingsgeschiedenis',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: onSurface(context, a70),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            const SizedBox(height: 10),
-                            ...docs.map((doc) {
-                              final h = doc.data();
-                              final fromC =
-                                  (h['fromAmountCents'] as num?)?.toInt() ?? 0;
-                              final toC =
-                                  (h['toAmountCents'] as num?)?.toInt() ?? 0;
-                              final reason =
-                                  (h['reason'] as String?)?.trim() ?? '';
-                              final editedAtRaw = h['editedAt'];
-                              DateTime? editedAtDt;
-                              if (editedAtRaw is Timestamp) {
-                                editedAtDt = editedAtRaw.toDate().toLocal();
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)} · ${_ExpenseDetailPage._formatDateTime(editedAtDt)}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: onSurface(context, a68),
-                                            height: 1.35,
-                                          ),
-                                    ),
-                                    if (reason.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        reason,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(height: 1.35),
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Wijzigingsgeschiedenis',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: onSurface(context, a70),
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                    ],
-                                  ],
                                 ),
-                              );
-                            }),
-                          ],
-                        ),
+                                const SizedBox(height: 10),
+                                ...registrations.map((reg) {
+                                  final typeLabel = _auditChangeTypeLabel(
+                                    hasAmountChange: reg.hasAmountChange,
+                                    hasChildrenChange: reg.hasChildrenChange,
+                                    hasSplitChange: reg.hasSplitChange,
+                                  );
+                                  final metaLine = _auditHistoryDetailMetaLine(
+                                    registration: reg,
+                                    formatDateTime:
+                                        _ExpenseDetailPage._formatDateTime,
+                                    formatEur: _ExpenseDetailPage._formatEur,
+                                  );
+                                  final reason = reg.reason.trim();
+                                  final metaTextStyle = Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: onSurface(context, a68),
+                                        height: 1.35,
+                                      );
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(typeLabel, style: metaTextStyle),
+                                        Text(metaLine, style: metaTextStyle),
+                                        if (reason.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            reason,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(height: 1.35),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -10554,6 +10871,52 @@ class _WijzigRow {
   final bool isMaterializedMonthly;
 }
 
+/// Logboek → Wijzigingen row (één registratie/save-actie; export gebruikt [_WijzigRow]).
+class _WijzigLogbookRow {
+  const _WijzigLogbookRow({
+    required this.registrationKey,
+    required this.expenseId,
+    required this.title,
+    required this.editedBy,
+    required this.editedAt,
+    required this.displayAmountCents,
+    required this.hasAmountChange,
+    required this.hasChildrenChange,
+    required this.hasSplitChange,
+    required this.childIds,
+    required this.createdBy,
+    required this.createdAt,
+    required this.parentSplitSnapshot,
+    required this.isMaterializedMonthly,
+    this.changeBatchId,
+    this.fromAmountCents,
+    this.toAmountCents,
+    this.reason,
+  });
+
+  final String registrationKey;
+  final String expenseId;
+  final String title;
+  final String editedBy;
+  final DateTime editedAt;
+  final int displayAmountCents;
+  final bool hasAmountChange;
+  final bool hasChildrenChange;
+  final bool hasSplitChange;
+  final List<String> childIds;
+  final String createdBy;
+  final DateTime? createdAt;
+  final ParentSplitSnapshot? parentSplitSnapshot;
+  final bool isMaterializedMonthly;
+  final String? changeBatchId;
+  final int? fromAmountCents;
+  final int? toAmountCents;
+  final String? reason;
+
+  /// Huidig parent expense-bedrag op loadtijd (navigatie naar detail).
+  int get expenseAmountCents => displayAmountCents;
+}
+
 /// Keeps each Logboek [TabBarView] page subtree alive to reduce rebuild work when swiping.
 class _LogboekTabKeepAlive extends StatefulWidget {
   const _LogboekTabKeepAlive({required this.builder});
@@ -10600,7 +10963,11 @@ class _LogboekPageState extends State<_LogboekPage>
   static const int _logboekVisibleRowCount = 9;
   static const double _logboekListRowExtent = 64;
   static const double _logboekListSeparatorExtent = 14;
-  static const double _wijzigingTrailingWidth = 118;
+  static const double _wijzigingTrailingWidth = 154;
+  static const double _wijzigingIconSlotWidth = 20;
+  static const double _wijzigingIconSlotGap = 4;
+  static const double _wijzigingIconToAmountGap = 14;
+  static const double _wijzigingAmountColumnWidth = 72;
   List<_ChildItem> _children = [];
   bool _childrenLoaded = false;
   List<({String uid, String name})> _parentItems = [];
@@ -10623,26 +10990,26 @@ class _LogboekPageState extends State<_LogboekPage>
   bool _isOffline = false;
   late final DateTime _initialHoldStartedAt;
 
-  /// Memo for [FutureBuilder] in [_buildWijzigingenList]: same key → same [Future].
-  String? _wijzigRowsLoadKey;
-  Future<List<_WijzigRow>>? _wijzigRowsFuture;
+  /// Memo for [FutureBuilder] in [_buildWijzigingenList].
+  String? _wijzigLogbookRowsLoadKey;
+  Future<List<_WijzigLogbookRow>>? _wijzigLogbookRowsFuture;
 
   double get _logboekListCardHeight =>
       (_logboekVisibleRowCount * _logboekListRowExtent) +
       ((_logboekVisibleRowCount - 1) * _logboekListSeparatorExtent) +
       (12 * 2);
 
-  Future<List<_WijzigRow>> _wijzigRowsFutureFor(
+  Future<List<_WijzigLogbookRow>> _wijzigLogbookRowsFutureFor(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
     String expenseDocsSig,
   ) {
     final loadKey =
         '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$expenseDocsSig';
-    if (_wijzigRowsLoadKey != loadKey) {
-      _wijzigRowsLoadKey = loadKey;
-      _wijzigRowsFuture = _loadWijzigRows(expenseDocs);
+    if (_wijzigLogbookRowsLoadKey != loadKey) {
+      _wijzigLogbookRowsLoadKey = loadKey;
+      _wijzigLogbookRowsFuture = _loadWijzigLogbookRows(expenseDocs);
     }
-    return _wijzigRowsFuture!;
+    return _wijzigLogbookRowsFuture!;
   }
 
   String _formatWijzigingDate(DateTime dt) {
@@ -10663,25 +11030,24 @@ class _LogboekPageState extends State<_LogboekPage>
     return '${dt.day} ${nlMonths[dt.month - 1]}';
   }
 
-  Widget _buildWijzigingTrailing(BuildContext context, _WijzigRow row) {
+  Widget _wijzigingTrailingIconSlot(BuildContext context, IconData? icon) {
+    final iconColor = onSurface(context, a70);
+    return SizedBox(
+      width: _wijzigingIconSlotWidth,
+      height: _wijzigingIconSlotWidth,
+      child: icon == null
+          ? const SizedBox.shrink()
+          : Icon(icon, size: _wijzigingIconSlotWidth, color: iconColor),
+    );
+  }
+
+  Widget _buildWijzigingTrailing(BuildContext context, _WijzigLogbookRow row) {
     final baseStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w600,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
-
-    Widget buildAmount(String value, TextStyle? style) {
-      return Align(
-        alignment: Alignment.centerRight,
-        child: Text(
-          value,
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.fade,
-          textAlign: TextAlign.right,
-          style: style,
-        ),
-      );
-    }
+    final iconBlockWidth =
+        _wijzigingIconSlotWidth * 3 + _wijzigingIconSlotGap * 2;
 
     return SizedBox(
       width: _wijzigingTrailingWidth,
@@ -10689,14 +11055,39 @@ class _LogboekPageState extends State<_LogboekPage>
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            Icons.payments_outlined,
-            size: 20,
-            color: outlineV(context, a70),
+          SizedBox(
+            width: iconBlockWidth,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _wijzigingTrailingIconSlot(
+                  context,
+                  row.hasChildrenChange ? Icons.child_care_outlined : null,
+                ),
+                const SizedBox(width: _wijzigingIconSlotGap),
+                _wijzigingTrailingIconSlot(
+                  context,
+                  row.hasSplitChange ? Icons.percent_outlined : null,
+                ),
+                const SizedBox(width: _wijzigingIconSlotGap),
+                _wijzigingTrailingIconSlot(
+                  context,
+                  row.hasAmountChange ? Icons.payments_outlined : null,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: buildAmount(_fmtEur(row.toAmountCents), baseStyle),
+          const SizedBox(width: _wijzigingIconToAmountGap),
+          SizedBox(
+            width: _wijzigingAmountColumnWidth,
+            child: Text(
+              _fmtEur(row.displayAmountCents),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              textAlign: TextAlign.right,
+              style: baseStyle,
+            ),
           ),
         ],
       ),
@@ -10781,6 +11172,7 @@ class _LogboekPageState extends State<_LogboekPage>
     super.initState();
     _initialHoldStartedAt = DateTime.now();
     _modeTabController = TabController(length: 3, vsync: this);
+    _modeTabController.addListener(_onLogboekModeTabChanged);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
     Future.wait([_loadChildren(), _loadParents(), _expensesStream.first])
@@ -10795,8 +11187,18 @@ class _LogboekPageState extends State<_LogboekPage>
     _checkOffline();
   }
 
+  void _onLogboekModeTabChanged() {
+    if (_modeTabController.indexIsChanging) return;
+    if (_activeLogboekModeFromTabController() != _LogboekMode.wijzigingen) {
+      return;
+    }
+    if (_wijzigLogbookRowsLoadKey == null) return;
+    setState(() => _wijzigLogbookRowsLoadKey = null);
+  }
+
   @override
   void dispose() {
+    _modeTabController.removeListener(_onLogboekModeTabChanged);
     _modeTabController.dispose();
     super.dispose();
   }
@@ -13426,6 +13828,96 @@ class _LogboekPageState extends State<_LogboekPage>
     );
   }
 
+  Future<List<_WijzigLogbookRow>> _loadWijzigLogbookRows(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs, {
+    _PeriodFilter? periodFilter,
+    DateTime? filterStart,
+    DateTime? filterEnd,
+    String? editedByUid,
+  }) async {
+    final effectivePeriodFilter = periodFilter ?? _periodFilter;
+    final effectiveFilterStart = filterStart ?? _filterStart;
+    final effectiveFilterEnd = filterEnd ?? _filterEnd;
+    final effectiveEditedByUid = editedByUid ?? _wijzigFilterEditedByUid;
+    final rows = <_WijzigLogbookRow>[];
+
+    await Future.wait(
+      expenseDocs.map((d) async {
+        final e = d.data();
+        final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
+        final displayAmountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
+        final childIds = _readAuditStringList(e['childIds']);
+        final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
+        final createdAtRaw = e['createdAt'];
+        DateTime? createdAt;
+        if (createdAtRaw is Timestamp) {
+          createdAt = createdAtRaw.toDate().toLocal();
+        } else if (createdAtRaw is DateTime) {
+          createdAt = createdAtRaw.toLocal();
+        }
+        final parentSplitSnapshot = ParentSplitSnapshot.tryReadFromExpense(e);
+        final isMaterializedMonthly = _expenseDocIsMaterializedMonthly(e);
+
+        final amountSnap = await FirebaseFirestore.instance
+            .collection(
+              'households/${widget.householdId}/expenses/${d.id}/amountEdits',
+            )
+            .get();
+        final changeSnap = await FirebaseFirestore.instance
+            .collection(
+              'households/${widget.householdId}/expenses/${d.id}/expenseChanges',
+            )
+            .get();
+
+        final registrations = _mergeAuditRegistrations(
+          amountEditDocs: amountSnap.docs,
+          expenseChangeDocs: changeSnap.docs,
+        );
+
+        for (final reg in registrations) {
+          if (effectivePeriodFilter != _PeriodFilter.all &&
+              effectiveFilterStart != null &&
+              effectiveFilterEnd != null) {
+            final ed = reg.editedAt;
+            if (ed.isBefore(effectiveFilterStart) ||
+                !ed.isBefore(effectiveFilterEnd)) {
+              continue;
+            }
+          }
+          rows.add(
+            _WijzigLogbookRow(
+              registrationKey: reg.registrationKey,
+              expenseId: d.id,
+              title: title,
+              editedBy: reg.editedBy,
+              editedAt: reg.editedAt,
+              displayAmountCents: displayAmountCents,
+              hasAmountChange: reg.hasAmountChange,
+              hasChildrenChange: reg.hasChildrenChange,
+              hasSplitChange: reg.hasSplitChange,
+              childIds: childIds,
+              createdBy: createdBy,
+              createdAt: createdAt,
+              parentSplitSnapshot: parentSplitSnapshot,
+              isMaterializedMonthly: isMaterializedMonthly,
+              changeBatchId: reg.changeBatchId,
+              fromAmountCents: reg.fromAmountCents,
+              toAmountCents: reg.toAmountCents,
+              reason: reg.reason.isEmpty ? null : reg.reason,
+            ),
+          );
+        }
+      }),
+    );
+
+    rows.sort((a, b) => b.editedAt.compareTo(a.editedAt));
+    if (effectiveEditedByUid != null) {
+      rows.removeWhere((r) => r.editedBy != effectiveEditedByUid);
+    }
+    return rows;
+  }
+
+  /// Export-only: amountEdits per expense (legacy amount-only).
   Future<List<_WijzigRow>> _loadWijzigRows(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs, {
     _PeriodFilter? periodFilter,
@@ -13736,16 +14228,13 @@ class _LogboekPageState extends State<_LogboekPage>
         }
         final docs = expSnap.data!.docs;
         final sig = docs
-            .map(
-              (d) =>
-                  '${d.id}:${(d.data()['amountCents'] as num?)?.toInt() ?? 0}:${(d.data()['title'] as String?)?.trim() ?? '(zonder naam)'}',
-            )
+            .map((d) => _expenseDocWijzigLogbookSignature(d.id, d.data()))
             .join('|');
-        return FutureBuilder<List<_WijzigRow>>(
+        return FutureBuilder<List<_WijzigLogbookRow>>(
           key: ValueKey(
             '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$sig',
           ),
-          future: _wijzigRowsFutureFor(docs, sig),
+          future: _wijzigLogbookRowsFutureFor(docs, sig),
           builder: (context, futSnap) {
             if (futSnap.connectionState == ConnectionState.waiting &&
                 !futSnap.hasData) {
@@ -13759,7 +14248,7 @@ class _LogboekPageState extends State<_LogboekPage>
                 ),
               );
             }
-            final rows = futSnap.data ?? const <_WijzigRow>[];
+            final rows = futSnap.data ?? const <_WijzigLogbookRow>[];
             if (rows.isEmpty) {
               return _logboekListEmptyMessage('Geen wijzigingen gevonden');
             }
@@ -13839,9 +14328,7 @@ class _LogboekPageState extends State<_LogboekPage>
                         ),
                       ),
                       child: ListTile(
-                        key: ValueKey(
-                          '${row.expenseId}_${row.editedAt.toIso8601String()}',
-                        ),
+                        key: ValueKey(row.registrationKey),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 5,
                         ),
@@ -16673,7 +17160,9 @@ class _RecurringMasterDetailPageState
         } catch (_) {
           resumeMaterializeFrom = today;
         }
-        update['materializeFromDate'] = Timestamp.fromDate(resumeMaterializeFrom);
+        update['materializeFromDate'] = Timestamp.fromDate(
+          resumeMaterializeFrom,
+        );
       }
       await masterRef.update(update);
       if (!willPause) {
@@ -17125,8 +17614,9 @@ class _RecurringMasterDetailPageState
                         final String gestartSubtitle;
                         if (exSnap.hasError) {
                           final d = materializeFromDate ?? startDate;
-                          gestartSubtitle =
-                              d != null ? _formatRecurringStartDateNl(d) : '—';
+                          gestartSubtitle = d != null
+                              ? _formatRecurringStartDateNl(d)
+                              : '—';
                         } else if (!exSnap.hasData) {
                           gestartSubtitle = '—';
                         } else {
@@ -17143,10 +17633,7 @@ class _RecurringMasterDetailPageState
                         );
                         final vervaldagTile = ListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            'Vervaldag',
-                            style: labelMuted,
-                          ),
+                          title: Text('Vervaldag', style: labelMuted),
                           subtitle: Text(dueDayLabel),
                         );
                         return Column(
@@ -17192,20 +17679,14 @@ class _RecurringMasterDetailPageState
                                 Expanded(
                                   child: ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    title: Text(
-                                      'Start',
-                                      style: labelMuted,
-                                    ),
+                                    title: Text('Start', style: labelMuted),
                                     subtitle: Text(gestartSubtitle),
                                   ),
                                 ),
                                 Expanded(
                                   child: ListTile(
                                     contentPadding: EdgeInsets.zero,
-                                    title: Text(
-                                      'Status',
-                                      style: labelMuted,
-                                    ),
+                                    title: Text('Status', style: labelMuted),
                                     subtitle: Text(statusLabel),
                                   ),
                                 ),
