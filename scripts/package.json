@@ -1,0 +1,12 @@
+{
+  "name": "kidu-scripts",
+  "private": true,
+  "description": "One-off Firebase Admin scripts for Kidu",
+  "scripts": {
+    "backfill-has-audit-history": "node backfill_has_audit_history.js",
+    "backfill-has-audit-history:apply": "node backfill_has_audit_history.js --apply"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

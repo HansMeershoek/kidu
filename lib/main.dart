@@ -9145,6 +9145,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
             );
           }
 
+          updateFields['hasAuditHistory'] = true;
           batch.update(expRef, updateFields);
           await batch.commit();
         }
@@ -10846,163 +10847,65 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
-                          'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
+                          'households/${widget.householdId}/expenses/${widget.expenseId}',
                         )
                         .snapshots(),
-                    builder: (context, snap) {
-                      final isCreator =
-                          widget.uid.trim() == widget.createdByUid.trim();
-                      if (snap.hasError) {
-                        if (!isCreator) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [_buildChangeHistoryButton()],
-                          );
-                        }
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Kon notitie niet laden.',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: onSurface(context, a55),
-                                    height: 1.35,
-                                  ),
-                            ),
-                            _buildChangeHistoryButton(),
-                            if (widget.onManageNote != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: FilledButton.tonalIcon(
-                                  onPressed: _noteActionBusy
-                                      ? null
-                                      : () async {
-                                          if (_noteActionBusy) return;
-                                          setState(
-                                            () => _noteActionBusy = true,
-                                          );
-                                          try {
-                                            await widget.onManageNote!();
-                                          } finally {
-                                            if (mounted) {
-                                              setState(
-                                                () => _noteActionBusy = false,
-                                              );
-                                            }
-                                          }
-                                        },
-                                  icon: const Icon(
-                                    Icons.note_add_outlined,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    'Notitie',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ),
-                            if (isCreator)
-                              StreamBuilder<
-                                DocumentSnapshot<Map<String, dynamic>>
-                              >(
-                                stream: FirebaseFirestore.instance
-                                    .doc(
-                                      'households/${widget.householdId}/expenses/${widget.expenseId}',
-                                    )
-                                    .snapshots(),
-                                builder: (context, expSnap) {
-                                  final ed = expSnap.data?.data();
-                                  final currentTitle =
-                                      ((ed?['title'] as String?) ??
-                                              widget.title)
-                                          .trim();
-                                  final currentCents =
-                                      (ed?['amountCents'] as num?)?.toInt() ??
-                                      widget.amountCents;
-                                  final currentChildIds =
-                                      (ed?['childIds'] as List?)
-                                          ?.whereType<String>()
-                                          .toList() ??
-                                      widget.childIds;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: FilledButton.tonalIcon(
-                                      onPressed: () => _openEditAmountDialog(
-                                        currentAmountCents: currentCents,
-                                        currentTitle: currentTitle.isEmpty
-                                            ? widget.title
-                                            : currentTitle,
-                                        currentChildIds: currentChildIds,
-                                        initialExpenseSplit:
-                                            ParentSplitSnapshot.tryReadFromExpense(
-                                              ed ?? const <String, dynamic>{},
-                                            ),
-                                        initialParentSplitMembers:
-                                            widget.parentSplitMembers,
-                                      ),
-                                      icon: const Icon(
-                                        Icons.edit_outlined,
-                                        size: 18,
-                                      ),
-                                      label: Text(
-                                        'Uitgave',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                          ],
-                        );
-                      }
-
-                      final data = snap.data?.data();
-                      final note = (data?['note'] as String?)?.trim() ?? '';
-                      final hasNoteLive = note.isNotEmpty;
-                      final sharedWithViewer =
-                          _ExpenseDetailPage._privateNoteIsSharedWithViewer(
-                            data,
-                            widget.uid,
-                          );
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (isCreator && hasNoteLive)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Notitie',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: onSurface(context, a70)),
-                              ),
-                              subtitle: Text(note),
-                            ),
-                          if (!isCreator && sharedWithViewer && hasNoteLive)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Gedeelde notitie',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: onSurface(context, a70)),
-                              ),
-                              subtitle: Text(note),
-                            ),
-                          _buildChangeHistoryButton(),
-                          if (widget.onManageNote != null && isCreator)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                    builder: (context, expSnap) {
+                      final expenseData = expSnap.data?.data();
+                      final hasAuditHistory =
+                          expenseData?['hasAuditHistory'] == true;
+                      return StreamBuilder<
+                        DocumentSnapshot<Map<String, dynamic>>
+                      >(
+                        stream: FirebaseFirestore.instance
+                            .doc(
+                              'households/${widget.householdId}/expenses/${widget.expenseId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
+                            )
+                            .snapshots(),
+                        builder: (context, snap) {
+                          final isCreator =
+                              widget.uid.trim() == widget.createdByUid.trim();
+                          if (snap.hasError) {
+                            if (!isCreator) {
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Expanded(
+                                  if (hasAuditHistory)
+                                    _buildChangeHistoryButton(),
+                                ],
+                              );
+                            }
+                            final currentTitle =
+                                ((expenseData?['title'] as String?) ??
+                                        widget.title)
+                                    .trim();
+                            final currentCents =
+                                (expenseData?['amountCents'] as num?)
+                                    ?.toInt() ??
+                                widget.amountCents;
+                            final currentChildIds =
+                                (expenseData?['childIds'] as List?)
+                                    ?.whereType<String>()
+                                    .toList() ??
+                                widget.childIds;
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Kon notitie niet laden.',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: onSurface(context, a55),
+                                        height: 1.35,
+                                      ),
+                                ),
+                                if (hasAuditHistory)
+                                  _buildChangeHistoryButton(),
+                                if (widget.onManageNote != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
                                     child: FilledButton.tonalIcon(
                                       onPressed: _noteActionBusy
                                           ? null
@@ -11022,37 +10925,151 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                                 }
                                               }
                                             },
-                                      icon: Icon(
-                                        hasNoteLive
-                                            ? Icons.edit_note
-                                            : Icons.note_add_outlined,
+                                      icon: const Icon(
+                                        Icons.note_add_outlined,
                                         size: 18,
                                       ),
                                       label: Text(
-                                        hasNoteLive ? 'Notitie' : 'Notitie',
+                                        'Notitie',
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodyMedium,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _expenseEditTonalButtonStream(
-                                      wrapWithTopPadding: false,
+                                if (isCreator)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: () => _openEditAmountDialog(
+                                        currentAmountCents: currentCents,
+                                        currentTitle: currentTitle.isEmpty
+                                            ? widget.title
+                                            : currentTitle,
+                                        currentChildIds: currentChildIds,
+                                        initialExpenseSplit:
+                                            ParentSplitSnapshot.tryReadFromExpense(
+                                              expenseData ??
+                                                  const <String, dynamic>{},
+                                            ),
+                                        initialParentSplitMembers:
+                                            widget.parentSplitMembers,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        'Uitgave',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          if (isCreator && widget.onManageNote == null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: _expenseEditTonalButtonStream(
-                                wrapWithTopPadding: false,
-                              ),
-                            ),
-                        ],
+                              ],
+                            );
+                          }
+
+                          final data = snap.data?.data();
+                          final note = (data?['note'] as String?)?.trim() ?? '';
+                          final hasNoteLive = note.isNotEmpty;
+                          final sharedWithViewer =
+                              _ExpenseDetailPage._privateNoteIsSharedWithViewer(
+                                data,
+                                widget.uid,
+                              );
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (isCreator && hasNoteLive)
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    'Notitie',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: onSurface(context, a70),
+                                        ),
+                                  ),
+                                  subtitle: Text(note),
+                                ),
+                              if (!isCreator && sharedWithViewer && hasNoteLive)
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    'Gedeelde notitie',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: onSurface(context, a70),
+                                        ),
+                                  ),
+                                  subtitle: Text(note),
+                                ),
+                              if (hasAuditHistory) _buildChangeHistoryButton(),
+                              if (widget.onManageNote != null && isCreator)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.tonalIcon(
+                                          onPressed: _noteActionBusy
+                                              ? null
+                                              : () async {
+                                                  if (_noteActionBusy) return;
+                                                  setState(
+                                                    () =>
+                                                        _noteActionBusy = true,
+                                                  );
+                                                  try {
+                                                    await widget
+                                                        .onManageNote!();
+                                                  } finally {
+                                                    if (mounted) {
+                                                      setState(
+                                                        () => _noteActionBusy =
+                                                            false,
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                          icon: Icon(
+                                            hasNoteLive
+                                                ? Icons.edit_note
+                                                : Icons.note_add_outlined,
+                                            size: 18,
+                                          ),
+                                          label: Text(
+                                            hasNoteLive ? 'Notitie' : 'Notitie',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _expenseEditTonalButtonStream(
+                                          wrapWithTopPadding: false,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (isCreator && widget.onManageNote == null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: _expenseEditTonalButtonStream(
+                                    wrapWithTopPadding: false,
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),

@@ -290,8 +290,13 @@ service cloud.firestore {
           'title',
           'childIds',
           'parentSplitParticipantUids',
-          'parentSplit0ShareBps'
+          'parentSplit0ShareBps',
+          'hasAuditHistory'
         ])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'hasAuditHistory'
+            ])
+            || request.resource.data.hasAuditHistory == true)
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents >= 0
         && request.resource.data.title is string
