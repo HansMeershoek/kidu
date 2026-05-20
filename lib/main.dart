@@ -585,6 +585,155 @@ List<String> _auditHistoryValueLines(
   return lines;
 }
 
+List<Widget> _buildAuditHistoryRegistrationTiles({
+  required BuildContext context,
+  required List<_AuditRegistration> registrations,
+  required Map<String, String> mergedChildNameById,
+  required bool householdChildMapLoaded,
+  required String? viewerUid,
+  required String Function(int) formatEur,
+  required String Function(DateTime?) formatDateTime,
+}) {
+  final headlineStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+    color: onSurface(context, a68),
+    height: 1.35,
+    fontWeight: FontWeight.w600,
+  );
+  final valueTextStyle = Theme.of(
+    context,
+  ).textTheme.bodySmall?.copyWith(color: onSurface(context, a68), height: 1.35);
+
+  return registrations.map((reg) {
+    final typeLabel = _auditChangeTypeLabel(
+      hasAmountChange: reg.hasAmountChange,
+      hasChildrenChange: reg.hasChildrenChange,
+      hasSplitChange: reg.hasSplitChange,
+    );
+    final valueLines = _auditHistoryValueLines(
+      reg,
+      mergedChildNameById: mergedChildNameById,
+      householdChildMapLoaded: householdChildMapLoaded,
+      viewerUid: viewerUid,
+      formatEur: formatEur,
+    );
+    final dateLine = _auditHistoryDetailDateLine(reg, formatDateTime);
+    final reason = reg.reason.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(typeLabel, style: headlineStyle),
+          ...valueLines.map(
+            (line) => Text(
+              line,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: valueTextStyle,
+            ),
+          ),
+          Text(dateLine, style: valueTextStyle),
+          if (reason.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              reason,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.35),
+            ),
+          ],
+        ],
+      ),
+    );
+  }).toList();
+}
+
+class _ExpenseAuditHistoryPayload {
+  const _ExpenseAuditHistoryPayload({
+    required this.registrations,
+    required this.mergedChildNameById,
+    required this.householdChildMapLoaded,
+  });
+
+  final List<_AuditRegistration> registrations;
+  final Map<String, String> mergedChildNameById;
+  final bool householdChildMapLoaded;
+}
+
+Future<_ExpenseAuditHistoryPayload> _loadExpenseAuditHistoryPayload({
+  required String householdId,
+  required String expenseId,
+  Map<String, String>? initialChildNameById,
+}) async {
+  final amountSnap = await FirebaseFirestore.instance
+      .collection('households/$householdId/expenses/$expenseId/amountEdits')
+      .orderBy('editedAt', descending: true)
+      .get();
+  final changeSnap = await FirebaseFirestore.instance
+      .collection('households/$householdId/expenses/$expenseId/expenseChanges')
+      .orderBy('editedAt', descending: true)
+      .get();
+  final childMap = await _loadHouseholdChildNameMap(householdId);
+  final registrations = _mergeAuditRegistrations(
+    amountEditDocs: amountSnap.docs,
+    expenseChangeDocs: changeSnap.docs,
+  );
+  return _ExpenseAuditHistoryPayload(
+    registrations: registrations,
+    mergedChildNameById: <String, String>{
+      ...?initialChildNameById,
+      ...childMap,
+    },
+    householdChildMapLoaded: true,
+  );
+}
+
+class _ExpenseAuditHistorySheetContent extends StatelessWidget {
+  const _ExpenseAuditHistorySheetContent({
+    required this.payload,
+    required this.viewerUid,
+    required this.maxScrollHeight,
+  });
+
+  final _ExpenseAuditHistoryPayload payload;
+  final String viewerUid;
+  final double maxScrollHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    if (payload.registrations.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Nog geen wijzigingen',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: onSurface(context, a60),
+            height: 1.35,
+          ),
+        ),
+      );
+    }
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxScrollHeight),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: _buildAuditHistoryRegistrationTiles(
+            context: context,
+            registrations: payload.registrations,
+            mergedChildNameById: payload.mergedChildNameById,
+            householdChildMapLoaded: payload.householdChildMapLoaded,
+            viewerUid: viewerUid,
+            formatEur: _ExpenseDetailPage._formatEur,
+            formatDateTime: _ExpenseDetailPage._formatDateTime,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 String _expenseDocWijzigLogbookSignature(
   String expenseId,
   Map<String, dynamic> expenseData,
@@ -10179,18 +10328,15 @@ class _EditRecurringMasterExpenseDialogState
 
 class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   bool _noteActionBusy = false;
+  bool _isLoadingExpenseHistory = false;
   List<String>? _resolvedChildNamesIds;
   Future<List<String>>? _resolvedChildNamesFuture;
   late final Future<List<_ChildItem>> _expenseEditChildrenFuture;
-  late final Future<Map<String, String>> _householdChildNameByIdFuture;
 
   @override
   void initState() {
     super.initState();
     _expenseEditChildrenFuture = _loadRecurringMasterEditChildren(
-      widget.householdId,
-    );
-    _householdChildNameByIdFuture = _loadHouseholdChildNameMap(
       widget.householdId,
     );
   }
@@ -10243,6 +10389,116 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
       currentChildIds,
     );
     return _resolvedChildNamesFuture!;
+  }
+
+  Widget _buildChangeHistoryButton() {
+    const radius = 12.0;
+    final borderRadius = BorderRadius.circular(radius);
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Material(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.45),
+        shape: RoundedRectangleBorder(
+          borderRadius: borderRadius,
+          side: BorderSide(color: outlineV(context, a32)),
+        ),
+        child: InkWell(
+          borderRadius: borderRadius,
+          onTap: _isLoadingExpenseHistory
+              ? null
+              : _openExpenseAuditHistorySheet,
+          child: SizedBox(
+            height: 38,
+            width: double.infinity,
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.history_outlined,
+                    size: 17,
+                    color: onSurface(context, a60),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    _isLoadingExpenseHistory
+                        ? 'Geschiedenis laden…'
+                        : 'Wijzigingsgeschiedenis',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: onSurface(context, a60),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openExpenseAuditHistorySheet() async {
+    if (_isLoadingExpenseHistory) return;
+    setState(() => _isLoadingExpenseHistory = true);
+    try {
+      final payload = await _loadExpenseAuditHistoryPayload(
+        householdId: widget.householdId,
+        expenseId: widget.expenseId,
+        initialChildNameById: widget.initialChildNameById,
+      );
+      if (!mounted) return;
+      setState(() => _isLoadingExpenseHistory = false);
+      if (!mounted) return;
+      _presentExpenseAuditHistorySheet(payload);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingExpenseHistory = false);
+      _showExpenseSnackBar('Wijzigingsgeschiedenis kan niet worden geladen');
+    }
+  }
+
+  void _presentExpenseAuditHistorySheet(_ExpenseAuditHistoryPayload payload) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final maxH = min(480.0, MediaQuery.of(sheetContext).size.height * 0.85);
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 8,
+              bottom: 24 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxH),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Wijzigingsgeschiedenis',
+                    style: Theme.of(sheetContext).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  _ExpenseAuditHistorySheetContent(
+                    payload: payload,
+                    viewerUid: widget.uid,
+                    maxScrollHeight: maxH - 72,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildChildTile(List<String> childNames) {
@@ -10544,157 +10800,6 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection(
-                          'households/${widget.householdId}/expenses/${widget.expenseId}/amountEdits',
-                        )
-                        .orderBy('editedAt', descending: true)
-                        .snapshots(),
-                    builder: (context, amountHistSnap) {
-                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection(
-                              'households/${widget.householdId}/expenses/${widget.expenseId}/expenseChanges',
-                            )
-                            .orderBy('editedAt', descending: true)
-                            .snapshots(),
-                        builder: (context, changeHistSnap) {
-                          if (amountHistSnap.hasError ||
-                              changeHistSnap.hasError) {
-                            return const SizedBox.shrink();
-                          }
-                          if (!amountHistSnap.hasData ||
-                              !changeHistSnap.hasData) {
-                            return const SizedBox.shrink();
-                          }
-                          final registrations = _mergeAuditRegistrations(
-                            amountEditDocs: amountHistSnap.data!.docs,
-                            expenseChangeDocs: changeHistSnap.data!.docs,
-                          );
-                          if (registrations.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return FutureBuilder<Map<String, String>>(
-                            future: _householdChildNameByIdFuture,
-                            builder: (context, childMapSnap) {
-                              final householdChildMapLoaded =
-                                  childMapSnap.connectionState ==
-                                      ConnectionState.done &&
-                                  childMapSnap.hasData;
-                              final fullChildNameById = householdChildMapLoaded
-                                  ? childMapSnap.data!
-                                  : const <String, String>{};
-                              final mergedChildNameById = <String, String>{
-                                ...?widget.initialChildNameById,
-                                ...fullChildNameById,
-                              };
-                              final headlineStyle = Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: onSurface(context, a68),
-                                    height: 1.35,
-                                    fontWeight: FontWeight.w600,
-                                  );
-                              final valueTextStyle = Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: onSurface(context, a68),
-                                    height: 1.35,
-                                  );
-
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Wijzigingsgeschiedenis',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: onSurface(context, a70),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    ...registrations.map((reg) {
-                                      final typeLabel = _auditChangeTypeLabel(
-                                        hasAmountChange: reg.hasAmountChange,
-                                        hasChildrenChange:
-                                            reg.hasChildrenChange,
-                                        hasSplitChange: reg.hasSplitChange,
-                                      );
-                                      final valueLines =
-                                          _auditHistoryValueLines(
-                                            reg,
-                                            mergedChildNameById:
-                                                mergedChildNameById,
-                                            householdChildMapLoaded:
-                                                householdChildMapLoaded,
-                                            viewerUid: widget.uid,
-                                            formatEur:
-                                                _ExpenseDetailPage._formatEur,
-                                          );
-                                      final dateLine =
-                                          _auditHistoryDetailDateLine(
-                                            reg,
-                                            _ExpenseDetailPage._formatDateTime,
-                                          );
-                                      final reason = reg.reason.trim();
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 12,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              typeLabel,
-                                              style: headlineStyle,
-                                            ),
-                                            ...valueLines.map(
-                                              (line) => Text(
-                                                line,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: valueTextStyle,
-                                              ),
-                                            ),
-                                            Text(
-                                              dateLine,
-                                              style: valueTextStyle,
-                                            ),
-                                            if (reason.isNotEmpty) ...[
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                reason,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(height: 1.35),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      );
-                                    }),
-                                  ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Column(
@@ -10750,7 +10855,11 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           widget.uid.trim() == widget.createdByUid.trim();
                       if (snap.hasError) {
                         if (!isCreator) {
-                          return const SizedBox.shrink();
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [_buildChangeHistoryButton()],
+                          );
                         }
                         return Column(
                           mainAxisSize: MainAxisSize.min,
@@ -10764,9 +10873,10 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     height: 1.35,
                                   ),
                             ),
+                            _buildChangeHistoryButton(),
                             if (widget.onManageNote != null)
                               Padding(
-                                padding: const EdgeInsets.only(top: 16),
+                                padding: const EdgeInsets.only(top: 8),
                                 child: FilledButton.tonalIcon(
                                   onPressed: _noteActionBusy
                                       ? null
@@ -10821,9 +10931,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                           .toList() ??
                                       widget.childIds;
                                   return Padding(
-                                    padding: EdgeInsets.only(
-                                      top: widget.onManageNote != null ? 8 : 16,
-                                    ),
+                                    padding: const EdgeInsets.only(top: 8),
                                     child: FilledButton.tonalIcon(
                                       onPressed: () => _openEditAmountDialog(
                                         currentAmountCents: currentCents,
@@ -10888,9 +10996,10 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               ),
                               subtitle: Text(note),
                             ),
+                          _buildChangeHistoryButton(),
                           if (widget.onManageNote != null && isCreator)
                             Padding(
-                              padding: const EdgeInsets.only(top: 16),
+                              padding: const EdgeInsets.only(top: 8),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
@@ -10938,8 +11047,11 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               ),
                             ),
                           if (isCreator && widget.onManageNote == null)
-                            _expenseEditTonalButtonStream(
-                              wrapWithTopPadding: true,
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: _expenseEditTonalButtonStream(
+                                wrapWithTopPadding: false,
+                              ),
                             ),
                         ],
                       );
