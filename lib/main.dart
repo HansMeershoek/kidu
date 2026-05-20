@@ -8412,6 +8412,9 @@ class _ExpenseDetailPage extends StatefulWidget {
     }
   }
 
+  static String _formatChildNamesInline(List<String> names) =>
+      names.join(' · ');
+
   static String _formatEur(int cents) {
     final negative = cents < 0;
     final abs = cents.abs();
@@ -10512,22 +10515,9 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: childNames
-              .map(
-                (n) => Chip(
-                  label: Text(n),
-                  labelStyle: Theme.of(context).textTheme.bodySmall,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                ),
-              )
-              .toList(),
+        child: Text(
+          _ExpenseDetailPage._formatChildNamesInline(childNames),
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
       ),
     );
@@ -17105,7 +17095,7 @@ class _RecurringMasterList extends StatelessWidget {
           onTap: () async {
             final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
             final navigator = Navigator.of(context);
-            // Los de kindnamen op vóór navigatie zodat de chips op het
+            // Los de kindnamen op vóór navigatie zodat de Voor-regel op het
             // detailscherm direct stabiel renderen (geen late pop-in).
             // Firestore serveert deze doc-gets normaliter uit de offline
             // cache, dus dit kost geen merkbare tap-vertraging.
@@ -17248,7 +17238,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
 
   /// Names vooraf opgelost door de lijstrij (analoog aan hoe het dashboard
   /// dit aan [_ExpenseDetailPage] doorgeeft). Als dit niet-null is, tonen
-  /// de chips direct op frame 1 zonder zichtbare pop-in.
+  /// de kindnamen direct op frame 1 zonder zichtbare pop-in.
   final List<String>? preloadedChildNames;
 
   @override
@@ -17829,23 +17819,11 @@ class _RecurringMasterDetailPageState
                             ),
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 4),
-                              child: Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: names
-                                    .map(
-                                      (n) => Chip(
-                                        label: Text(n),
-                                        labelStyle: textTheme.bodySmall,
-                                        backgroundColor: Theme.of(
-                                          context,
-                                        ).colorScheme.surfaceContainerHighest,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    )
-                                    .toList(),
+                              child: Text(
+                                _ExpenseDetailPage._formatChildNamesInline(
+                                  names,
+                                ),
+                                style: textTheme.bodyMedium,
                               ),
                             ),
                           );
