@@ -46,3 +46,6 @@ app.*.map.json
 
 # Local temp patches
 .tmp-patches/
+
+# Scripts dependencies
+scripts/node_modules/
