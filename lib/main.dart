@@ -10505,19 +10505,22 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }
 
   Widget _buildChildTile(List<String> childNames) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        'Voor',
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: onSurface(context, a70)),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Text(
-          _ExpenseDetailPage._formatChildNamesInline(childNames),
-          style: Theme.of(context).textTheme.bodyMedium,
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          'Voor',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: onSurface(context, a70)),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            _ExpenseDetailPage._formatChildNamesInline(childNames),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ),
       ),
     );
@@ -10691,7 +10694,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       );
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
@@ -10746,7 +10749,11 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                             _ExpenseDetailPage._formatDateTime(
                               widget.createdAt,
                             ),
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: onSurface(context, a58),
+                                  height: 1.35,
+                                ),
                           ),
                         ),
                       );
@@ -10791,7 +10798,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                     },
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -10802,38 +10809,40 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                               ? [
                                   Icon(
                                     Icons.cloud_off,
-                                    size: 18,
+                                    size: 16,
                                     color: onSurface(context, a60),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Text(
                                     'Nog niet gesynchroniseerd',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: onSurface(context, a60),
+                                          height: 1.35,
+                                        ),
                                   ),
                                 ]
                               : [
                                   Icon(
-                                    Icons.check_circle,
-                                    size: 16,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
+                                    Icons.check_circle_outline,
+                                    size: 14,
+                                    color: onSurface(context, a50),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Gesynchroniseerd',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: onSurface(context, a55),
+                                          height: 1.35,
+                                        ),
                                   ),
                                 ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: FirebaseFirestore.instance
                         .doc(
