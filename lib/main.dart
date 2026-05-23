@@ -15493,7 +15493,10 @@ class _KinderenPageState extends State<_KinderenPage> {
 
           return Scaffold(
             appBar: appBar,
-            floatingActionButton: fab,
+            floatingActionButton: Padding(
+              padding: const EdgeInsets.only(right: 8, bottom: 16),
+              child: fab,
+            ),
             body: items.isEmpty
                 ? const Center(
                     child: Padding(
@@ -16939,11 +16942,14 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'add_recurring_fab',
-        onPressed: _openAddRecurringDialog,
-        tooltip: 'Nieuwe maandelijkse uitgave',
-        child: const Icon(Icons.add, size: 24),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(right: 8, bottom: 16),
+        child: FloatingActionButton(
+          heroTag: 'add_recurring_fab',
+          onPressed: _openAddRecurringDialog,
+          tooltip: 'Nieuwe maandelijkse uitgave',
+          child: const Icon(Icons.add, size: 24),
+        ),
       ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
