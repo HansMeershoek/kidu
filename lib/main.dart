@@ -3550,6 +3550,7 @@ class _DashboardPageState extends State<DashboardPage> {
   _PendingExpenseRowFallback? _pendingExpenseRowFallback;
 
   List<_ChildItem> _dashChildren = [];
+  bool _dashHasMultipleChildDocs = true;
   String? _dashChildrenHouseholdId;
   String? _dashChildrenSubHouseholdId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
@@ -4017,6 +4018,7 @@ class _DashboardPageState extends State<DashboardPage> {
           final kids = _activeChildItemsFromChildDocs(snap.docs);
           setState(() {
             _dashChildren = kids;
+            _dashHasMultipleChildDocs = snap.docs.length >= 2;
             _dashChildrenHouseholdId = householdId;
           });
         });
@@ -4032,6 +4034,7 @@ class _DashboardPageState extends State<DashboardPage> {
     }
     setState(() {
       _dashChildren = [];
+      _dashHasMultipleChildDocs = true;
       _dashChildrenHouseholdId = null;
     });
   }
@@ -7934,6 +7937,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                     ],
                                                                                 childIds: expChildIds,
                                                                                 childNames: preloadedChildNames,
+                                                                                showChildContext:
+                                                                                    _dashHasMultipleChildDocs,
                                                                               ),
                                                                         ),
                                                                       );
@@ -8399,6 +8404,7 @@ class _ExpenseDetailPage extends StatefulWidget {
     this.parentSplitSnapshot,
     this.parentSplitMembers = const <_ParentSplitMember>[],
     this.initialChildNameById,
+    this.showChildContext = true,
   });
 
   final String householdId;
@@ -8421,6 +8427,9 @@ class _ExpenseDetailPage extends StatefulWidget {
 
   /// Household child id → name, seeded from Logboek (Wijzigingsgeschiedenis).
   final Map<String, String>? initialChildNameById;
+
+  /// When false, hide the read-only "Voor" row (single-child households).
+  final bool showChildContext;
 
   /// Resolves child IDs to display names; falls back to "Verwijderd kind".
   static Future<List<String>> _resolveChildNames(
@@ -10791,7 +10800,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                           ),
                         ),
                       );
-                      if (currentChildIds.isEmpty) {
+                      if (!widget.showChildContext || currentChildIds.isEmpty) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
@@ -11395,6 +11404,7 @@ class _LogboekPageState extends State<_LogboekPage>
   List<_ChildItem> _children = [];
   Map<String, String> _childNameById = const {};
   bool _childrenLoaded = false;
+  bool _hasMultipleHouseholdChildDocs = true;
   List<({String uid, String name})> _parentItems = [];
   bool _parentsLoaded = false;
   String? _filterChildId; // null = alle kinderen, anders één kind
@@ -11700,6 +11710,7 @@ class _LogboekPageState extends State<_LogboekPage>
           _children = children;
           _childNameById = childNameById;
           _childrenLoaded = true;
+          _hasMultipleHouseholdChildDocs = childrenSnap.docs.length >= 2;
           if (_filterChildId != null &&
               !_children.any((c) => c.id == _filterChildId)) {
             _filterChildId = null;
@@ -14750,6 +14761,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                       'Verwijderd kind',
                                 )
                                 .toList(),
+                            showChildContext: _hasMultipleHouseholdChildDocs,
                           ),
                         ),
                       ),
@@ -14898,6 +14910,7 @@ class _LogboekPageState extends State<_LogboekPage>
                         initialChildNameById: _childrenLoaded
                             ? _childNameById
                             : null,
+                        showChildContext: _hasMultipleHouseholdChildDocs,
                       ),
                     ),
                   ),
@@ -16787,6 +16800,29 @@ class _TerugkerendeKostenPage extends StatefulWidget {
 }
 
 class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
+  bool _hasMultipleHouseholdChildDocs = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHouseholdChildDocCount();
+  }
+
+  Future<void> _loadHouseholdChildDocCount() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/children')
+          .limit(2)
+          .get();
+      if (!mounted) return;
+      setState(() {
+        _hasMultipleHouseholdChildDocs = snap.docs.length >= 2;
+      });
+    } catch (_) {
+      // Safe default: keep showChildContext true.
+    }
+  }
+
   Future<void> _openAddRecurringDialog() async {
     // Gelijkgetrokken met de 'Nieuwe uitgave'-flow op het dashboard
     // (regel 4188-4217): zonder actieve kinderen opent de dialog niet,
@@ -16979,6 +17015,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
                       docs: docs,
                       otherParentName: widget.otherParentName,
                       myParentName: widget.myParentName,
+                      showChildContext: _hasMultipleHouseholdChildDocs,
                     ),
                   ),
                 ),
@@ -17006,6 +17043,7 @@ class _RecurringMasterList extends StatelessWidget {
     required this.docs,
     this.otherParentName,
     this.myParentName,
+    this.showChildContext = true,
   });
 
   final String householdId;
@@ -17016,6 +17054,7 @@ class _RecurringMasterList extends StatelessWidget {
   /// door 'mij' aangemaakte recurring dezelfde naamweergave toont als
   /// voor de co-parent (geen `Jij`).
   final String? myParentName;
+  final bool showChildContext;
 
   // Ritme afgeleid van Logboek > Uitgaven (_LogboekPageState._logboekListRow*):
   // rij = 64, separator = 14. Vaste viewport voor exact 9 volledige rijen:
@@ -17047,6 +17086,7 @@ class _RecurringMasterList extends StatelessWidget {
           docs[i],
           otherParentName,
           myParentName,
+          showChildContext,
         ),
       ),
     );
@@ -17058,6 +17098,7 @@ class _RecurringMasterList extends StatelessWidget {
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
     String? otherParentName,
     String? myParentName,
+    bool showChildContext,
   ) {
     final data = doc.data();
     final title = (data['title'] as String?)?.trim() ?? '—';
@@ -17180,6 +17221,7 @@ class _RecurringMasterList extends StatelessWidget {
                   preloadedChildNames: preloadedNames,
                   otherParentName: otherParentName,
                   myParentName: myParentName,
+                  showChildContext: showChildContext,
                 ),
               ),
             );
@@ -17275,6 +17317,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
     this.preloadedChildNames,
     this.otherParentName,
     this.myParentName,
+    this.showChildContext = true,
   });
 
   final String householdId;
@@ -17286,6 +17329,9 @@ class _RecurringMasterDetailPage extends StatefulWidget {
   final List<String> childIds;
   final DateTime? startDate;
   final String? status;
+
+  /// When false, hide the read-only "Voor" row (single-child households).
+  final bool showChildContext;
 
   /// Zelfde rol als bij [_ExpenseDetailPage.otherParentName] voor het
   /// wijzigingslabel (`Jij` / co-parent); optioneel zolang er geen route meegeeft.
@@ -17858,7 +17904,7 @@ class _RecurringMasterDetailPageState
                         );
                       },
                     ),
-                    if (childIds.isNotEmpty)
+                    if (widget.showChildContext && childIds.isNotEmpty)
                       FutureBuilder<List<String>>(
                         future: _childNamesFutureFor(childIds),
                         initialData:
