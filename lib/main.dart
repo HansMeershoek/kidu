@@ -1157,6 +1157,11 @@ int _compareExpenseDocsStable(
   return a.id.compareTo(b.id);
 }
 
+Timestamp? _expenseActivityTimestamp(Map<String, dynamic> expenseData) {
+  return expenseData['materializedAt'] as Timestamp? ??
+      expenseData['createdAt'] as Timestamp?;
+}
+
 /// Gematerialiseerde uitgave uit een maandelijkse master (`Maandelijkse uitgaven`).
 bool _expenseDocIsMaterializedMonthly(Map<String, dynamic> e) =>
     ((e['recurringExpenseId'] as String?)?.trim().isNotEmpty ?? false);
@@ -6719,12 +6724,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                         if (docs.isNotEmpty) {
                                           final first = docs.first;
                                           final e = first.data();
-                                          final createdAt =
-                                              e['createdAt'] as Timestamp?;
-                                          final timeStr = createdAt == null
+                                          final activityAt =
+                                              _expenseActivityTimestamp(e);
+                                          final timeStr = activityAt == null
                                               ? 'Zojuist'
                                               : _formatRelativeNl(
-                                                  createdAt.toDate(),
+                                                  activityAt.toDate(),
                                                 );
                                           lastActivityText =
                                               'Laatste activiteit · $timeStr';
