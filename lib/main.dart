@@ -16978,26 +16978,14 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
             }
 
             if (docs.isEmpty) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: KiduCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Nog geen uitgaven. Voeg er één toe met +.',
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: onSurface(context, a84),
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Nog geen maandelijkse uitgaven',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: onSurface(context, a62),
                     ),
                   ),
                 ),
