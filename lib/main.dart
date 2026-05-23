@@ -3551,6 +3551,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
   List<_ChildItem> _dashChildren = [];
   String? _dashChildrenHouseholdId;
+  String? _dashChildrenSubHouseholdId;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _dashChildrenSubscription;
 
   String? _settlementsHouseholdId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
@@ -4001,16 +4004,35 @@ class _DashboardPageState extends State<DashboardPage> {
         });
   }
 
-  Future<void> _loadDashChildrenOnce(String householdId) async {
+  void _startDashChildrenSubscription(String householdId) {
     if (householdId.isEmpty) return;
-    if (_dashChildrenHouseholdId == householdId && _dashChildren.isNotEmpty) {
+    if (_dashChildrenSubHouseholdId == householdId) return;
+    _dashChildrenSubscription?.cancel();
+    _dashChildrenSubHouseholdId = householdId;
+    _dashChildrenSubscription = FirebaseFirestore.instance
+        .collection('households/$householdId/children')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          final kids = _activeChildItemsFromChildDocs(snap.docs);
+          setState(() {
+            _dashChildren = kids;
+            _dashChildrenHouseholdId = householdId;
+          });
+        });
+  }
+
+  void _stopDashChildrenSubscription() {
+    _dashChildrenSubscription?.cancel();
+    _dashChildrenSubscription = null;
+    _dashChildrenSubHouseholdId = null;
+    if (!mounted) return;
+    if (_dashChildren.isEmpty && _dashChildrenHouseholdId == null) {
       return;
     }
-    final kids = await _loadActiveChildren(householdId);
-    if (!mounted) return;
     setState(() {
-      _dashChildren = kids;
-      _dashChildrenHouseholdId = householdId;
+      _dashChildren = [];
+      _dashChildrenHouseholdId = null;
     });
   }
 
@@ -4271,6 +4293,36 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  /// Active (non-archived, non-deleted) children, sorted by [createdAt].
+  static List<_ChildItem> _activeChildItemsFromChildDocs(
+    Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    final filtered =
+        docs
+            .where(
+              (d) =>
+                  d.data()['isArchived'] != true &&
+                  d.data()['isDeleted'] != true,
+            )
+            .toList()
+          ..sort((a, b) {
+            final aTs = a.data()['createdAt'];
+            final bTs = b.data()['createdAt'];
+            if (aTs is Timestamp && bTs is Timestamp) {
+              return aTs.compareTo(bTs);
+            }
+            return 0;
+          });
+    return filtered
+        .map(
+          (d) => _ChildItem(
+            id: d.id,
+            name: (d.data()['name'] as String?)?.trim() ?? '?',
+          ),
+        )
+        .toList();
+  }
+
   /// Returns active (non-archived) children for the household, sorted by
   /// creation time. Returns empty list on any error so the dialog still opens.
   Future<List<_ChildItem>> _loadActiveChildren(String householdId) async {
@@ -4279,30 +4331,7 @@ class _DashboardPageState extends State<DashboardPage> {
       final snap = await FirebaseFirestore.instance
           .collection('households/$householdId/children')
           .get();
-      final docs =
-          snap.docs
-              .where(
-                (d) =>
-                    d.data()['isArchived'] != true &&
-                    d.data()['isDeleted'] != true,
-              )
-              .toList()
-            ..sort((a, b) {
-              final aTs = a.data()['createdAt'];
-              final bTs = b.data()['createdAt'];
-              if (aTs is Timestamp && bTs is Timestamp) {
-                return aTs.compareTo(bTs);
-              }
-              return 0;
-            });
-      return docs
-          .map(
-            (d) => _ChildItem(
-              id: d.id,
-              name: (d.data()['name'] as String?)?.trim() ?? '?',
-            ),
-          )
-          .toList();
+      return _activeChildItemsFromChildDocs(snap.docs);
     } catch (_) {
       return [];
     }
@@ -5402,6 +5431,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     widget.onPreviewReadyChanged?.call(false);
+    _dashChildrenSubscription?.cancel();
     _settlementsSubscription?.cancel();
     _paymentsSubscription?.cancel();
     _confirmedPaymentsSubscription?.cancel();
@@ -5954,9 +5984,12 @@ class _DashboardPageState extends State<DashboardPage> {
 
         final householdIdStr = hasHousehold ? householdId.trim() : '';
 
-        if (householdIdStr.isNotEmpty &&
-            _dashChildrenHouseholdId != householdIdStr) {
-          Future.microtask(() => _loadDashChildrenOnce(householdIdStr));
+        if (householdIdStr.isNotEmpty) {
+          Future.microtask(
+            () => _startDashChildrenSubscription(householdIdStr),
+          );
+        } else if (_dashChildrenSubHouseholdId != null) {
+          Future.microtask(_stopDashChildrenSubscription);
         }
         if (householdIdStr.isNotEmpty) {
           Future.microtask(
