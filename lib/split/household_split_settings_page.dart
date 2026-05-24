@@ -164,9 +164,6 @@ class _HouseholdSplitSettingsPageState
         share0Bps: _share0Bps,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Uitgavenverdeling opgeslagen.')),
-      );
       Navigator.of(context).maybePop();
     } catch (_) {
       if (!mounted) return;
