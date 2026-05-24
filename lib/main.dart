@@ -17585,6 +17585,8 @@ class _RecurringMasterDetailPageState
               ? 'Zolang deze maandelijkse uitgave gepauzeerd is, maakt KiDu geen nieuwe uitgave aan. Eerder aangemaakte uitgaven blijven staan.'
               : 'Vanaf vandaag maakt KiDu weer elke maand een gewone uitgave aan. Maanden die tijdens de pauze voorbij zijn, worden niet alsnog aangemaakt.',
         ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -17686,6 +17688,8 @@ class _RecurringMasterDetailPageState
           'Toekomstige maandelijkse uitgaven stoppen. '
           'Eerder aangemaakte uitgaven blijven bewaard.',
         ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
