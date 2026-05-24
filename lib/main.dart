@@ -3105,6 +3105,84 @@ void _showAboutKiduDialog(BuildContext context) {
 }
 
 /// Instellingen als volledig scherm (was bottom sheet).
+class _UitgavenverdelingSettingsTile extends StatefulWidget {
+  const _UitgavenverdelingSettingsTile({required this.householdId});
+
+  final String householdId;
+
+  @override
+  State<_UitgavenverdelingSettingsTile> createState() =>
+      _UitgavenverdelingSettingsTileState();
+}
+
+class _UitgavenverdelingSettingsTileState
+    extends State<_UitgavenverdelingSettingsTile> {
+  bool _busy = false;
+
+  Future<void> _onTap() async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    if (!await _checkCanWriteNow()) {
+      if (!context.mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Je bent offline, probeer het later opnieuw.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final repo = HouseholdSplitSettingsRepository();
+      final members = await loadHouseholdSplitMembers(widget.householdId);
+      final defaults = await repo.watch(widget.householdId).first;
+      if (!mounted) return;
+      await navigator.push<void>(
+        PageRouteBuilder<void>(
+          pageBuilder: (routeContext, animation, secondaryAnimation) =>
+              HouseholdSplitSettingsPage(
+                householdId: widget.householdId,
+                initialMembers: members,
+                initialDefaults: defaults,
+              ),
+          transitionDuration: const Duration(milliseconds: 180),
+          reverseTransitionDuration: const Duration(milliseconds: 180),
+          transitionsBuilder:
+              (routeContext, animation, secondaryAnimation, child) =>
+                  FadeTransition(opacity: animation, child: child),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      visualDensity: VisualDensity.standard,
+      enabled: !_busy,
+      leading: Icon(
+        Icons.percent_outlined,
+        size: 18,
+        color: onSurface(context, a45),
+      ),
+      title: Text(
+        'Uitgavenverdeling',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: onSurface(context, 0.80),
+        ),
+      ),
+      onTap: _busy ? null : _onTap,
+    );
+  }
+}
+
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.dashboardMounted,
@@ -3248,65 +3326,8 @@ class _SettingsPage extends StatelessWidget {
                           },
                         ),
                       if (hasHousehold)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.percent_outlined,
-                            size: 18,
-                            color: onSurface(context, a45),
-                          ),
-                          title: Text(
-                            'Uitgavenverdeling',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, 0.80)),
-                          ),
-                          onTap: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            if (!await _checkCanWriteNow()) {
-                              if (!context.mounted) return;
-                              messenger
-                                ..hideCurrentSnackBar()
-                                ..showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Je bent offline, probeer het later opnieuw.',
-                                    ),
-                                    duration: Duration(seconds: 4),
-                                  ),
-                                );
-                              return;
-                            }
-                            if (!context.mounted) return;
-                            Navigator.of(context).push<void>(
-                              PageRouteBuilder<void>(
-                                pageBuilder:
-                                    (
-                                      routeContext,
-                                      animation,
-                                      secondaryAnimation,
-                                    ) => HouseholdSplitSettingsPage(
-                                      householdId: householdId,
-                                    ),
-                                transitionDuration: const Duration(
-                                  milliseconds: 180,
-                                ),
-                                reverseTransitionDuration: const Duration(
-                                  milliseconds: 180,
-                                ),
-                                transitionsBuilder:
-                                    (
-                                      routeContext,
-                                      animation,
-                                      secondaryAnimation,
-                                      child,
-                                    ) => FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    ),
-                              ),
-                            );
-                          },
+                        _UitgavenverdelingSettingsTile(
+                          householdId: householdId,
                         ),
                       if (hasHousehold)
                         ListTile(

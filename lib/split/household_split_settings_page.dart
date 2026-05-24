@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,37 @@ import 'package:flutter/material.dart';
 import '../formatting/relative_time_nl.dart';
 import 'household_split_settings_repository.dart';
 import 'parent_split.dart';
+
+class HouseholdSplitMember {
+  final String uid;
+  final String label;
+  const HouseholdSplitMember({required this.uid, required this.label});
+}
+
+Future<List<HouseholdSplitMember>> loadHouseholdSplitMembers(
+  String householdId,
+) async {
+  final fs = FirebaseFirestore.instance;
+  final memberSnap = await fs
+      .collection('households/$householdId/members')
+      .get();
+  final memberUids = memberSnap.docs.map((d) => d.id).toList(growable: false)
+    ..sort();
+  final result = <HouseholdSplitMember>[];
+  for (final uid in memberUids) {
+    String label = uid;
+    try {
+      final u = await fs.doc('users/$uid').get();
+      final data = u.data();
+      final name = (data?['profileName'] ?? data?['displayName']) as String?;
+      if (name != null && name.trim().isNotEmpty) label = name.trim();
+    } catch (_) {
+      /* ignore */
+    }
+    result.add(HouseholdSplitMember(uid: uid, label: label));
+  }
+  return result;
+}
 
 /// Settings > Huishouden > Uitgavenverdeling.
 ///
@@ -14,9 +47,16 @@ import 'parent_split.dart';
 /// een andere uid. Slider staat op [kHouseholdShareBpsMin..
 /// kHouseholdShareBpsMax] (0..100%).
 class HouseholdSplitSettingsPage extends StatefulWidget {
-  const HouseholdSplitSettingsPage({super.key, required this.householdId});
+  const HouseholdSplitSettingsPage({
+    super.key,
+    required this.householdId,
+    this.initialMembers,
+    this.initialDefaults,
+  });
 
   final String householdId;
+  final List<HouseholdSplitMember>? initialMembers;
+  final HouseholdSplitDefaults? initialDefaults;
 
   @override
   State<HouseholdSplitSettingsPage> createState() =>
@@ -30,7 +70,7 @@ class _HouseholdSplitSettingsPageState
 
   bool _loading = true;
   String? _loadError;
-  List<_Member> _members = const [];
+  List<HouseholdSplitMember> _members = const [];
   String? _selectedShare0Uid;
   int _share0Bps = kHouseholdShareBpsNeutral;
   String? _initialShare0Uid;
@@ -38,47 +78,75 @@ class _HouseholdSplitSettingsPageState
   String? _updatedBy;
   DateTime? _updatedAt;
   bool _saving = false;
+  StreamSubscription<HouseholdSplitDefaults?>? _defaultsSub;
+
+  bool get _isDirty =>
+      _selectedShare0Uid != _initialShare0Uid ||
+      _share0Bps != _initialShare0Bps;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    final bootstrapMembers = widget.initialMembers;
+    if (bootstrapMembers != null) {
+      _members = bootstrapMembers;
+      _applyDefaultsState(bootstrapMembers, widget.initialDefaults);
+      _loading = false;
+    } else {
+      _init();
+    }
+    _defaultsSub = _repo.watch(widget.householdId).listen(_onDefaultsFromStream);
+  }
+
+  @override
+  void dispose() {
+    _defaultsSub?.cancel();
+    super.dispose();
+  }
+
+  void _applyDefaultsState(
+    List<HouseholdSplitMember> members,
+    HouseholdSplitDefaults? defaults,
+  ) {
+    final memberSet = members.map((m) => m.uid).toSet();
+    final validDefaults =
+        (defaults != null && defaults.isValidForMembers(memberSet))
+        ? defaults
+        : null;
+
+    _updatedBy = validDefaults?.updatedBy;
+    _updatedAt = validDefaults?.updatedAt;
+    if (validDefaults != null) {
+      _selectedShare0Uid = validDefaults.share0Uid;
+      _share0Bps = validDefaults.share0Bps;
+    } else if (members.length == kParentSplitParticipantCount) {
+      _selectedShare0Uid = members.first.uid;
+      _share0Bps = kHouseholdShareBpsNeutral;
+    } else {
+      _selectedShare0Uid = null;
+      _share0Bps = kHouseholdShareBpsNeutral;
+    }
+    _initialShare0Uid = _selectedShare0Uid;
+    _initialShare0Bps = _share0Bps;
+  }
+
+  void _onDefaultsFromStream(HouseholdSplitDefaults? defaults) {
+    if (!mounted || _saving || _isDirty) return;
+    setState(() => _applyDefaultsState(_members, defaults));
   }
 
   Future<void> _init() async {
     try {
-      final members = await _loadMembers(widget.householdId);
+      final members = await loadHouseholdSplitMembers(widget.householdId);
       final defaults = await _repo.load(widget.householdId);
-      final memberSet = members.map((m) => m.uid).toSet();
-
-      // Stale-check mirrored from buildSnapshotForNewExpense. A
-      // settings-doc that no longer maps 1:1 to the current 2 members
-      // is treated as "no settings" here; we do NOT preload the old
-      // bps against a different uid.
-      final validDefaults =
-          (defaults != null && defaults.isValidForMembers(memberSet))
-          ? defaults
-          : null;
-
+      if (!mounted) return;
       setState(() {
         _members = members;
-        _updatedBy = validDefaults?.updatedBy;
-        _updatedAt = validDefaults?.updatedAt;
-        if (validDefaults != null) {
-          _selectedShare0Uid = validDefaults.share0Uid;
-          _share0Bps = validDefaults.share0Bps;
-        } else if (members.length == kParentSplitParticipantCount) {
-          _selectedShare0Uid = members.first.uid;
-          _share0Bps = kHouseholdShareBpsNeutral;
-        } else {
-          _selectedShare0Uid = null;
-          _share0Bps = kHouseholdShareBpsNeutral;
-        }
-        _initialShare0Uid = _selectedShare0Uid;
-        _initialShare0Bps = _share0Bps;
+        _applyDefaultsState(members, defaults);
         _loading = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _loadError = 'Instellingen konden niet worden geladen.';
@@ -86,30 +154,7 @@ class _HouseholdSplitSettingsPageState
     }
   }
 
-  Future<List<_Member>> _loadMembers(String householdId) async {
-    final fs = FirebaseFirestore.instance;
-    final memberSnap = await fs
-        .collection('households/$householdId/members')
-        .get();
-    final memberUids = memberSnap.docs.map((d) => d.id).toList(growable: false)
-      ..sort();
-    final result = <_Member>[];
-    for (final uid in memberUids) {
-      String label = uid;
-      try {
-        final u = await fs.doc('users/$uid').get();
-        final data = u.data();
-        final name = (data?['profileName'] ?? data?['displayName']) as String?;
-        if (name != null && name.trim().isNotEmpty) label = name.trim();
-      } catch (_) {
-        /* ignore */
-      }
-      result.add(_Member(uid: uid, label: label));
-    }
-    return result;
-  }
-
-  _Member? _otherMember() {
+  HouseholdSplitMember? _otherMember() {
     final sel = _selectedShare0Uid;
     if (sel == null) return null;
     for (final m in _members) {
@@ -243,8 +288,8 @@ class _HouseholdSplitSettingsPageState
     final other = _otherMember()!;
     final share0Label = _members.firstWhere((m) => m.uid == share0Uid).label;
     final viewerUid = FirebaseAuth.instance.currentUser?.uid;
-    _Member? viewer;
-    _Member? coParent;
+    HouseholdSplitMember? viewer;
+    HouseholdSplitMember? coParent;
     for (final m in _members) {
       if (m.uid == viewerUid) {
         viewer = m;
@@ -332,10 +377,4 @@ class _HouseholdSplitSettingsPageState
       ],
     );
   }
-}
-
-class _Member {
-  final String uid;
-  final String label;
-  const _Member({required this.uid, required this.label});
 }

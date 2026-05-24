@@ -22,15 +22,7 @@ class HouseholdSplitSettingsRepository {
   DocumentReference<Map<String, dynamic>> _docRef(String householdId) =>
       _firestore.doc('households/$householdId/settings/defaults');
 
-  /// Loads a structurally-valid [HouseholdSplitDefaults], or null. A
-  /// structurally-valid result may still be stale relative to the
-  /// current 2 members; that stale-check is the caller's responsibility
-  /// (`buildSnapshotForNewExpense` and the settings page both do it).
-  Future<HouseholdSplitDefaults?> load(String householdId) async {
-    if (householdId.isEmpty) return null;
-    final snap = await _docRef(householdId).get();
-    if (!snap.exists) return null;
-    final data = snap.data();
+  HouseholdSplitDefaults? _parseDefaultsData(Map<String, dynamic>? data) {
     if (data == null) return null;
     final uid0 = data['share0Uid'];
     final uid1 = data['share1Uid'];
@@ -45,6 +37,29 @@ class HouseholdSplitSettingsRepository {
     );
     if (!defaults.isStructurallyValid()) return null;
     return defaults;
+  }
+
+  /// Loads a structurally-valid [HouseholdSplitDefaults], or null. A
+  /// structurally-valid result may still be stale relative to the
+  /// current 2 members; that stale-check is the caller's responsibility
+  /// (`buildSnapshotForNewExpense` and the settings page both do it).
+  Future<HouseholdSplitDefaults?> load(String householdId) async {
+    if (householdId.isEmpty) return null;
+    final snap = await _docRef(householdId).get();
+    if (!snap.exists) return null;
+    return _parseDefaultsData(snap.data());
+  }
+
+  /// Server-confirmed defaults stream; cache snapshots are ignored.
+  Stream<HouseholdSplitDefaults?> watch(String householdId) {
+    if (householdId.isEmpty) return Stream.value(null);
+    return _docRef(householdId)
+        .snapshots(includeMetadataChanges: true)
+        .where((snap) => !snap.metadata.isFromCache)
+        .map((snap) {
+          if (!snap.exists) return null;
+          return _parseDefaultsData(snap.data());
+        });
   }
 
   Future<void> save({
