@@ -11448,18 +11448,41 @@ class _LogboekPageState extends State<_LogboekPage>
   /// Memo for [FutureBuilder] in [_buildWijzigingenList].
   String? _wijzigLogbookRowsLoadKey;
   Future<List<_WijzigLogbookRow>>? _wijzigLogbookRowsFuture;
+  String? _wijzigWarmPreloadKey;
 
   double get _logboekListCardHeight =>
       (_logboekVisibleRowCount * _logboekListRowExtent) +
       ((_logboekVisibleRowCount - 1) * _logboekListSeparatorExtent) +
       (12 * 2);
 
+  String _wijzigExpenseDocsSignature(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
+  ) {
+    final parts = expenseDocs
+        .map((d) => _expenseDocWijzigLogbookSignature(d.id, d.data()))
+        .toList()
+      ..sort();
+    return parts.join('|');
+  }
+
+  void _maybeWarmPreloadWijzigLogbookRows(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
+  ) {
+    if (expenseDocs.isEmpty) return;
+    final sig = _wijzigExpenseDocsSignature(expenseDocs);
+    final preloadKey =
+        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$sig';
+    if (_wijzigWarmPreloadKey == preloadKey) return;
+    _wijzigWarmPreloadKey = preloadKey;
+    _wijzigLogbookRowsFutureFor(expenseDocs, sig);
+  }
+
   Future<List<_WijzigLogbookRow>> _wijzigLogbookRowsFutureFor(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
     String expenseDocsSig,
   ) {
     final loadKey =
-        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$expenseDocsSig';
+        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_${_wijzigExpenseDocsSignature(expenseDocs)}';
     if (_wijzigLogbookRowsLoadKey != loadKey) {
       _wijzigLogbookRowsLoadKey = loadKey;
       _wijzigLogbookRowsFuture = _loadWijzigLogbookRows(expenseDocs);
@@ -11626,7 +11649,6 @@ class _LogboekPageState extends State<_LogboekPage>
   void initState() {
     super.initState();
     _modeTabController = TabController(length: 3, vsync: this);
-    _modeTabController.addListener(_onLogboekModeTabChanged);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
     unawaited(_loadChildren());
@@ -11634,18 +11656,8 @@ class _LogboekPageState extends State<_LogboekPage>
     _checkOffline();
   }
 
-  void _onLogboekModeTabChanged() {
-    if (_modeTabController.indexIsChanging) return;
-    if (_activeLogboekModeFromTabController() != _LogboekMode.wijzigingen) {
-      return;
-    }
-    if (_wijzigLogbookRowsLoadKey == null) return;
-    setState(() => _wijzigLogbookRowsLoadKey = null);
-  }
-
   @override
   void dispose() {
-    _modeTabController.removeListener(_onLogboekModeTabChanged);
     _modeTabController.dispose();
     super.dispose();
   }
@@ -14833,6 +14845,7 @@ class _LogboekPageState extends State<_LogboekPage>
         if (!snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
+        _maybeWarmPreloadWijzigLogbookRows(snap.data!.docs);
         final docs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.of(
           snap.data!.docs,
         )..sort(_compareExpenseDocsStable);
