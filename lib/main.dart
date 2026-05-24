@@ -11417,8 +11417,6 @@ class _LogboekPage extends StatefulWidget {
 
 class _LogboekPageState extends State<_LogboekPage>
     with SingleTickerProviderStateMixin {
-  static const Duration _logboekHoldMinDuration = Duration(milliseconds: 120);
-  static const Duration _logboekHoldFadeDuration = Duration(milliseconds: 180);
   static const int _logboekVisibleRowCount = 9;
   static const double _logboekListRowExtent = 64;
   static const double _logboekListSeparatorExtent = 14;
@@ -11445,11 +11443,7 @@ class _LogboekPageState extends State<_LogboekPage>
   String? _wijzigFilterEditedByUid;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
   late final TabController _modeTabController;
-  bool _initialDataReady = false;
-  bool _showInitialHoldOverlay = true;
-  bool _initialHoldDismissScheduled = false;
   bool _isOffline = false;
-  late final DateTime _initialHoldStartedAt;
 
   /// Memo for [FutureBuilder] in [_buildWijzigingenList].
   String? _wijzigLogbookRowsLoadKey;
@@ -11631,20 +11625,12 @@ class _LogboekPageState extends State<_LogboekPage>
   @override
   void initState() {
     super.initState();
-    _initialHoldStartedAt = DateTime.now();
     _modeTabController = TabController(length: 3, vsync: this);
     _modeTabController.addListener(_onLogboekModeTabChanged);
     _rebuildExpensesStream();
     _rebuildPaymentsStream();
-    Future.wait([_loadChildren(), _loadParents(), _expensesStream.first])
-        .then((_) {
-          if (!mounted) return;
-          setState(() => _initialDataReady = true);
-          _dismissInitialHoldOverlayWhenReady();
-        })
-        .catchError((error, stackTrace) {
-          debugPrint('Logboek initial expenses load error: $error');
-        });
+    unawaited(_loadChildren());
+    unawaited(_loadParents());
     _checkOffline();
   }
 
@@ -11662,19 +11648,6 @@ class _LogboekPageState extends State<_LogboekPage>
     _modeTabController.removeListener(_onLogboekModeTabChanged);
     _modeTabController.dispose();
     super.dispose();
-  }
-
-  Future<void> _dismissInitialHoldOverlayWhenReady() async {
-    if (_initialHoldDismissScheduled || !_showInitialHoldOverlay) return;
-    _initialHoldDismissScheduled = true;
-    await WidgetsBinding.instance.endOfFrame;
-    final elapsed = DateTime.now().difference(_initialHoldStartedAt);
-    final remaining = _logboekHoldMinDuration - elapsed;
-    if (remaining > Duration.zero) {
-      await Future.delayed(remaining);
-    }
-    if (!mounted) return;
-    setState(() => _showInitialHoldOverlay = false);
   }
 
   Future<void> _checkOffline() async {
@@ -11695,17 +11668,6 @@ class _LogboekPageState extends State<_LogboekPage>
       final childrenSnap = await FirebaseFirestore.instance
           .collection('households/${widget.householdId}/children')
           .get();
-      final expensesSnap = await FirebaseFirestore.instance
-          .collection('households/${widget.householdId}/expenses')
-          .get();
-
-      final childIdsWithExpense = <String>{};
-      for (final d in expensesSnap.docs) {
-        final ids =
-            (d.data()['childIds'] as List?)?.whereType<String>() ??
-            const <String>[];
-        childIdsWithExpense.addAll(ids);
-      }
 
       final docs = childrenSnap.docs.toList()
         ..sort((a, b) {
@@ -11724,9 +11686,7 @@ class _LogboekPageState extends State<_LogboekPage>
         final data = d.data();
         final isArchived = data['isArchived'] == true;
         final isDeleted = data['isDeleted'] == true;
-        final active = !isArchived && !isDeleted;
-        final hasExpense = childIdsWithExpense.contains(d.id);
-        if (active || ((isArchived || isDeleted) && hasExpense)) {
+        if (!isArchived && !isDeleted) {
           children.add(_ChildItem(id: d.id, name: childNameById[d.id] ?? '?'));
         }
       }
@@ -11744,8 +11704,63 @@ class _LogboekPageState extends State<_LogboekPage>
           }
         });
       }
+
+      unawaited(
+        _loadArchivedChildrenUsedInExpenses(
+          docs: docs,
+          childNameById: childNameById,
+          hasMultipleHouseholdChildDocs: childrenSnap.docs.length >= 2,
+        ),
+      );
     } catch (_) {
       if (mounted) setState(() => _childrenLoaded = true);
+    }
+  }
+
+  Future<void> _loadArchivedChildrenUsedInExpenses({
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    required Map<String, String> childNameById,
+    required bool hasMultipleHouseholdChildDocs,
+  }) async {
+    try {
+      final expensesSnap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/expenses')
+          .get();
+
+      final childIdsWithExpense = <String>{};
+      for (final d in expensesSnap.docs) {
+        final ids =
+            (d.data()['childIds'] as List?)?.whereType<String>() ??
+            const <String>[];
+        childIdsWithExpense.addAll(ids);
+      }
+
+      final children = <_ChildItem>[];
+      for (final d in docs) {
+        final data = d.data();
+        final isArchived = data['isArchived'] == true;
+        final isDeleted = data['isDeleted'] == true;
+        final active = !isArchived && !isDeleted;
+        final hasExpense = childIdsWithExpense.contains(d.id);
+        if (active || ((isArchived || isDeleted) && hasExpense)) {
+          children.add(_ChildItem(id: d.id, name: childNameById[d.id] ?? '?'));
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _children = children;
+        _childNameById = childNameById;
+        _childrenLoaded = true;
+        _hasMultipleHouseholdChildDocs = hasMultipleHouseholdChildDocs;
+        if (_filterChildId != null &&
+            !_children.any((c) => c.id == _filterChildId)) {
+          _filterChildId = null;
+          _rebuildExpensesStream();
+        }
+      });
+    } catch (_) {
+      // Active children already loaded; archived filter entries stay deferred.
     }
   }
 
@@ -14463,9 +14478,7 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   Widget build(BuildContext context) {
-    final logboekContent = !_initialDataReady
-        ? const Center(child: CircularProgressIndicator())
-        : Column(
+    final logboekContent = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_isOffline)
@@ -14640,21 +14653,7 @@ class _LogboekPageState extends State<_LogboekPage>
       },
       child: Scaffold(
         appBar: appBar,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            logboekContent,
-            IgnorePointer(
-              ignoring: !_showInitialHoldOverlay,
-              child: AnimatedOpacity(
-                opacity: _showInitialHoldOverlay ? 1 : 0,
-                duration: _logboekHoldFadeDuration,
-                curve: Curves.easeOut,
-                child: const ColoredBox(color: Color(0xFFF7F6F4)),
-              ),
-            ),
-          ],
-        ),
+        body: logboekContent,
       ),
     );
   }
