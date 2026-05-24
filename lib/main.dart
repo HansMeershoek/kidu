@@ -15355,7 +15355,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                     'Maximaal 7 actieve kinderen. Archiveer eerst een kind.',
                   )
                 : () => _addChild(activeNormalised: activeNormalised),
-            tooltip: atMax ? 'Maximaal 7 actieve kinderen' : 'Kind toevoegen',
+            tooltip: atMax ? 'Maximaal 7 actieve kinderen' : null,
             backgroundColor: atMax
                 ? Theme.of(context).colorScheme.surfaceContainerHighest
                 : null,
@@ -16947,7 +16947,6 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
         child: FloatingActionButton(
           heroTag: 'add_recurring_fab',
           onPressed: _openAddRecurringDialog,
-          tooltip: 'Nieuwe maandelijkse uitgave',
           child: const Icon(Icons.add, size: 24),
         ),
       ),
