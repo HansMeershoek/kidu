@@ -798,6 +798,38 @@ Color onSurface(BuildContext context, double alpha) =>
 Color outlineV(BuildContext context, double alpha) =>
     Theme.of(context).colorScheme.outlineVariant.withValues(alpha: alpha);
 
+/// KiDu AppBar/card title style for action-dialog titles.
+Widget kiduActionDialogTitle(BuildContext context, String text) {
+  return Text(
+    text,
+    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.4,
+    ),
+  );
+}
+
+/// Compact [InputDecoration] for action-dialog form fields (dense + padding).
+InputDecoration kiduCompactInputDecoration({
+  required String labelText,
+  String? hintText,
+  Widget? suffixIcon,
+  Widget? prefixIcon,
+  String? helperText,
+  String? errorText,
+}) {
+  return InputDecoration(
+    labelText: labelText,
+    hintText: hintText,
+    suffixIcon: suffixIcon,
+    prefixIcon: prefixIcon,
+    helperText: helperText,
+    errorText: errorText,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+  );
+}
+
 ThemeData buildKiduTheme() {
   // Keep it warm + premium, no purple defaults.
   const appBg = Color(0xFFF7F6F4);
@@ -4923,7 +4955,10 @@ class _DashboardPageState extends State<DashboardPage> {
                             horizontal: 16,
                             vertical: 24,
                           ),
-                          title: const Text('Nieuwe uitgave'),
+                          title: kiduActionDialogTitle(
+                            context,
+                            'Nieuwe uitgave',
+                          ),
                           content: ConstrainedBox(
                             constraints: BoxConstraints(
                               maxHeight:
@@ -4963,14 +4998,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                           required bool isFocused,
                                           required int? maxLength,
                                         }) => null,
-                                    decoration: InputDecoration(
+                                    decoration: kiduCompactInputDecoration(
                                       labelText: 'Titel',
-                                      floatingLabelBehavior:
-                                          FloatingLabelBehavior.always,
-                                      border: OutlineInputBorder(),
                                       hintText: titleHasError
                                           ? 'Vul een titel in'
                                           : null,
+                                    ).copyWith(
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
+                                      border: const OutlineInputBorder(),
                                       hintStyle: titleHasError
                                           ? subtleErrorHintStyle
                                           : null,
@@ -5006,14 +5042,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                         );
                                       }
                                     },
-                                    decoration: InputDecoration(
+                                    decoration: kiduCompactInputDecoration(
                                       labelText: 'Bedrag (EUR)',
-                                      floatingLabelBehavior:
-                                          FloatingLabelBehavior.always,
-                                      border: OutlineInputBorder(),
                                       hintText: amountHasError
                                           ? 'Vul een geldig bedrag in'
                                           : 'Bijv. 12,34',
+                                    ).copyWith(
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
+                                      border: const OutlineInputBorder(),
                                       hintStyle: amountHasError
                                           ? subtleErrorHintStyle
                                           : null,
@@ -5044,11 +5081,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                           required bool isFocused,
                                           required int? maxLength,
                                         }) => null,
-                                    decoration: const InputDecoration(
+                                    decoration: kiduCompactInputDecoration(
                                       labelText: 'Notitie (optioneel)',
+                                    ).copyWith(
                                       floatingLabelBehavior:
                                           FloatingLabelBehavior.always,
-                                      border: OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
                                     ),
                                   ),
                                   if (coParentUidForShare != null) ...[
@@ -9277,7 +9315,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       child: SizedBox(
         width: dialogW,
         child: AlertDialog(
-          title: const Text('Uitgave bewerken'),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          title: kiduActionDialogTitle(context, 'Uitgave bewerken'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -9310,11 +9350,12 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                         required bool isFocused,
                         required int? maxLength,
                       }) => null,
-                  decoration: InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Titel',
+                    hintText: _titleHasError ? titleErrorHint : null,
+                  ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: const OutlineInputBorder(),
-                    hintText: _titleHasError ? titleErrorHint : null,
                     hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -9344,10 +9385,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     setState(() => _amountHasError = nextAmountHasError);
                     _enqueueAuditReasonGateRefresh();
                   },
-                  decoration: const InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Bedrag (EUR)',
+                  ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 if (_showReasonField) ...[
@@ -9370,11 +9412,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     },
                     minLines: 2,
                     maxLines: 2,
-                    decoration: InputDecoration(
+                    decoration: kiduCompactInputDecoration(
                       labelText: 'Reden',
-                      alignLabelWithHint: true,
-                      isDense: true,
                       hintText: _reasonHasError ? 'Vul een reden in' : null,
+                    ).copyWith(
+                      alignLabelWithHint: true,
                       hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
                     ),
                   ),
@@ -10152,7 +10194,7 @@ class _EditRecurringMasterExpenseDialogState
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       actionsAlignment: MainAxisAlignment.spaceBetween,
-      title: const Text('Maandelijkse uitgave bewerken'),
+      title: kiduActionDialogTitle(context, 'Maandelijkse uitgave bewerken'),
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.75,
@@ -10191,11 +10233,12 @@ class _EditRecurringMasterExpenseDialogState
                         required bool isFocused,
                         required int? maxLength,
                       }) => null,
-                  decoration: InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Titel',
+                    hintText: _titleHasError ? titleErrorHint : null,
+                  ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: const OutlineInputBorder(),
-                    hintText: _titleHasError ? titleErrorHint : null,
                     hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -10228,8 +10271,9 @@ class _EditRecurringMasterExpenseDialogState
                       });
                     }
                   },
-                  decoration: InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Bedrag (EUR)',
+                  ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: const OutlineInputBorder(),
                   ),
@@ -18960,7 +19004,7 @@ class _AddRecurringExpenseDialogState
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       actionsAlignment: MainAxisAlignment.spaceBetween,
-      title: const Text('Maandelijkse uitgave'),
+      title: kiduActionDialogTitle(context, 'Maandelijkse uitgave'),
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.75,
@@ -18996,11 +19040,12 @@ class _AddRecurringExpenseDialogState
                         required bool isFocused,
                         required int? maxLength,
                       }) => null,
-                  decoration: InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Titel',
+                    hintText: _titleHasError ? 'Vul een titel in' : null,
+                  ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: const OutlineInputBorder(),
-                    hintText: _titleHasError ? 'Vul een titel in' : null,
                     hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -19026,13 +19071,14 @@ class _AddRecurringExpenseDialogState
                       setState(() => _amountHasError = nextHasError);
                     }
                   },
-                  decoration: InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Bedrag (EUR)',
-                    floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintText: _amountHasError
                         ? 'Vul een geldig bedrag in'
                         : 'Bijv. 12,34',
+                  ).copyWith(
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    border: const OutlineInputBorder(),
                     hintStyle: _amountHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -19056,10 +19102,11 @@ class _AddRecurringExpenseDialogState
                         required bool isFocused,
                         required int? maxLength,
                       }) => null,
-                  decoration: const InputDecoration(
+                  decoration: kiduCompactInputDecoration(
                     labelText: 'Notitie (optioneel)',
+                  ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 if (!_loadingParentSplit)
