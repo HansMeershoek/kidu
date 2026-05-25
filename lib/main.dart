@@ -39,6 +39,7 @@ const double a60 = 0.60;
 const double a62 = 0.62;
 const double a68 = 0.68;
 const double a70 = 0.70;
+const double a80 = 0.80;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
@@ -16097,27 +16098,53 @@ class _RecurringParentSplitDialogState
     );
   }
 
+  bool get _hasChanges {
+    final ordered = _viewerFirstParentSplit(
+      widget.initialSnapshot,
+      widget.viewerUid,
+    );
+    final initialBps = ordered.firstBps.clamp(
+      widget.minShareBps,
+      widget.maxShareBps,
+    );
+    return _share0Bps != initialBps;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final summary =
-        '${_share0Member.label} ${_formatParentSplitShare(_share0Bps)} · '
-        '${_share1Member.label} '
-        '${_formatParentSplitShare(kBpsFull - _share0Bps)}';
+    final shareStyle = Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600);
+    final nameStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: onSurface(context, a80),
+    );
 
     return AlertDialog(
-      title: const Text('Uitgavenverdeling'),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      title: kiduActionDialogTitle(context, 'Uitgavenverdeling'),
       content: SizedBox(
         width: 320,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              summary,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '${_share0Member.label} ', style: nameStyle),
+                  TextSpan(
+                    text: '${_formatParentSplitShare(_share0Bps)} · ',
+                    style: shareStyle,
+                  ),
+                  TextSpan(text: '${_share1Member.label} ', style: nameStyle),
+                  TextSpan(
+                    text: _formatParentSplitShare(kBpsFull - _share0Bps),
+                    style: shareStyle,
+                  ),
+                ],
+              ),
             ),
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
@@ -16163,7 +16190,9 @@ class _RecurringParentSplitDialogState
           child: const Text('Annuleren'),
         ),
         ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(_snapshot()),
+          onPressed: _hasChanges
+              ? () => Navigator.of(context).pop(_snapshot())
+              : null,
           child: const Text('Opslaan'),
         ),
       ],
