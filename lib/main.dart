@@ -4628,13 +4628,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                   16,
                                   0,
                                 ),
-                                child: Text(
-                                  'Selectie',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w400,
-                                        color: onSurface(context, a84),
-                                      ),
+                                child: kiduActionDialogTitle(
+                                  context,
+                                  'Kinderen selecteren',
                                 ),
                               ),
                               Expanded(
@@ -4663,8 +4659,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                         ),
                                         child: Text(
                                           allSelected
-                                              ? 'Alles deselecteren'
-                                              : 'Alles selecteren',
+                                              ? 'Alle deselecteren'
+                                              : 'Alle selecteren',
                                         ),
                                       ),
                                       const SizedBox(height: 6),
@@ -8249,13 +8245,9 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                             ),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                              child: Text(
-                                'Selectie',
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w400,
-                                      color: onSurface(context, a84),
-                                    ),
+                              child: kiduActionDialogTitle(
+                                context,
+                                'Kinderen selecteren',
                               ),
                             ),
                             Expanded(
@@ -8283,8 +8275,8 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                       ),
                                       child: Text(
                                         allSelected
-                                            ? 'Alles deselecteren'
-                                            : 'Alles selecteren',
+                                            ? 'Alle deselecteren'
+                                            : 'Alle selecteren',
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -19410,14 +19402,7 @@ class _RecurringChildSelectionDialogState
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: Text(
-                          'Selectie',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w400,
-                                color: onSurface(context, a84),
-                              ),
-                        ),
+                        child: kiduActionDialogTitle(context, 'Kinderen selecteren'),
                       ),
                       Expanded(
                         child: Padding(
@@ -19439,8 +19424,8 @@ class _RecurringChildSelectionDialogState
                                 ),
                                 child: Text(
                                   allSelected
-                                      ? 'Alles deselecteren'
-                                      : 'Alles selecteren',
+                                      ? 'Alle deselecteren'
+                                      : 'Alle selecteren',
                                 ),
                               ),
                               const SizedBox(height: 6),
