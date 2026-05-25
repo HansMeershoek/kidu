@@ -5035,7 +5035,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       final parsed = _tryParseEurToCents(value);
                                       final nextHasError =
                                           trimmed.isNotEmpty &&
-                                          (parsed == null || parsed <= 0);
+                                          (parsed == null || parsed < 0);
                                       if (amountHasError != nextHasError) {
                                         setLocalState(
                                           () => amountHasError = nextHasError,
@@ -9391,9 +9391,13 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                   },
                   decoration: kiduCompactInputDecoration(
                     labelText: 'Bedrag (EUR)',
+                    hintText: _amountHasError
+                        ? 'Vul een geldig bedrag in'
+                        : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: const OutlineInputBorder(),
+                    hintStyle: _amountHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
                 if (_showReasonField) ...[
@@ -10276,9 +10280,13 @@ class _EditRecurringMasterExpenseDialogState
                   },
                   decoration: kiduCompactInputDecoration(
                     labelText: 'Bedrag (EUR)',
+                    hintText: _amountHasError
+                        ? 'Vul een geldig bedrag in'
+                        : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                     border: const OutlineInputBorder(),
+                    hintStyle: _amountHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
                 Padding(
@@ -19069,7 +19077,7 @@ class _AddRecurringExpenseDialogState
                     final trimmed = value.trim();
                     final parsed = _tryParseRecurringEurToCents(value);
                     final nextHasError =
-                        trimmed.isNotEmpty && (parsed == null || parsed <= 0);
+                        trimmed.isNotEmpty && (parsed == null || parsed < 0);
                     if (_amountHasError != nextHasError) {
                       setState(() => _amountHasError = nextHasError);
                     }
