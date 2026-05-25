@@ -11296,7 +11296,7 @@ class _PaymentDetailPage extends StatelessWidget {
 
 enum _PeriodFilter { all, custom }
 
-enum _LogboekMode { uitgaven, betalingen, wijzigingen }
+enum _LogboekMode { uitgaven, wijzigingen, betalingen }
 
 class _WijzigRow {
   const _WijzigRow({
@@ -14543,7 +14543,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                 horizontal: 16,
                                 vertical: 12,
                               ),
-                              child: _buildPaymentList(context),
+                              child: _buildWijzigingenList(context),
                             ),
                           ),
                         ),
@@ -14562,7 +14562,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                 horizontal: 16,
                                 vertical: 12,
                               ),
-                              child: _buildWijzigingenList(context),
+                              child: _buildPaymentList(context),
                             ),
                           ),
                         ),
@@ -14645,8 +14645,8 @@ class _LogboekPageState extends State<_LogboekPage>
             controller: _modeTabController,
             tabs: const [
               Tab(text: 'Uitgaven'),
-              Tab(text: 'Betalingen'),
               Tab(text: 'Wijzigingen'),
+              Tab(text: 'Betalingen'),
             ],
             isScrollable: true,
             tabAlignment: TabAlignment.center,
