@@ -7077,7 +7077,20 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                     (
                                                                                       dialogCtx,
                                                                                     ) => AlertDialog(
-                                                                                      title: const Text(
+                                                                                      actionsAlignment:
+                                                                                          MainAxisAlignment
+                                                                                              .spaceBetween,
+                                                                                      actionsPadding:
+                                                                                          const EdgeInsets
+                                                                                              .fromLTRB(
+                                                                                            16,
+                                                                                            0,
+                                                                                            16,
+                                                                                            12,
+                                                                                          ),
+                                                                                      title:
+                                                                                          kiduActionDialogTitle(
+                                                                                        dialogCtx,
                                                                                         'Ontvangst bevestigen',
                                                                                       ),
                                                                                       content: Text(
@@ -7510,7 +7523,20 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                               (
                                                                                                 dialogCtx,
                                                                                               ) => AlertDialog(
-                                                                                                title: const Text(
+                                                                                                actionsAlignment:
+                                                                                                    MainAxisAlignment
+                                                                                                        .spaceBetween,
+                                                                                                actionsPadding:
+                                                                                                    const EdgeInsets
+                                                                                                        .fromLTRB(
+                                                                                                  16,
+                                                                                                  0,
+                                                                                                  16,
+                                                                                                  12,
+                                                                                                ),
+                                                                                                title:
+                                                                                                    kiduActionDialogTitle(
+                                                                                                  dialogCtx,
                                                                                                   'Betaling melden',
                                                                                                 ),
                                                                                                 content: Text(
