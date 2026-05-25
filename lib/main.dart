@@ -4188,7 +4188,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         Text(
                           'Privacy en beveiliging',
                           style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
+                              ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.4),
                         ),
                         const SizedBox(height: 12),
                         ListTile(
