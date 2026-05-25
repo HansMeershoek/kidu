@@ -15494,7 +15494,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                         style: IconButton.styleFrom(
                           foregroundColor: onSurface(context, a50),
                         ),
-                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        icon: const Icon(Icons.edit_outlined, size: 22),
                         tooltip: 'Naam wijzigen',
                         onPressed: _busy
                             ? null
@@ -15509,7 +15509,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                         style: IconButton.styleFrom(
                           foregroundColor: onSurface(context, a50),
                         ),
-                        icon: const Icon(Icons.archive_outlined, size: 20),
+                        icon: const Icon(Icons.archive_outlined, size: 22),
                         tooltip: 'Archiveren',
                         onPressed: _busy
                             ? null
@@ -15557,7 +15557,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                           style: IconButton.styleFrom(
                             foregroundColor: onSurface(context, a50),
                           ),
-                          icon: const Icon(Icons.unarchive_outlined, size: 20),
+                          icon: const Icon(Icons.unarchive_outlined, size: 22),
                           tooltip: 'Herstellen',
                           onPressed: _busy ? null : () => _restoreChild(d.id),
                         ),
@@ -15568,7 +15568,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                               context,
                             ).colorScheme.error.withValues(alpha: 0.78),
                           ),
-                          icon: const Icon(Icons.delete_outline, size: 20),
+                          icon: const Icon(Icons.delete_outline, size: 22),
                           tooltip: 'Definitief verwijderen',
                           onPressed: _busy
                               ? null
