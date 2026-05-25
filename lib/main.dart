@@ -15123,6 +15123,57 @@ class _LogboekPageState extends State<_LogboekPage>
 // Kinderen management screen
 // ────────────────────────────────────────────────────────────────────────────
 
+void _showKinderenInfoSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    isScrollControlled: true,
+    builder: (sheetContext) {
+      final maxH = min(480.0, MediaQuery.of(sheetContext).size.height * 0.85);
+      return SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Over kinderen',
+                    style: Theme.of(
+                      sheetContext,
+                    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Kinderen toevoegen\n\n'
+                    'Voeg kinderen toe waarvoor jullie samen uitgaven bijhouden.\n\n'
+                    'Archiveren\n\n'
+                    'Archiveer een kind als je het niet meer wilt gebruiken voor nieuwe uitgaven. '
+                    'Het wordt verborgen bij nieuwe uitgaven. Bestaande uitgaven blijven bewaard '
+                    'en zichtbaar in het logboek.\n\n'
+                    'Verwijderen\n\n'
+                    'Definitief verwijderen kan alleen vanuit het archief. '
+                    'Het kind verdwijnt uit Kinders, maar blijft bewaard voor oude uitgaven '
+                    'in het logboek.',
+                    style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                      color: onSurface(sheetContext, a68),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class _KinderenPage extends StatefulWidget {
   const _KinderenPage({required this.householdId});
 
@@ -15330,6 +15381,13 @@ class _KinderenPageState extends State<_KinderenPage> {
                 letterSpacing: 0.4,
               ),
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Uitleg over kinderen',
+                icon: const Icon(Icons.info_outline, size: 20),
+                onPressed: () => _showKinderenInfoSheet(context),
+              ),
+            ],
           );
 
           if (snap.hasError) {
