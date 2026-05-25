@@ -8661,6 +8661,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   late final Future<List<_ChildItem>> _childrenFuture;
   List<_ChildItem>? _syncChildren;
   bool _showReasonField = false;
+  bool _amountDraftNeedsAuditReason = false;
   bool _showNoChangesMessage = false;
   bool _titleHasError = false;
   bool _amountHasError = false;
@@ -8746,6 +8747,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
         setState(() {
           _showReasonField = false;
           _reasonHasError = false;
+          _amountDraftNeedsAuditReason = false;
           if (_reasonController.text.isNotEmpty) {
             _reasonController.clear();
           }
@@ -8763,8 +8765,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     if (!mounted) return;
 
     final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
-    final amountAuditedDraft =
-        parsed != null && parsed >= 0 && parsed != widget.currentAmountCents;
+    if (parsed != null && parsed >= 0) {
+      _amountDraftNeedsAuditReason = parsed != widget.currentAmountCents;
+    }
+    final amountAuditedDraft = _amountDraftNeedsAuditReason;
     final effectiveChildIds = _effectiveSelectedChildIds(children);
     final childrenAuditedDraft =
         _didChangeChildSelection &&
@@ -9410,13 +9414,12 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                         setState(() => _reasonHasError = false);
                       }
                     },
-                    minLines: 2,
-                    maxLines: 2,
                     decoration: kiduCompactInputDecoration(
                       labelText: 'Reden',
                       hintText: _reasonHasError ? 'Vul een reden in' : null,
                     ).copyWith(
-                      alignLabelWithHint: true,
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                      border: const OutlineInputBorder(),
                       hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
                     ),
                   ),
