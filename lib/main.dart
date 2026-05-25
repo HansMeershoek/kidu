@@ -1007,61 +1007,79 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
 
   @override
   Widget build(BuildContext context) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final footerTextButtonStyle = TextButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+    final footerFilledButtonStyle = FilledButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final maxH = constraints.maxHeight * 0.85;
             return ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: 560, maxHeight: maxH),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      widget.hasInitialNote
-                          ? 'Notitie bewerken'
-                          : 'Notitie toevoegen',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
+              constraints: BoxConstraints(
+                maxWidth: dialogW,
+                maxHeight: maxH,
+              ),
+              child: SizedBox(
+                width: dialogW,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      kiduActionDialogTitle(
+                        context,
+                        widget.hasInitialNote
+                            ? 'Notitie bewerken'
+                            : 'Notitie toevoegen',
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: TextFormField(
-                          initialValue: widget.initialNote,
-                          autofocus: true,
-                          maxLength: 180,
-                          minLines: 3,
-                          maxLines: 8,
-                          textCapitalization: TextCapitalization.sentences,
-                          textInputAction: TextInputAction.done,
-                          buildCounter:
-                              (
-                                context, {
-                                required int currentLength,
-                                required bool isFocused,
-                                required int? maxLength,
-                              }) => null,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
+                      const SizedBox(height: 8),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: TextFormField(
+                            initialValue: widget.initialNote,
+                            autofocus: true,
+                            maxLength: 180,
+                            minLines: 1,
+                            maxLines: 8,
+                            textCapitalization: TextCapitalization.sentences,
+                            textInputAction: TextInputAction.done,
+                            buildCounter:
+                                (
+                                  context, {
+                                  required int currentLength,
+                                  required bool isFocused,
+                                  required int? maxLength,
+                                }) => null,
+                            decoration: kiduCompactInputDecoration(
+                              labelText: 'Notitie',
+                            ).copyWith(
+                              floatingLabelBehavior:
+                                  FloatingLabelBehavior.always,
+                              border: const OutlineInputBorder(),
+                            ),
+                            onChanged: (v) => setState(() {
+                              _draftNote = v;
+                              if (v.trim().isEmpty) {
+                                _shareWithCoParent = false;
+                              }
+                            }),
+                            onFieldSubmitted: (_) =>
+                                FocusScope.of(context).unfocus(),
                           ),
-                          onChanged: (v) => setState(() {
-                            _draftNote = v;
-                            if (v.trim().isEmpty) {
-                              _shareWithCoParent = false;
-                            }
-                          }),
-                          onFieldSubmitted: (_) =>
-                              FocusScope.of(context).unfocus(),
                         ),
                       ),
-                    ),
                     if (widget.coParentUid != null &&
                         widget.coParentUid!.trim().isNotEmpty)
                       SwitchListTile(
@@ -1077,48 +1095,55 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                             : (v) => setState(() => _shareWithCoParent = v),
                       ),
                     const SizedBox(height: 12),
-                    Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: 8,
-                      runSpacing: 8,
+                    Row(
                       children: [
-                        TextButton(
-                          onPressed: () =>
-                              _safePop(PrivateNoteDialogCancelled()),
-                          child: const Text('Annuleren'),
-                        ),
                         if (widget.hasInitialNote)
                           TextButton(
+                            style: footerTextButtonStyle,
                             onPressed: () =>
                                 _safePop(PrivateNoteDialogDelete()),
                             child: const Text('Verwijderen'),
                           ),
-                        FilledButton(
-                          onPressed: () {
-                            final note = _draftNote.trim();
-                            if (note.isEmpty) {
-                              if (widget.hasInitialNote) {
-                                _safePop(PrivateNoteDialogDelete());
-                              } else {
-                                _safePop(PrivateNoteDialogCancelled());
-                              }
-                            } else {
-                              _safePop(
-                                PrivateNoteDialogSave(
-                                  note,
-                                  sharedWithUids:
-                                      _resolvedSharedWithUidsForSave(),
-                                ),
-                              );
-                            }
-                          },
-                          child: const Text('Opslaan'),
+                        const Spacer(),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              style: footerTextButtonStyle,
+                              onPressed: () =>
+                                  _safePop(PrivateNoteDialogCancelled()),
+                              child: const Text('Annuleren'),
+                            ),
+                            FilledButton(
+                              style: footerFilledButtonStyle,
+                              onPressed: () {
+                                final note = _draftNote.trim();
+                                if (note.isEmpty) {
+                                  if (widget.hasInitialNote) {
+                                    _safePop(PrivateNoteDialogDelete());
+                                  } else {
+                                    _safePop(PrivateNoteDialogCancelled());
+                                  }
+                                } else {
+                                  _safePop(
+                                    PrivateNoteDialogSave(
+                                      note,
+                                      sharedWithUids:
+                                          _resolvedSharedWithUidsForSave(),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: const Text('Opslaan'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
+            ),
             );
           },
         ),
