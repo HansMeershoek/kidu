@@ -15356,7 +15356,9 @@ class _KinderenPageState extends State<_KinderenPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Kind archiveren?'),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        title: kiduActionDialogTitle(ctx, 'Kind archiveren?'),
         content: Text('$name wordt verborgen bij nieuwe uitgaven.'),
         actions: [
           TextButton(
@@ -15400,7 +15402,9 @@ class _KinderenPageState extends State<_KinderenPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Definitief verwijderen?'),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        title: kiduActionDialogTitle(ctx, 'Definitief verwijderen?'),
         content: Text(
           '"$name" wordt definitief verwijderd. '
           'Blijft bewaard voor oude uitgaven.',
@@ -19633,7 +19637,9 @@ class _AddChildDialogState extends State<_AddChildDialog> {
     final canAdd = text.isNotEmpty && !isDuplicate;
 
     return AlertDialog(
-      title: const Text('Kind toevoegen'),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      title: kiduActionDialogTitle(context, 'Kind toevoegen'),
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -19643,11 +19649,12 @@ class _AddChildDialogState extends State<_AddChildDialog> {
         onSubmitted: (_) {
           if (canAdd) Navigator.of(context).pop(_controller.text.trim());
         },
-        decoration: InputDecoration(
+        decoration: kiduCompactInputDecoration(
           labelText: 'Naam',
+          errorText: isDuplicate ? 'Naam bestaat al' : null,
+        ).copyWith(
           floatingLabelBehavior: FloatingLabelBehavior.always,
           border: const OutlineInputBorder(),
-          errorText: isDuplicate ? 'Naam bestaat al' : null,
         ),
       ),
       actions: [
@@ -19713,22 +19720,23 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
     final canSave = text.isNotEmpty && !isSame && !isDuplicate;
 
     return AlertDialog(
-      title: const Text('Naam wijzigen'),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      title: kiduActionDialogTitle(context, 'Naam wijzigen'),
       content: TextField(
         controller: _controller,
-        autofocus: true,
         textCapitalization: TextCapitalization.words,
         textInputAction: TextInputAction.done,
         onChanged: (_) => setState(() {}),
         onSubmitted: (_) {
           if (canSave) Navigator.of(context).pop(_controller.text.trim());
         },
-        decoration: InputDecoration(
+        decoration: kiduCompactInputDecoration(
           labelText: 'Naam',
+          errorText: isDuplicate ? 'Naam bestaat al' : null,
+        ).copyWith(
           floatingLabelBehavior: FloatingLabelBehavior.always,
           border: const OutlineInputBorder(),
-          errorText: isDuplicate ? 'Naam bestaat al' : null,
-          helperText: isSame && text.isNotEmpty ? 'Naam is ongewijzigd' : null,
         ),
       ),
       actions: [
