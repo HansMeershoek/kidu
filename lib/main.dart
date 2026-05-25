@@ -12014,7 +12014,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                   });
                                   setModalState(() {});
                                 },
-                                child: const Text('Wis filters'),
+                                child: const Text('Filters wissen'),
                               ),
                           ],
                         ),
@@ -12239,20 +12239,32 @@ class _LogboekPageState extends State<_LogboekPage>
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _paymentFilterParentUid = null;
-                                  _periodFilter = _PeriodFilter.all;
-                                  _filterStart = null;
-                                  _filterEnd = null;
-                                  _rebuildExpensesStream();
-                                  _rebuildPaymentsStream();
-                                });
-                                setModalState(() {});
-                              },
-                              child: const Text('Alle filters wissen'),
-                            ),
+                            if (_paymentFilterParentUid != null ||
+                                _periodFilter != _PeriodFilter.all)
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 0,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _paymentFilterParentUid = null;
+                                    _periodFilter = _PeriodFilter.all;
+                                    _filterStart = null;
+                                    _filterEnd = null;
+                                    _rebuildExpensesStream();
+                                    _rebuildPaymentsStream();
+                                  });
+                                  setModalState(() {});
+                                },
+                                child: const Text('Filters wissen'),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -12272,6 +12284,12 @@ class _LogboekPageState extends State<_LogboekPage>
                             children: [
                               FilterChip(
                                 label: const Text('Beide'),
+                                labelStyle: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall,
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                                 selected: _paymentFilterParentUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
@@ -12288,6 +12306,12 @@ class _LogboekPageState extends State<_LogboekPage>
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  labelStyle: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall,
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                   selected: _paymentFilterParentUid == p.uid,
                                   showCheckmark: false,
                                   onSelected: (v) {
@@ -12405,20 +12429,32 @@ class _LogboekPageState extends State<_LogboekPage>
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _wijzigFilterEditedByUid = null;
-                                  _periodFilter = _PeriodFilter.all;
-                                  _filterStart = null;
-                                  _filterEnd = null;
-                                  _rebuildExpensesStream();
-                                  _rebuildPaymentsStream();
-                                });
-                                setModalState(() {});
-                              },
-                              child: const Text('Alle filters wissen'),
-                            ),
+                            if (_wijzigFilterEditedByUid != null ||
+                                _periodFilter != _PeriodFilter.all)
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 0,
+                                  ),
+                                  minimumSize: Size.zero,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _wijzigFilterEditedByUid = null;
+                                    _periodFilter = _PeriodFilter.all;
+                                    _filterStart = null;
+                                    _filterEnd = null;
+                                    _rebuildExpensesStream();
+                                    _rebuildPaymentsStream();
+                                  });
+                                  setModalState(() {});
+                                },
+                                child: const Text('Filters wissen'),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -12438,6 +12474,12 @@ class _LogboekPageState extends State<_LogboekPage>
                             children: [
                               FilterChip(
                                 label: const Text('Beide'),
+                                labelStyle: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall,
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                                 selected: _wijzigFilterEditedByUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
@@ -12454,6 +12496,12 @@ class _LogboekPageState extends State<_LogboekPage>
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  labelStyle: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall,
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                   selected: _wijzigFilterEditedByUid == p.uid,
                                   showCheckmark: false,
                                   onSelected: (v) {
