@@ -2105,9 +2105,6 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     if (value.length > 16) {
       return 'Gebruik maximaal 16 tekens.';
     }
-    if (value.length < 2) {
-      return 'Vul minimaal 2 tekens in.';
-    }
     if (value.contains(RegExp(r'[\r\n]')) || !_allowedName.hasMatch(value)) {
       return "Gebruik alleen letters, spaties, - of '.";
     }
@@ -2143,8 +2140,6 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
 
     final name = _normalizedName(_controller.text);
     if (name.length < 2) {
-      setState(() => _nameInlineHint = 'Vul minimaal 2 tekens in.');
-      _nameFocus.requestFocus();
       return;
     }
 
@@ -2373,10 +2368,10 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                           errorText: _nameInlineHint,
                           isSaving: _busy,
                           primaryEnabled: widget.fromSettings
-                              ? _normalizedName(_controller.text).isNotEmpty &&
+                              ? _normalizedName(_controller.text).length >= 2 &&
                                     _normalizedName(_controller.text) !=
                                         _initialNormalizedName
-                              : _normalizedName(_controller.text).isNotEmpty,
+                              : _normalizedName(_controller.text).length >= 2,
                           primaryLabel: 'Opslaan',
                           secondaryLabel: widget.fromSettings
                               ? 'Annuleren'
@@ -2617,9 +2612,6 @@ class _DashboardOnboardingNameCardState
     if (value.length > 16) {
       return 'Gebruik maximaal 16 tekens.';
     }
-    if (value.length < 2) {
-      return 'Vul minimaal 2 tekens in.';
-    }
     if (value.contains(RegExp(r'[\r\n]')) || !_allowedName.hasMatch(value)) {
       return "Gebruik alleen letters, spaties, - of '.";
     }
@@ -2655,8 +2647,6 @@ class _DashboardOnboardingNameCardState
 
     final name = _normalizedName(_controller.text);
     if (name.length < 2) {
-      setState(() => _nameInlineHint = 'Vul minimaal 2 tekens in.');
-      _nameFocus.requestFocus();
       return;
     }
 
@@ -2772,7 +2762,7 @@ class _DashboardOnboardingNameCardState
       ],
       errorText: _nameInlineHint,
       isSaving: _busy,
-      primaryEnabled: _normalizedName(_controller.text).isNotEmpty,
+      primaryEnabled: _normalizedName(_controller.text).length >= 2,
       primaryLabel: 'Verder',
       secondaryLabel: 'Uitloggen',
       onPrimaryPressed: _save,
@@ -15355,7 +15345,7 @@ class _KinderenPageState extends State<_KinderenPage> {
         activeNormalisedExcludingSelf: activeNormalisedExcludingSelf,
       ),
     );
-    if (newName == null || newName.isEmpty) return;
+    if (newName == null || newName.length < 2) return;
     setState(() => _busy = true);
     try {
       await FirebaseFirestore.instance
@@ -19730,10 +19720,10 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
     final text = _controller.text.trim();
     final isSame = text == widget.currentName.trim();
     final isDuplicate =
-        text.isNotEmpty &&
+        text.length >= 2 &&
         !isSame &&
         widget.activeNormalisedExcludingSelf.contains(text.toLowerCase());
-    final canSave = text.isNotEmpty && !isSame && !isDuplicate;
+    final canSave = text.length >= 2 && !isSame && !isDuplicate;
 
     return AlertDialog(
       actionsAlignment: MainAxisAlignment.spaceBetween,
