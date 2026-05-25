@@ -2085,6 +2085,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
   final FocusNode _nameFocus = FocusNode();
   bool _busy = false;
   String? _nameInlineHint;
+  late final String _initialNormalizedName;
 
   @override
   void initState() {
@@ -2093,6 +2094,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     if (initial != null && initial.trim().isNotEmpty) {
       _controller.text = initial.trim();
     }
+    _initialNormalizedName = _normalizedName(_controller.text);
   }
 
   String _normalizedName(String value) {
@@ -2370,6 +2372,11 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                           ],
                           errorText: _nameInlineHint,
                           isSaving: _busy,
+                          primaryEnabled: widget.fromSettings
+                              ? _normalizedName(_controller.text).isNotEmpty &&
+                                    _normalizedName(_controller.text) !=
+                                        _initialNormalizedName
+                              : _normalizedName(_controller.text).isNotEmpty,
                           primaryLabel: 'Opslaan',
                           secondaryLabel: widget.fromSettings
                               ? 'Annuleren'
@@ -2379,13 +2386,15 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                               ? () => Navigator.of(context).pop()
                               : _signOut,
                           onChanged: (_) {
-                            final currentError = _profileNameError(
-                              _normalizedName(_controller.text),
-                            );
-                            if (_nameInlineHint != null &&
-                                currentError == null) {
-                              setState(() => _nameInlineHint = null);
-                            }
+                            setState(() {
+                              final currentError = _profileNameError(
+                                _normalizedName(_controller.text),
+                              );
+                              if (_nameInlineHint != null &&
+                                  currentError == null) {
+                                _nameInlineHint = null;
+                              }
+                            });
                           },
                         ),
                       ),
@@ -2410,6 +2419,7 @@ class _NameFormCard extends StatelessWidget {
     required this.inputFormatters,
     required this.errorText,
     required this.isSaving,
+    required this.primaryEnabled,
     required this.primaryLabel,
     required this.secondaryLabel,
     required this.onPrimaryPressed,
@@ -2424,6 +2434,7 @@ class _NameFormCard extends StatelessWidget {
   final List<TextInputFormatter> inputFormatters;
   final String? errorText;
   final bool isSaving;
+  final bool primaryEnabled;
   final String primaryLabel;
   final String secondaryLabel;
   final VoidCallback onPrimaryPressed;
@@ -2524,7 +2535,9 @@ class _NameFormCard extends StatelessWidget {
                 child: SizedBox(
                   height: 40,
                   child: ElevatedButton(
-                    onPressed: isSaving ? null : onPrimaryPressed,
+                    onPressed: isSaving || !primaryEnabled
+                        ? null
+                        : onPrimaryPressed,
                     child: isSaving
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -2759,17 +2772,20 @@ class _DashboardOnboardingNameCardState
       ],
       errorText: _nameInlineHint,
       isSaving: _busy,
+      primaryEnabled: _normalizedName(_controller.text).isNotEmpty,
       primaryLabel: 'Verder',
       secondaryLabel: 'Uitloggen',
       onPrimaryPressed: _save,
       onSecondaryPressed: _signOut,
       onChanged: (_) {
-        final currentError = _profileNameError(
-          _normalizedName(_controller.text),
-        );
-        if (_nameInlineHint != null && currentError == null) {
-          setState(() => _nameInlineHint = null);
-        }
+        setState(() {
+          final currentError = _profileNameError(
+            _normalizedName(_controller.text),
+          );
+          if (_nameInlineHint != null && currentError == null) {
+            _nameInlineHint = null;
+          }
+        });
       },
     );
   }
