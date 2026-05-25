@@ -17776,7 +17776,8 @@ class _RecurringMasterDetailPageState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
+        title: kiduActionDialogTitle(
+          ctx,
           willPause
               ? 'Maandelijkse uitgave pauzeren?'
               : 'Maandelijkse uitgave hervatten?',
@@ -17884,7 +17885,7 @@ class _RecurringMasterDetailPageState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Maandelijkse uitgave verwijderen?'),
+        title: kiduActionDialogTitle(ctx, 'Maandelijkse uitgave verwijderen?'),
         content: const Text(
           'Toekomstige maandelijkse uitgaven stoppen. '
           'Eerder aangemaakte uitgaven blijven bewaard.',
@@ -17897,6 +17898,10 @@ class _RecurringMasterDetailPageState
             child: const Text('Annuleren'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),
           ),
