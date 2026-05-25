@@ -14268,7 +14268,10 @@ class _LogboekPageState extends State<_LogboekPage>
                 'Exporteer uitgaven',
                 style: Theme.of(
                   sheetContext,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
               const SizedBox(height: 20),
               for (final row in summaryRows)
@@ -14326,7 +14329,10 @@ class _LogboekPageState extends State<_LogboekPage>
                 'Exporteer betalingen',
                 style: Theme.of(
                   sheetContext,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
               const SizedBox(height: 20),
               for (final row in summaryRows)
@@ -14384,7 +14390,10 @@ class _LogboekPageState extends State<_LogboekPage>
                 'Exporteer wijzigingen',
                 style: Theme.of(
                   sheetContext,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
               const SizedBox(height: 20),
               for (final row in summaryRows)
