@@ -3273,59 +3273,6 @@ class _SettingsPage extends StatelessWidget {
                           },
                         ),
                       if (hasHousehold)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.standard,
-                          leading: Icon(
-                            Icons.menu_book_outlined,
-                            size: 18,
-                            color: onSurface(context, a45),
-                          ),
-                          title: Text(
-                            'Logboek',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: onSurface(context, 0.80)),
-                          ),
-                          onTap: () {
-                            // Zelfde route-lokale fade als bij
-                            // _TerugkerendeKostenPage: maskeert swipe-back /
-                            // predictive-back jank op deze route en maakt
-                            // openen/sluiten visueel consistent met
-                            // 'Maandelijkse uitgaven'.
-                            Navigator.of(context).push<void>(
-                              PageRouteBuilder<void>(
-                                pageBuilder:
-                                    (
-                                      routeContext,
-                                      animation,
-                                      secondaryAnimation,
-                                    ) => _LogboekPage(
-                                      householdId: householdId,
-                                      uid: myUid,
-                                      myName: myName,
-                                      otherName: otherName,
-                                    ),
-                                transitionDuration: const Duration(
-                                  milliseconds: 180,
-                                ),
-                                reverseTransitionDuration: const Duration(
-                                  milliseconds: 180,
-                                ),
-                                transitionsBuilder:
-                                    (
-                                      routeContext,
-                                      animation,
-                                      secondaryAnimation,
-                                      child,
-                                    ) => FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    ),
-                              ),
-                            );
-                          },
-                        ),
-                      if (hasHousehold)
                         _UitgavenverdelingSettingsTile(
                           householdId: householdId,
                         ),
@@ -3364,6 +3311,59 @@ class _SettingsPage extends StatelessWidget {
                                       isCoParentLinked: isCoParentLinked,
                                       otherParentName: otherName,
                                       myParentName: myName,
+                                    ),
+                                transitionDuration: const Duration(
+                                  milliseconds: 180,
+                                ),
+                                reverseTransitionDuration: const Duration(
+                                  milliseconds: 180,
+                                ),
+                                transitionsBuilder:
+                                    (
+                                      routeContext,
+                                      animation,
+                                      secondaryAnimation,
+                                      child,
+                                    ) => FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                              ),
+                            );
+                          },
+                        ),
+                      if (hasHousehold)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.standard,
+                          leading: Icon(
+                            Icons.menu_book_outlined,
+                            size: 18,
+                            color: onSurface(context, a45),
+                          ),
+                          title: Text(
+                            'Logboek',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, 0.80)),
+                          ),
+                          onTap: () {
+                            // Zelfde route-lokale fade als bij
+                            // _TerugkerendeKostenPage: maskeert swipe-back /
+                            // predictive-back jank op deze route en maakt
+                            // openen/sluiten visueel consistent met
+                            // 'Maandelijkse uitgaven'.
+                            Navigator.of(context).push<void>(
+                              PageRouteBuilder<void>(
+                                pageBuilder:
+                                    (
+                                      routeContext,
+                                      animation,
+                                      secondaryAnimation,
+                                    ) => _LogboekPage(
+                                      householdId: householdId,
+                                      uid: myUid,
+                                      myName: myName,
+                                      otherName: otherName,
                                     ),
                                 transitionDuration: const Duration(
                                   milliseconds: 180,
