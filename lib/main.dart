@@ -15594,13 +15594,11 @@ class _KinderenPageState extends State<_KinderenPage> {
               )
               .toList();
 
-          // Lower-cased active names for duplicate-name validation.
-          final activeNormalised = active
-              .map(
-                (d) =>
-                    ((d.data()['name'] as String?)?.trim() ?? '').toLowerCase(),
-              )
-              .toList();
+          // Lower-cased active + archived names for duplicate-name validation.
+          final activeNormalised = [
+            ...active,
+            ...archived,
+          ].map((d) => ((d.data()['name'] as String?)?.trim() ?? '').toLowerCase()).toList();
 
           final atMax = active.length >= 7;
 
@@ -19759,10 +19757,13 @@ class _AddChildDialogState extends State<_AddChildDialog> {
         },
         decoration: kiduCompactInputDecoration(
           labelText: 'Naam',
-          errorText: isDuplicate ? 'Naam bestaat al' : null,
+          helperText: isDuplicate ? 'Naam bestaat al' : null,
         ).copyWith(
           floatingLabelBehavior: FloatingLabelBehavior.always,
           border: const OutlineInputBorder(),
+          helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+          ),
         ),
       ),
       actions: [
