@@ -831,6 +831,22 @@ InputDecoration kiduCompactInputDecoration({
   );
 }
 
+/// Softer [FilledButton] style for KiDu action-dialog primary actions.
+///
+/// Tonal base ([secondaryContainer]) with a subtle blend toward
+/// [onSecondaryContainer] for more presence without full primary fill.
+ButtonStyle kiduDialogPrimaryButtonStyle(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  final background = Color.alphaBlend(
+    cs.onSecondaryContainer.withValues(alpha: 0.10),
+    cs.secondaryContainer,
+  );
+  return FilledButton.styleFrom(
+    backgroundColor: background,
+    foregroundColor: cs.onSecondaryContainer,
+  );
+}
+
 ThemeData buildKiduTheme() {
   // Keep it warm + premium, no purple defaults.
   const appBg = Color(0xFFF7F6F4);
@@ -15447,7 +15463,8 @@ class _KinderenPageState extends State<_KinderenPage> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Annuleren'),
           ),
-          ElevatedButton(
+          FilledButton(
+            style: kiduDialogPrimaryButtonStyle(ctx),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Archiveren'),
           ),
@@ -17875,7 +17892,8 @@ class _RecurringMasterDetailPageState
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Annuleren'),
           ),
-          ElevatedButton(
+          FilledButton(
+            style: kiduDialogPrimaryButtonStyle(ctx),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(willPause ? 'Pauzeren' : 'Hervatten'),
           ),
@@ -19771,7 +19789,8 @@ class _AddChildDialogState extends State<_AddChildDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
-        ElevatedButton(
+        FilledButton(
+          style: kiduDialogPrimaryButtonStyle(context),
           onPressed: canAdd
               ? () => Navigator.of(context).pop(_controller.text.trim())
               : null,
@@ -19853,7 +19872,8 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
-        ElevatedButton(
+        FilledButton(
+          style: kiduDialogPrimaryButtonStyle(context),
           onPressed: canSave
               ? () => Navigator.of(context).pop(_controller.text.trim())
               : null,
