@@ -1031,11 +1031,6 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
-    final footerFilledButtonStyle = FilledButton.styleFrom(
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: SafeArea(
@@ -1132,7 +1127,7 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                               child: const Text('Annuleren'),
                             ),
                             FilledButton(
-                              style: footerFilledButtonStyle,
+                              style: kiduDialogPrimaryButtonStyle(context),
                               onPressed: () {
                                 final note = _draftNote.trim();
                                 if (note.isEmpty) {
@@ -7085,6 +7080,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             20,
                                                                       ),
                                                                       FilledButton(
+                                                                        style: kiduDialogPrimaryButtonStyle(
+                                                                          sheetCtx,
+                                                                        ),
                                                                         onPressed: () {
                                                                           Navigator.of(
                                                                             sheetCtx,
@@ -7129,6 +7127,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                           ),
                                                                                         ),
                                                                                         FilledButton(
+                                                                                          style: kiduDialogPrimaryButtonStyle(
+                                                                                            dialogCtx,
+                                                                                          ),
                                                                                           onPressed: () =>
                                                                                               Navigator.of(
                                                                                                 dialogCtx,
@@ -7528,6 +7529,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 20,
                                                                           ),
                                                                           FilledButton(
+                                                                            style: kiduDialogPrimaryButtonStyle(
+                                                                              sheetCtx,
+                                                                            ),
                                                                             onPressed:
                                                                                 isValid
                                                                                 ? () {
@@ -7575,6 +7579,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                                     ),
                                                                                                   ),
                                                                                                   FilledButton(
+                                                                                                    style: kiduDialogPrimaryButtonStyle(
+                                                                                                      dialogCtx,
+                                                                                                    ),
                                                                                                     onPressed: () =>
                                                                                                         Navigator.of(
                                                                                                           dialogCtx,
