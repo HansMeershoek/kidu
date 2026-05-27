@@ -4837,7 +4837,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                           child: const Text('Annuleren'),
                                         ),
                                         const Spacer(),
-                                        ElevatedButton(
+                                        FilledButton(
+                                          style: kiduDialogPrimaryButtonStyle(
+                                            context,
+                                          ),
                                           onPressed: selectedCount == 0
                                               ? null
                                               : () => Navigator.of(context).pop(
@@ -8480,7 +8483,10 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                         child: const Text('Annuleren'),
                                       ),
                                       const Spacer(),
-                                      ElevatedButton(
+                                      FilledButton(
+                                        style: kiduDialogPrimaryButtonStyle(
+                                          context,
+                                        ),
                                         onPressed: selectedCount == 0
                                             ? null
                                             : () => Navigator.of(context).pop(
@@ -19710,7 +19716,8 @@ class _RecurringChildSelectionDialogState
                                   child: const Text('Annuleren'),
                                 ),
                                 const Spacer(),
-                                ElevatedButton(
+                                FilledButton(
+                                  style: kiduDialogPrimaryButtonStyle(context),
                                   onPressed: _selected.isEmpty
                                       ? null
                                       : () => Navigator.of(
