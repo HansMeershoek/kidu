@@ -5344,7 +5344,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                   : () => Navigator.of(context).pop(),
                               child: const Text('Annuleren'),
                             ),
-                            ElevatedButton(
+                            FilledButton(
+                              style: kiduDialogPrimaryButtonStyle(context),
                               onPressed: saving
                                   ? null
                                   : () async {
@@ -5461,7 +5462,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             strokeWidth: 2,
                                             color: Theme.of(
                                               context,
-                                            ).colorScheme.onPrimary,
+                                            ).colorScheme.onSecondaryContainer,
                                           ),
                                         ),
                                       ),
@@ -9572,7 +9573,8 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
               onPressed: _saving ? null : () => Navigator.of(context).pop(),
               child: const Text('Annuleren'),
             ),
-            ElevatedButton(
+            FilledButton(
+              style: kiduDialogPrimaryButtonStyle(context),
               onPressed: _saving ? null : () => _submit(),
               child: SizedBox(
                 width: 82,
@@ -9588,7 +9590,9 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
                           ),
                         ),
                       ),
@@ -10490,7 +10494,8 @@ class _EditRecurringMasterExpenseDialogState
           onPressed: _saving ? null : () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
-        ElevatedButton(
+        FilledButton(
+          style: kiduDialogPrimaryButtonStyle(context),
           onPressed: (_saving || _loadingParentSplit) ? null : () => _submit(),
           child: SizedBox(
             width: 82,
@@ -10506,7 +10511,9 @@ class _EditRecurringMasterExpenseDialogState
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Theme.of(context).colorScheme.primary,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSecondaryContainer,
                       ),
                     ),
                   ),
@@ -19426,15 +19433,21 @@ class _AddRecurringExpenseDialogState
           onPressed: _saving ? null : () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
-        ElevatedButton(
+        FilledButton(
+          style: kiduDialogPrimaryButtonStyle(context),
           onPressed: (_loadingChildren || _loadingParentSplit || _saving)
               ? null
               : _onSavePressed,
           child: _saving
-              ? const SizedBox(
+              ? SizedBox(
                   height: 16,
                   width: 16,
-                  child: CircularProgressIndicator(strokeWidth: 1.8),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSecondaryContainer,
+                  ),
                 )
               : const Text('Opslaan'),
         ),
