@@ -16294,7 +16294,8 @@ class _RecurringParentSplitDialogState
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Annuleren'),
         ),
-        ElevatedButton(
+        FilledButton(
+          style: kiduDialogPrimaryButtonStyle(context),
           onPressed: _hasChanges
               ? () => Navigator.of(context).pop(_snapshot())
               : null,
