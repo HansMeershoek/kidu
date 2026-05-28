@@ -847,6 +847,19 @@ ButtonStyle kiduDialogPrimaryButtonStyle(BuildContext context) {
   );
 }
 
+/// Softer [FilledButton] style for KiDu form-card primary actions.
+ButtonStyle kiduFormPrimaryButtonStyle(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  final background = Color.alphaBlend(
+    cs.onSecondaryContainer.withValues(alpha: 0.10),
+    cs.secondaryContainer,
+  );
+  return FilledButton.styleFrom(
+    backgroundColor: background,
+    foregroundColor: cs.onSecondaryContainer,
+  );
+}
+
 ThemeData buildKiduTheme() {
   // Keep it warm + premium, no purple defaults.
   const appBg = Color(0xFFF7F6F4);
@@ -2358,10 +2371,8 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                   ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minHeight: minHeight),
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 520),
+                      child: Align(
+                        alignment: Alignment.topCenter,
                         child: _NameFormCard(
                           title: widget.fromSettings
                               ? 'Naam wijzigen'
@@ -2406,7 +2417,6 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
                         ),
                       ),
                     ),
-                  ),
                 );
               },
             ),
@@ -2418,6 +2428,10 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
 }
 
 class _NameFormCard extends StatelessWidget {
+  /// Caps card width below typical phone content area (~328–358px) so the
+  /// constraint is visible on device; outer shell maxWidth alone had no effect.
+  static const double shellMaxWidth = 380;
+
   const _NameFormCard({
     required this.title,
     required this.body,
@@ -2450,8 +2464,10 @@ class _NameFormCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return KiduCard(
-      child: Column(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: shellMaxWidth),
+      child: KiduCard(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2459,7 +2475,10 @@ class _NameFormCard extends StatelessWidget {
             title,
             style: Theme.of(
               context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -2470,113 +2489,76 @@ class _NameFormCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: Color.alphaBlend(
-                Theme.of(context).colorScheme.primary.withValues(alpha: a06),
-                Theme.of(context).colorScheme.surface,
-              ),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: outlineV(context, a45)),
-            ),
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              textCapitalization: TextCapitalization.sentences,
-              inputFormatters: inputFormatters,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => FocusScope.of(context).unfocus(),
-              onChanged: onChanged,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.12,
-              ),
-              decoration: const InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 12,
-                ),
-                counterText: '',
-              ),
+          TextField(
+            controller: controller,
+            focusNode: focusNode,
+            textCapitalization: TextCapitalization.sentences,
+            inputFormatters: inputFormatters,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
+            onChanged: onChanged,
+            decoration: kiduCompactInputDecoration(
+              labelText: 'Naam',
+            ).copyWith(
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+              border: const OutlineInputBorder(),
+              counterText: '',
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 18,
-            child: Padding(
+          if (errorText != null) ...[
+            const SizedBox(height: 8),
+            Padding(
               padding: const EdgeInsets.only(left: 4),
-              child: errorText == null
-                  ? const SizedBox.shrink()
-                  : Text(
-                      errorText!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a62),
-                        height: 1.35,
-                      ),
-                    ),
+              child: Text(
+                errorText!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                  height: 1.35,
+                ),
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: OutlinedButton(
-                    onPressed: isSaving ? null : onSecondaryPressed,
-                    child: Text(
-                      secondaryLabel,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                  ),
-                ),
+              TextButton(
+                onPressed: isSaving ? null : onSecondaryPressed,
+                child: Text(secondaryLabel),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: ElevatedButton(
-                    onPressed: isSaving || !primaryEnabled
-                        ? null
-                        : onPrimaryPressed,
-                    child: isSaving
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimary,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                primaryLabel,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
-                          )
-                        : Text(
+              const Spacer(),
+              FilledButton(
+                style: kiduFormPrimaryButtonStyle(context),
+                onPressed: isSaving || !primaryEnabled
+                    ? null
+                    : onPrimaryPressed,
+                child: isSaving
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
                             primaryLabel,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                  ),
-                ),
+                        ],
+                      )
+                    : Text(primaryLabel),
               ),
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -6071,10 +6053,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           child: Align(
                             alignment: Alignment.topCenter,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 520),
-                              child: const _DashboardOnboardingNameCard(),
-                            ),
+                            child: const _DashboardOnboardingNameCard(),
                           ),
                         ),
                       ),
