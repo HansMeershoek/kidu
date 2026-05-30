@@ -977,147 +977,122 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
 
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.sizeOf(context).width;
-    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
-    final footerTextButtonStyle = TextButton.styleFrom(
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    final hasShareSwitch =
+        widget.coParentUid != null && widget.coParentUid!.trim().isNotEmpty;
+    final dialogW = (MediaQuery.sizeOf(context).width - 80.0).clamp(
+      280.0,
+      420.0,
     );
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final maxH = constraints.maxHeight * 0.85;
-            return ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: dialogW,
-                maxHeight: maxH,
-              ),
-              child: SizedBox(
-                width: dialogW,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      kiduActionDialogTitle(
-                        context,
-                        widget.hasInitialNote
-                            ? 'Notitie bewerken'
-                            : 'Notitie toevoegen',
-                      ),
-                      const SizedBox(height: 8),
-                      Flexible(
-                        child: SingleChildScrollView(
-                          child: TextFormField(
-                            initialValue: widget.initialNote,
-                            autofocus: true,
-                            maxLength: 180,
-                            minLines: 1,
-                            maxLines: 8,
-                            textCapitalization: TextCapitalization.sentences,
-                            textInputAction: TextInputAction.done,
-                            buildCounter:
-                                (
-                                  context, {
-                                  required int currentLength,
-                                  required bool isFocused,
-                                  required int? maxLength,
-                                }) => null,
-                            decoration: kiduCompactInputDecoration(
-                              labelText: 'Notitie',
-                            ).copyWith(
-                              floatingLabelBehavior:
-                                  FloatingLabelBehavior.always,
-                              border: const OutlineInputBorder(),
-                            ),
-                            onChanged: (v) => setState(() {
-                              _draftNote = v;
-                              if (v.trim().isEmpty) {
-                                _shareWithCoParent = false;
-                              }
-                            }),
-                            onFieldSubmitted: (_) =>
-                                FocusScope.of(context).unfocus(),
-                          ),
-                        ),
-                      ),
-                    if (widget.coParentUid != null &&
-                        widget.coParentUid!.trim().isNotEmpty)
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          'Notitie delen',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        value:
-                            _shareWithCoParent && _draftNote.trim().isNotEmpty,
-                        onChanged: _draftNote.trim().isEmpty
-                            ? null
-                            : (v) => setState(() => _shareWithCoParent = v),
-                      ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        if (widget.hasInitialNote)
-                          TextButton(
-                            style: footerTextButtonStyle.copyWith(
-                              foregroundColor: WidgetStatePropertyAll(
-                                Theme.of(context).colorScheme.error
-                                    .withValues(alpha: 0.85),
-                              ),
-                            ),
-                            onPressed: () =>
-                                _safePop(PrivateNoteDialogDelete()),
-                            child: const Text('Verwijderen'),
-                          ),
-                        const Spacer(),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextButton(
-                              style: footerTextButtonStyle,
-                              onPressed: () =>
-                                  _safePop(PrivateNoteDialogCancelled()),
-                              child: const Text('Annuleren'),
-                            ),
-                            FilledButton(
-                              style: kiduDialogPrimaryButtonStyle(context),
-                              onPressed: () {
-                                final note = _draftNote.trim();
-                                if (note.isEmpty) {
-                                  if (widget.hasInitialNote) {
-                                    _safePop(PrivateNoteDialogDelete());
-                                  } else {
-                                    _safePop(PrivateNoteDialogCancelled());
-                                  }
-                                } else {
-                                  _safePop(
-                                    PrivateNoteDialogSave(
-                                      note,
-                                      sharedWithUids:
-                                          _resolvedSharedWithUidsForSave(),
-                                    ),
-                                  );
-                                }
-                              },
-                              child: const Text('Opslaan'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+    final deleteButton = TextButton(
+      style: TextButton.styleFrom(
+        foregroundColor: Theme.of(
+          context,
+        ).colorScheme.error.withValues(alpha: 0.85),
+      ),
+      onPressed: () => _safePop(PrivateNoteDialogDelete()),
+      child: const Text('Verwijderen'),
+    );
+    final cancelButton = TextButton(
+      onPressed: () => _safePop(PrivateNoteDialogCancelled()),
+      child: const Text('Annuleren'),
+    );
+    final saveButton = FilledButton(
+      style: kiduDialogPrimaryButtonStyle(context),
+      onPressed: () {
+        final note = _draftNote.trim();
+        if (note.isEmpty) {
+          if (widget.hasInitialNote) {
+            _safePop(PrivateNoteDialogDelete());
+          } else {
+            _safePop(PrivateNoteDialogCancelled());
+          }
+        } else {
+          _safePop(
+            PrivateNoteDialogSave(
+              note,
+              sharedWithUids: _resolvedSharedWithUidsForSave(),
             ),
-            );
-          },
+          );
+        }
+      },
+      child: const Text('Opslaan'),
+    );
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      title: kiduActionDialogTitle(
+        context,
+        widget.hasInitialNote ? 'Notitie bewerken' : 'Notitie toevoegen',
+      ),
+      content: SizedBox(
+        width: dialogW,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 8),
+              TextFormField(
+              initialValue: widget.initialNote,
+              autofocus: true,
+              maxLength: 180,
+              minLines: 1,
+              maxLines: 8,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              buildCounter:
+                  (
+                    context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) => null,
+              decoration: kiduCompactInputDecoration(
+                labelText: 'Notitie',
+              ).copyWith(
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (v) => setState(() {
+                _draftNote = v;
+                if (v.trim().isEmpty) {
+                  _shareWithCoParent = false;
+                }
+              }),
+              onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
+            ),
+            if (hasShareSwitch) ...[
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Notitie delen',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                value: _shareWithCoParent && _draftNote.trim().isNotEmpty,
+                onChanged: _draftNote.trim().isEmpty
+                    ? null
+                    : (v) => setState(() => _shareWithCoParent = v),
+              ),
+            ],
+          ],
+          ),
         ),
       ),
+      actions: widget.hasInitialNote
+          ? [
+              deleteButton,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  cancelButton,
+                  const SizedBox(width: 8),
+                  saveButton,
+                ],
+              ),
+            ]
+          : [cancelButton, saveButton],
     );
   }
 }
@@ -19736,25 +19711,33 @@ class _AddChildDialogState extends State<_AddChildDialog> {
       actionsAlignment: MainAxisAlignment.spaceBetween,
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       title: kiduActionDialogTitle(context, 'Kind toevoegen'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textCapitalization: TextCapitalization.words,
-        textInputAction: TextInputAction.done,
-        onChanged: (_) => setState(() {}),
-        onSubmitted: (_) {
-          if (canAdd) Navigator.of(context).pop(_controller.text.trim());
-        },
-        decoration: kiduCompactInputDecoration(
-          labelText: 'Naam',
-          helperText: isDuplicate ? 'Naam bestaat al' : null,
-        ).copyWith(
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          border: const OutlineInputBorder(),
-          helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) {
+              if (canAdd) Navigator.of(context).pop(_controller.text.trim());
+            },
+            decoration: kiduCompactInputDecoration(
+              labelText: 'Naam',
+              helperText: isDuplicate ? 'Naam bestaat al' : null,
+            ).copyWith(
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+              border: const OutlineInputBorder(),
+              helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.error.withValues(alpha: 0.85),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
       actions: [
         TextButton(
@@ -19823,21 +19806,27 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
       actionsAlignment: MainAxisAlignment.spaceBetween,
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       title: kiduActionDialogTitle(context, 'Naam wijzigen'),
-      content: TextField(
-        controller: _controller,
-        textCapitalization: TextCapitalization.words,
-        textInputAction: TextInputAction.done,
-        onChanged: (_) => setState(() {}),
-        onSubmitted: (_) {
-          if (canSave) Navigator.of(context).pop(_controller.text.trim());
-        },
-        decoration: kiduCompactInputDecoration(
-          labelText: 'Naam',
-          errorText: isDuplicate ? 'Naam bestaat al' : null,
-        ).copyWith(
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          border: const OutlineInputBorder(),
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          TextField(
+            controller: _controller,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) {
+              if (canSave) Navigator.of(context).pop(_controller.text.trim());
+            },
+            decoration: kiduCompactInputDecoration(
+              labelText: 'Naam',
+              errorText: isDuplicate ? 'Naam bestaat al' : null,
+            ).copyWith(
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
