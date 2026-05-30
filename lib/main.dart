@@ -9420,6 +9420,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                   TextField(
                     controller: _reasonController,
                     focusNode: _reasonFocusNode,
+                    textCapitalization: TextCapitalization.sentences,
                     onTap: () {
                       if (_reasonHasError) {
                         setState(() => _reasonHasError = false);
