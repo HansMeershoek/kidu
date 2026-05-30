@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../ui/kidu_styles.dart';
 import 'reopen_lock_service.dart';
 
 class ReopenLockGate extends StatefulWidget {
@@ -330,6 +331,7 @@ class _ReopenLockScreen extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -342,6 +344,7 @@ class _ReopenLockScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       FilledButton(
+                        style: kiduDialogPrimaryButtonStyle(context),
                         onPressed: onRetry,
                         child: const Text('Opnieuw proberen'),
                       ),
