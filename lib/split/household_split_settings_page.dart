@@ -361,9 +361,40 @@ class _HouseholdSplitSettingsPageState
           ),
         ),
         const SizedBox(height: 16),
-        FilledButton.tonal(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Opslaan…' : 'Opslaan'),
+        Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: _saving
+                    ? null
+                    : () => Navigator.of(context).maybePop(),
+                child: const Text('Annuleren'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.tonal(
+                onPressed: _saving || !_isDirty ? null : _save,
+                child: _saving
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Opslaan'),
+                        ],
+                      )
+                    : const Text('Opslaan'),
+              ),
+            ),
+          ],
         ),
         if (lastChangedText != null) ...[
           const SizedBox(height: 8),
