@@ -1064,7 +1064,12 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                       children: [
                         if (widget.hasInitialNote)
                           TextButton(
-                            style: footerTextButtonStyle,
+                            style: footerTextButtonStyle.copyWith(
+                              foregroundColor: WidgetStatePropertyAll(
+                                Theme.of(context).colorScheme.error
+                                    .withValues(alpha: 0.85),
+                              ),
+                            ),
                             onPressed: () =>
                                 _safePop(PrivateNoteDialogDelete()),
                             child: const Text('Verwijderen'),
@@ -15466,7 +15471,8 @@ class _KinderenPageState extends State<_KinderenPage> {
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.error
+                  .withValues(alpha: 0.85),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),
@@ -17949,7 +17955,8 @@ class _RecurringMasterDetailPageState
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.error
+                  .withValues(alpha: 0.85),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),
