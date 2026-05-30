@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../formatting/relative_time_nl.dart';
+import '../ui/kidu_styles.dart';
 import 'household_split_settings_repository.dart';
 import 'parent_split.dart';
 
@@ -373,7 +374,8 @@ class _HouseholdSplitSettingsPageState
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: FilledButton.tonal(
+              child: FilledButton(
+                style: kiduFormPrimaryButtonStyle(context),
                 onPressed: _saving || !_isDirty ? null : _save,
                 child: _saving
                     ? Row(
