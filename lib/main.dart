@@ -7416,11 +7416,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             keyboardType: const TextInputType.numberWithOptions(
                                                                               decimal: true,
                                                                             ),
-                                                                            decoration: InputDecoration(
+                                                                            decoration: kiduCompactInputDecoration(
                                                                               labelText: 'Bedrag',
-                                                                              prefixText: '€ ',
-                                                                              isDense: true,
-                                                                              border: const OutlineInputBorder(),
                                                                               errorText:
                                                                                   amountCtrl.text.trim().isNotEmpty &&
                                                                                       (enteredCents ==
@@ -7429,6 +7426,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                               0)
                                                                                   ? 'Voer een geldig bedrag in'
                                                                                   : null,
+                                                                            ).copyWith(
+                                                                              floatingLabelBehavior:
+                                                                                  FloatingLabelBehavior.always,
+                                                                              border: const OutlineInputBorder(),
+                                                                              prefixText: '€ ',
                                                                             ),
                                                                             onChanged:
                                                                                 (
