@@ -19372,15 +19372,22 @@ class _AddRecurringExpenseDialogState
               ? null
               : _onSavePressed,
           child: _saving
-              ? SizedBox(
-                  height: 16,
-                  width: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.8,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSecondaryContainer,
-                  ),
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Opslaan'),
+                  ],
                 )
               : const Text('Opslaan'),
         ),
