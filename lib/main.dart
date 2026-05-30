@@ -19755,9 +19755,7 @@ class _AddChildDialogState extends State<_AddChildDialog> {
             textCapitalization: TextCapitalization.words,
             textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {}),
-            onSubmitted: (_) {
-              if (canAdd) Navigator.of(context).pop(_controller.text.trim());
-            },
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
             decoration: kiduCompactInputDecoration(
               labelText: 'Naam',
               helperText: isDuplicate ? 'Naam bestaat al' : null,
@@ -19849,9 +19847,7 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
             textCapitalization: TextCapitalization.words,
             textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {}),
-            onSubmitted: (_) {
-              if (canSave) Navigator.of(context).pop(_controller.text.trim());
-            },
+            onSubmitted: (_) => FocusScope.of(context).unfocus(),
             decoration: kiduCompactInputDecoration(
               labelText: 'Naam',
               helperText: isDuplicate ? 'Naam bestaat al' : null,
