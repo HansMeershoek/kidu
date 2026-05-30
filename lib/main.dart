@@ -19854,10 +19854,15 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
             },
             decoration: kiduCompactInputDecoration(
               labelText: 'Naam',
-              errorText: isDuplicate ? 'Naam bestaat al' : null,
+              helperText: isDuplicate ? 'Naam bestaat al' : null,
             ).copyWith(
               floatingLabelBehavior: FloatingLabelBehavior.always,
               border: const OutlineInputBorder(),
+              helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.error.withValues(alpha: 0.85),
+              ),
             ),
           ),
         ],
