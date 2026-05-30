@@ -5695,7 +5695,10 @@ class _DashboardPageState extends State<DashboardPage> {
                     Text(
                       'Uitnodigingscode',
                       style: Theme.of(sheetContext).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     KiduCodePill(
@@ -5741,7 +5744,10 @@ class _DashboardPageState extends State<DashboardPage> {
                   Text(
                     'Uitnodigingscode',
                     style: Theme.of(sheetContext).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                        ?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -5777,7 +5783,10 @@ class _DashboardPageState extends State<DashboardPage> {
                   Text(
                     'Wachten op co-parent',
                     style: Theme.of(sheetContext).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                        ?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -15262,9 +15271,10 @@ void _showKinderenInfoSheet(BuildContext context) {
                 children: [
                   Text(
                     'Over kinderen',
-                    style: Theme.of(
-                      sheetContext,
-                    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
