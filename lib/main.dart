@@ -15464,10 +15464,9 @@ class _KinderenPageState extends State<_KinderenPage> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Annuleren'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),
@@ -17948,10 +17947,9 @@ class _RecurringMasterDetailPageState
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Annuleren'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),
