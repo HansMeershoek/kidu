@@ -800,6 +800,54 @@ Color onSurface(BuildContext context, double alpha) =>
 Color outlineV(BuildContext context, double alpha) =>
     Theme.of(context).colorScheme.outlineVariant.withValues(alpha: alpha);
 
+/// Compacte, zachte `Notitie delen`-toggle.
+///
+/// Bewust kleiner en tonaler dan de Material-standaard switch: schaalt licht
+/// terug en leunt op de secondaryContainer-tonen i.p.v. de felle primary, zodat
+/// de toggle premium en rustig oogt binnen de notitie-dialogen. Puur visueel —
+/// `value`/`onChanged` (incl. uitgeschakelde staat bij lege notitie) blijven
+/// door de aanroeper bepaald.
+Widget kiduNoteShareToggle({
+  required BuildContext context,
+  required bool value,
+  required ValueChanged<bool>? onChanged,
+}) {
+  final cs = Theme.of(context).colorScheme;
+  // Label volgt de toggle-staat: aan = normaal leesbaar, uit = rustig gefade,
+  // zodat de gedeelde-status ook in de tekst voelbaar is. Puur visueel.
+  final labelColor = value
+      ? cs.onSurface
+      : cs.onSurface.withValues(alpha: 0.50);
+  return Row(
+    children: [
+      Expanded(
+        child: Text(
+          'Notitie delen',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+            color: labelColor,
+          ),
+        ),
+      ),
+      Transform.scale(
+        scale: 0.88,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          activeTrackColor: Color.alphaBlend(
+            cs.onSecondaryContainer.withValues(alpha: 0.10),
+            cs.secondaryContainer,
+          ),
+          activeThumbColor: cs.onSecondaryContainer.withValues(alpha: 0.72),
+          inactiveTrackColor: cs.outlineVariant.withValues(alpha: 0.45),
+          inactiveThumbColor: cs.onSurfaceVariant.withValues(alpha: 0.65),
+        ),
+      ),
+    ],
+  );
+}
+
 ThemeData buildKiduTheme() {
   // Keep it warm + premium, no purple defaults.
   const appBg = Color(0xFFF7F6F4);
@@ -1064,12 +1112,8 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
             ),
             if (hasShareSwitch) ...[
               const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Notitie delen',
-                  style: TextStyle(fontWeight: FontWeight.w500),
-                ),
+              kiduNoteShareToggle(
+                context: context,
                 value: _shareWithCoParent && _draftNote.trim().isNotEmpty,
                 onChanged: _draftNote.trim().isEmpty
                     ? null
@@ -5034,14 +5078,8 @@ class _DashboardPageState extends State<DashboardPage> {
                                     ),
                                   ),
                                   if (coParentUidForShare != null) ...[
-                                    SwitchListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      title: const Text(
-                                        'Notitie delen',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
+                                    kiduNoteShareToggle(
+                                      context: context,
                                       value:
                                           sharePrivateNoteWithCoParent &&
                                           noteController.text.trim().isNotEmpty,
@@ -19222,12 +19260,8 @@ class _AddRecurringExpenseDialogState
                         return const SizedBox.shrink();
                       }
                       final noteEmpty = _noteController.text.trim().isEmpty;
-                      return SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          'Notitie delen',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
+                      return kiduNoteShareToggle(
+                        context: ctx,
                         value: _sharePrivateNoteWithCoParent && !noteEmpty,
                         onChanged: noteEmpty
                             ? null
