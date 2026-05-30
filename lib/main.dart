@@ -20296,9 +20296,12 @@ class _SetupPageState extends State<SetupPage> {
                             textCapitalization: TextCapitalization.characters,
                             onChanged: (_) =>
                                 setState(() => _joinInlineHint = null),
-                            decoration: const InputDecoration(
+                            decoration: kiduCompactInputDecoration(
                               labelText: 'Koppelcode',
-                              border: OutlineInputBorder(),
+                            ).copyWith(
+                              floatingLabelBehavior:
+                                  FloatingLabelBehavior.always,
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                           if (_joinInlineHint != null) ...[
