@@ -1392,7 +1392,7 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
           ..showSnackBar(
             const SnackBar(
               content: Text(
-                'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+                'Je bent offline. Probeer het later opnieuw.',
               ),
             ),
           );
@@ -1472,7 +1472,7 @@ Future<PrivateNoteDialogResult?> _doManageRecurringMasterPrivateNote(
           ..showSnackBar(
             const SnackBar(
               content: Text(
-                'Je bent offline. Notitie is niet gewijzigd. Verbind met internet en probeer opnieuw.',
+                'Je bent offline. Probeer het later opnieuw.',
               ),
             ),
           );
@@ -5327,7 +5327,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       setLocalState(() => saving = true);
                                       if (!await _checkCanWriteNow()) {
                                         _showSnackBar(
-                                          'Je bent offline. Uitgave niet opgeslagen. Verbind met internet en probeer opnieuw.',
+                                          'Je bent offline. Probeer het later opnieuw.',
                                         );
                                         if (context.mounted) {
                                           setLocalState(() => saving = false);
@@ -7894,16 +7894,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                                                 Future<void>
                                                                 openNoteFlow() async {
-                                                                  final hasNote =
-                                                                      (visibleNotes[d.id] ??
-                                                                              '')
-                                                                          .isNotEmpty;
                                                                   if (!await _checkCanWriteNow()) {
                                                                     if (mounted) {
                                                                       _showSnackBar(
-                                                                        hasNote
-                                                                            ? 'Je bent offline. Notitie bewerken kan alleen met internet.'
-                                                                            : 'Je bent offline. Notitie toevoegen kan alleen met internet.',
+                                                                        'Je bent offline. Probeer het later opnieuw.',
                                                                       );
                                                                     }
                                                                     return;
