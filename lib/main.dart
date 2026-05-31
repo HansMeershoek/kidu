@@ -5563,7 +5563,7 @@ class _DashboardPageState extends State<DashboardPage> {
           .limit(2)
           .get();
       if (membersSnap.size >= 2) {
-        if (!silent) _showSnackBar('Household is al vol.');
+        if (!silent) _showSnackBar('Huishouden is al vol.');
         return null;
       }
 
@@ -5598,7 +5598,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (createdCode == null) {
         if (kDebugMode) debugPrint('Generate invite error: $lastError');
         if (!silent) {
-          _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
+          _showSnackBar('Koppelcode maken lukt niet. Probeer opnieuw.');
         }
         return null;
       }
@@ -5607,7 +5607,7 @@ class _DashboardPageState extends State<DashboardPage> {
     } catch (e) {
       if (kDebugMode) debugPrint('Generate invite error: $e');
       if (!silent) {
-        _showSnackBar('Invite code genereren mislukt. Probeer opnieuw.');
+        _showSnackBar('Koppelcode maken lukt niet. Probeer opnieuw.');
       }
       return null;
     } finally {
@@ -5620,12 +5620,12 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _shareInviteCode(String code) async {
     final trimmed = code.trim();
     if (trimmed.isEmpty) {
-      _showSnackBar('Geen invite code beschikbaar.');
+      _showSnackBar('Geen koppelcode beschikbaar.');
       return;
     }
     try {
       final text =
-          'Koppel met mij in KiDu.\nGebruik deze invite code: $trimmed';
+          'Koppel met mij in KiDu.\nGebruik deze koppelcode: $trimmed';
       await Share.share(text);
     } catch (_) {
       _showSnackBar('Delen mislukt. Probeer opnieuw.');
@@ -5721,7 +5721,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Uitnodigingscode',
+                      'Koppelcode',
                       style: Theme.of(sheetContext).textTheme.titleMedium
                           ?.copyWith(
                             fontWeight: FontWeight.w700,
@@ -5770,7 +5770,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Uitnodigingscode',
+                    'Koppelcode',
                     style: Theme.of(sheetContext).textTheme.titleMedium
                         ?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -20065,7 +20065,7 @@ class _SetupPageState extends State<SetupPage> {
 
     final code = _inviteController.text.trim().toUpperCase();
     if (code.isEmpty) {
-      setState(() => _joinInlineHint = 'Vul een invite code in.');
+      setState(() => _joinInlineHint = 'Vul een koppelcode in.');
       return;
     }
 
@@ -20333,7 +20333,7 @@ class _SetupPageState extends State<SetupPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'Voer een invite-code in om te koppelen aan het household van je co-parent.',
+                            'Voer een koppelcode in om te koppelen met je co-parent.',
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
                                   color: onSurface(context, a62),
