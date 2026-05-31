@@ -1126,14 +1126,24 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
       ),
       actions: widget.hasInitialNote
           ? [
-              deleteButton,
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  cancelButton,
-                  const SizedBox(width: 8),
-                  saveButton,
-                ],
+              SizedBox(
+                width: double.infinity,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    cancelButton,
+                    const Spacer(),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        saveButton,
+                        const SizedBox(height: 6),
+                        deleteButton,
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ]
           : [cancelButton, saveButton],
