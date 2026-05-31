@@ -3160,7 +3160,7 @@ class _UitgavenverdelingSettingsTileState
         ..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
-            content: Text('Je bent offline, probeer het later opnieuw.'),
+            content: Text('Je bent offline. Probeer het later opnieuw.'),
             duration: Duration(seconds: 4),
           ),
         );
@@ -9149,7 +9149,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Je bent offline, probeer het later opnieuw'),
+          content: Text('Je bent offline. Probeer het later opnieuw.'),
         ),
       );
       setState(() => _saving = false);
@@ -10096,7 +10096,7 @@ class _EditRecurringMasterExpenseDialogState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Je bent offline, probeer het later opnieuw'),
+          content: Text('Je bent offline. Probeer het later opnieuw.'),
         ),
       );
       setState(() => _saving = false);
@@ -10704,7 +10704,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
-        _showExpenseSnackBar('Je bent offline, probeer het later opnieuw');
+        _showExpenseSnackBar('Je bent offline. Probeer het later opnieuw.');
       }
       return;
     }
@@ -17766,7 +17766,7 @@ class _RecurringMasterDetailPageState
   }) async {
     if (!await _checkCanWriteNow()) {
       if (mounted) {
-        _showRecurringSnackBar('Je bent offline, probeer het later opnieuw');
+        _showRecurringSnackBar('Je bent offline. Probeer het later opnieuw.');
       }
       return;
     }
@@ -17846,7 +17846,7 @@ class _RecurringMasterDetailPageState
     if (_pauseActionBusy) return;
     if (!await _checkCanWriteNow()) {
       if (mounted) {
-        _showRecurringSnackBar('Je bent offline, probeer het later opnieuw');
+        _showRecurringSnackBar('Je bent offline. Probeer het later opnieuw.');
       }
       return;
     }
@@ -17957,7 +17957,7 @@ class _RecurringMasterDetailPageState
     if (_deleteActionBusy) return;
     if (!await _checkCanWriteNow()) {
       if (mounted) {
-        _showRecurringSnackBar('Je bent offline, probeer het later opnieuw');
+        _showRecurringSnackBar('Je bent offline. Probeer het later opnieuw.');
       }
       return;
     }
@@ -19017,7 +19017,7 @@ class _AddRecurringExpenseDialogState
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Je bent offline, probeer het later opnieuw'),
+          content: Text('Je bent offline. Probeer het later opnieuw.'),
         ),
       );
       return;

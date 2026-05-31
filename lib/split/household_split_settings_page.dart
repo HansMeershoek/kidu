@@ -195,7 +195,7 @@ class _HouseholdSplitSettingsPageState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Je bent offline, probeer het later opnieuw.'),
+          content: Text('Je bent offline. Probeer het later opnieuw.'),
         ),
       );
       return;
