@@ -18217,6 +18217,18 @@ class _RecurringMasterDetailPageState
             : null;
         final parentSplitSnapshot = _tryReadRecurringParentSplit(data);
 
+        // Parent-level read gate for the co-parent recurring note view: only
+        // listen to the privateNotes doc when the parent master mirror lists
+        // this viewer in `privateNoteSharedWithUids`. This avoids issuing reads
+        // that Firestore rules would deny (PERMISSION_DENIED) for co-parents the
+        // recurring note was never shared with. The creator branch is gated by
+        // `isCreator` and keeps its existing live listener untouched.
+        final recurringNoteViewerUid = widget.uid.trim();
+        final recurringNoteSharedWithViewer = _parsePrivateNoteSharedWithUids(
+          data,
+          field: 'privateNoteSharedWithUids',
+        ).contains(recurringNoteViewerUid);
+
         return Scaffold(
           appBar: AppBar(
             centerTitle: true,
@@ -18741,37 +18753,41 @@ class _RecurringMasterDetailPageState
                     ],
                     if (!isCreator) ...[
                       const SizedBox(height: 12),
-                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .doc(
-                              'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
-                            )
-                            .snapshots(),
-                        builder: (context, noteSnap) {
-                          if (noteSnap.hasError) {
-                            return const SizedBox.shrink();
-                          }
-                          final nd = noteSnap.data?.data();
-                          final note = (nd?['note'] as String?)?.trim() ?? '';
-                          if (!_ExpenseDetailPage._privateNoteIsSharedWithViewer(
-                                nd,
-                                widget.uid,
-                              ) ||
-                              note.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              'Gedeelde notitie',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: onSurface(context, a70),
+                      if (recurringNoteSharedWithViewer)
+                        StreamBuilder<
+                          DocumentSnapshot<Map<String, dynamic>>
+                        >(
+                          stream: FirebaseFirestore.instance
+                              .doc(
+                                'households/${widget.householdId}/recurringExpenses/${widget.masterId}/privateNotes/${_ExpenseDetailPage._privateNotesDocUid(widget.createdByUid)}',
+                              )
+                              .snapshots(),
+                          builder: (context, noteSnap) {
+                            if (noteSnap.hasError) {
+                              return const SizedBox.shrink();
+                            }
+                            final nd = noteSnap.data?.data();
+                            final note =
+                                (nd?['note'] as String?)?.trim() ?? '';
+                            if (!_ExpenseDetailPage._privateNoteIsSharedWithViewer(
+                                  nd,
+                                  widget.uid,
+                                ) ||
+                                note.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Gedeelde notitie',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: onSurface(context, a70),
+                                ),
                               ),
-                            ),
-                            subtitle: Text(note),
-                          );
-                        },
-                      ),
+                              subtitle: Text(note),
+                            );
+                          },
+                        ),
                       Text(
                         'Alleen de maker kan deze maandelijkse uitgave bewerken of pauzeren.',
                         style: textTheme.bodySmall?.copyWith(
