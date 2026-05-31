@@ -1097,10 +1097,10 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
                     required int? maxLength,
                   }) => null,
               decoration: kiduCompactInputDecoration(
+                context: context,
                 labelText: 'Notitie',
               ).copyWith(
                 floatingLabelBehavior: FloatingLabelBehavior.always,
-                border: const OutlineInputBorder(),
               ),
               onChanged: (v) => setState(() {
                 _draftNote = v;
@@ -2472,10 +2472,10 @@ class _NameFormCard extends StatelessWidget {
             onSubmitted: (_) => FocusScope.of(context).unfocus(),
             onChanged: onChanged,
             decoration: kiduCompactInputDecoration(
+              context: context,
               labelText: 'Naam',
             ).copyWith(
               floatingLabelBehavior: FloatingLabelBehavior.always,
-              border: const OutlineInputBorder(),
               counterText: '',
             ),
           ),
@@ -4997,14 +4997,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                           required int? maxLength,
                                         }) => null,
                                     decoration: kiduCompactInputDecoration(
-                                      labelText: 'Titel',
+                                    context: context,
+                                    labelText: 'Titel',
                                       hintText: titleHasError
                                           ? 'Vul een titel in'
                                           : null,
                                     ).copyWith(
                                       floatingLabelBehavior:
                                           FloatingLabelBehavior.always,
-                                      border: const OutlineInputBorder(),
                                       hintStyle: titleHasError
                                           ? subtleErrorHintStyle
                                           : null,
@@ -5041,14 +5041,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                       }
                                     },
                                     decoration: kiduCompactInputDecoration(
-                                      labelText: 'Bedrag (EUR)',
+                                    context: context,
+                                    labelText: 'Bedrag (EUR)',
                                       hintText: amountHasError
                                           ? 'Vul een geldig bedrag in'
                                           : 'Bijv. 12,34',
                                     ).copyWith(
                                       floatingLabelBehavior:
                                           FloatingLabelBehavior.always,
-                                      border: const OutlineInputBorder(),
                                       hintStyle: amountHasError
                                           ? subtleErrorHintStyle
                                           : null,
@@ -5080,11 +5080,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                           required int? maxLength,
                                         }) => null,
                                     decoration: kiduCompactInputDecoration(
-                                      labelText: 'Notitie (optioneel)',
+                                    context: context,
+                                    labelText: 'Notitie (optioneel)',
                                     ).copyWith(
                                       floatingLabelBehavior:
                                           FloatingLabelBehavior.always,
-                                      border: const OutlineInputBorder(),
                                     ),
                                   ),
                                   if (coParentUidForShare != null) ...[
@@ -7454,6 +7454,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               decimal: true,
                                                                             ),
                                                                             decoration: kiduCompactInputDecoration(
+                                                                              context: context,
                                                                               labelText: 'Bedrag',
                                                                               errorText:
                                                                                   amountCtrl.text.trim().isNotEmpty &&
@@ -7466,7 +7467,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             ).copyWith(
                                                                               floatingLabelBehavior:
                                                                                   FloatingLabelBehavior.always,
-                                                                              border: const OutlineInputBorder(),
                                                                               prefixText: '€ ',
                                                                             ),
                                                                             onChanged:
@@ -9393,11 +9393,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                         required int? maxLength,
                       }) => null,
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Titel',
+                  context: context,
+                  labelText: 'Titel',
                     hintText: _titleHasError ? titleErrorHint : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -9428,13 +9428,13 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     _enqueueAuditReasonGateRefresh();
                   },
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Bedrag (EUR)',
+                  context: context,
+                  labelText: 'Bedrag (EUR)',
                     hintText: _amountHasError
                         ? 'Vul een geldig bedrag in'
                         : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintStyle: _amountHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -9458,11 +9458,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                       }
                     },
                     decoration: kiduCompactInputDecoration(
-                      labelText: 'Reden',
+                    context: context,
+                    labelText: 'Reden',
                       hintText: _reasonHasError ? 'Vul een reden in' : null,
                     ).copyWith(
                       floatingLabelBehavior: FloatingLabelBehavior.always,
-                      border: const OutlineInputBorder(),
                       hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
                     ),
                   ),
@@ -10283,11 +10283,11 @@ class _EditRecurringMasterExpenseDialogState
                         required int? maxLength,
                       }) => null,
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Titel',
+                  context: context,
+                  labelText: 'Titel',
                     hintText: _titleHasError ? titleErrorHint : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -10321,13 +10321,13 @@ class _EditRecurringMasterExpenseDialogState
                     }
                   },
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Bedrag (EUR)',
+                  context: context,
+                  labelText: 'Bedrag (EUR)',
                     hintText: _amountHasError
                         ? 'Vul een geldig bedrag in'
                         : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintStyle: _amountHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -19193,11 +19193,11 @@ class _AddRecurringExpenseDialogState
                         required int? maxLength,
                       }) => null,
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Titel',
+                  context: context,
+                  labelText: 'Titel',
                     hintText: _titleHasError ? 'Vul een titel in' : null,
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintStyle: _titleHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -19224,13 +19224,13 @@ class _AddRecurringExpenseDialogState
                     }
                   },
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Bedrag (EUR)',
+                  context: context,
+                  labelText: 'Bedrag (EUR)',
                     hintText: _amountHasError
                         ? 'Vul een geldig bedrag in'
                         : 'Bijv. 12,34',
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                     hintStyle: _amountHasError ? subtleErrorHintStyle : null,
                   ),
                 ),
@@ -19255,10 +19255,10 @@ class _AddRecurringExpenseDialogState
                         required int? maxLength,
                       }) => null,
                   decoration: kiduCompactInputDecoration(
-                    labelText: 'Notitie (optioneel)',
+                  context: context,
+                  labelText: 'Notitie (optioneel)',
                   ).copyWith(
                     floatingLabelBehavior: FloatingLabelBehavior.always,
-                    border: const OutlineInputBorder(),
                   ),
                 ),
                 if (!_loadingParentSplit)
@@ -19767,11 +19767,11 @@ class _AddChildDialogState extends State<_AddChildDialog> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => FocusScope.of(context).unfocus(),
             decoration: kiduCompactInputDecoration(
+              context: context,
               labelText: 'Naam',
               helperText: isDuplicate ? 'Naam bestaat al' : null,
             ).copyWith(
               floatingLabelBehavior: FloatingLabelBehavior.always,
-              border: const OutlineInputBorder(),
               helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(
                   context,
@@ -19859,11 +19859,11 @@ class _RenameChildDialogState extends State<_RenameChildDialog> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => FocusScope.of(context).unfocus(),
             decoration: kiduCompactInputDecoration(
+              context: context,
               labelText: 'Naam',
               helperText: isDuplicate ? 'Naam bestaat al' : null,
             ).copyWith(
               floatingLabelBehavior: FloatingLabelBehavior.always,
-              border: const OutlineInputBorder(),
               helperStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(
                   context,
@@ -20347,11 +20347,11 @@ class _SetupPageState extends State<SetupPage> {
                             onChanged: (_) =>
                                 setState(() => _joinInlineHint = null),
                             decoration: kiduCompactInputDecoration(
-                              labelText: 'Koppelcode',
+                            context: context,
+                            labelText: 'Koppelcode',
                             ).copyWith(
                               floatingLabelBehavior:
                                   FloatingLabelBehavior.always,
-                              border: const OutlineInputBorder(),
                             ),
                           ),
                           if (_joinInlineHint != null) ...[
