@@ -6499,7 +6499,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                               try {
                                                 if (!await _checkCanWriteNow()) {
                                                   _showSnackBar(
-                                                    'Je bent offline. Verbind met internet om een uitgave toe te voegen.',
+                                                    'Je bent offline. Probeer het later opnieuw.',
                                                   );
                                                   return;
                                                 }
