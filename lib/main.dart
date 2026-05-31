@@ -925,9 +925,16 @@ class PrivateNoteDialogSave extends PrivateNoteDialogResult {
 }
 
 /// Firestore payloads may omit [`sharedWithUids`] entirely (private-only).
-List<String> _parsePrivateNoteSharedWithUids(Map<String, dynamic>? data) {
+///
+/// The same list shape is mirrored onto parent expense/recurring docs under
+/// `privateNoteSharedWithUids`, so [field] allows reusing this parser for that
+/// parent-level read gate.
+List<String> _parsePrivateNoteSharedWithUids(
+  Map<String, dynamic>? data, {
+  String field = 'sharedWithUids',
+}) {
   if (data == null) return const [];
-  final raw = data['sharedWithUids'];
+  final raw = data[field];
   if (raw is! List) return const [];
   return raw
       .whereType<String>()
@@ -6720,21 +6727,42 @@ class _DashboardPageState extends State<DashboardPage> {
                                             .toList(growable: false);
                                         final visiblePeerExpensePrivateNoteLookups =
                                             visibleDocs
-                                                .map((d) {
+                                                .where((d) {
+                                                  final data = d.data();
                                                   final cb =
-                                                      (d.data()['createdBy']
+                                                      (data['createdBy']
                                                               as String?)
                                                           ?.trim() ??
                                                       '';
-                                                  return (
-                                                    expenseId: d.id,
-                                                    creatorUid: cb,
+                                                  if (cb.isEmpty ||
+                                                      cb == user.uid) {
+                                                    return false;
+                                                  }
+                                                  // Parent-level read gate:
+                                                  // only build a peer note
+                                                  // lookup when the parent
+                                                  // mirror lists this viewer,
+                                                  // so we never issue a denied
+                                                  // privateNotes .get().
+                                                  final sharedWith =
+                                                      _parsePrivateNoteSharedWithUids(
+                                                        data,
+                                                        field:
+                                                            'privateNoteSharedWithUids',
+                                                      );
+                                                  return sharedWith.contains(
+                                                    user.uid,
                                                   );
                                                 })
-                                                .where(
-                                                  (p) =>
-                                                      p.creatorUid.isNotEmpty &&
-                                                      p.creatorUid != user.uid,
+                                                .map(
+                                                  (d) => (
+                                                    expenseId: d.id,
+                                                    creatorUid:
+                                                        (d.data()['createdBy']
+                                                                as String?)
+                                                            ?.trim() ??
+                                                        '',
+                                                  ),
                                                 )
                                                 .toList(growable: false);
 
@@ -11062,6 +11090,31 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                       final expenseData = expSnap.data?.data();
                       final hasAuditHistory =
                           expenseData?['hasAuditHistory'] == true;
+                      // Parent-level read gate: only the creator, or a viewer
+                      // listed in the parent mirror `privateNoteSharedWithUids`,
+                      // may listen to the privateNotes doc. This avoids issuing
+                      // reads that Firestore rules would deny (PERMISSION_DENIED)
+                      // for co-parents the note was never shared with.
+                      final viewerUid = widget.uid.trim();
+                      final isCreatorGate =
+                          viewerUid == widget.createdByUid.trim();
+                      final parentSharedWithUids =
+                          _parsePrivateNoteSharedWithUids(
+                            expenseData,
+                            field: 'privateNoteSharedWithUids',
+                          );
+                      final isSharedWithViewer = parentSharedWithUids.contains(
+                        viewerUid,
+                      );
+                      if (!isCreatorGate && !isSharedWithViewer) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (hasAuditHistory) _buildChangeHistoryButton(),
+                          ],
+                        );
+                      }
                       return StreamBuilder<
                         DocumentSnapshot<Map<String, dynamic>>
                       >(
