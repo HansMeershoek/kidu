@@ -886,10 +886,10 @@ String mapUserFacingError(
         return 'Je hebt hiervoor geen toegang.';
       }
       if (code == 'unavailable') {
-        return 'Geen verbinding met server. Probeer opnieuw.';
+        return 'Geen verbinding. Probeer het later opnieuw.';
       }
       if (code == 'network-request-failed') {
-        return 'Netwerkfout. Controleer je verbinding.';
+        return 'Geen verbinding. Probeer het later opnieuw.';
       }
       if (code == 'failed-precondition') {
         return 'Actie kan nu niet worden uitgevoerd.';
@@ -2788,7 +2788,7 @@ class PrivacyPolicyPage extends StatelessWidget {
   }
 }
 
-const String _kLoginNetworkErrorMessage = 'Je bent offline. Probeer het later opnieuw.';
+const String _kLoginNetworkErrorMessage = 'Geen verbinding. Probeer het later opnieuw.';
 const String _kLoginGenericErrorMessage = 'Inloggen niet gelukt';
 
 bool _loginGoogleSignInWasCanceledByUser(Object error) {
@@ -19073,7 +19073,7 @@ class _AddRecurringExpenseDialogState
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Geen verbinding met server. Probeer opnieuw.'),
+          content: Text('Geen verbinding. Probeer het later opnieuw.'),
         ),
       );
       return;
