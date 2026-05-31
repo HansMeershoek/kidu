@@ -2077,7 +2077,7 @@ class _ProfileNamePageState extends State<ProfileNamePage> {
     r"^[\p{L}\p{M} '\-]+$",
     unicode: true,
   );
-  static const String _connectionError = 'Geen verbinding';
+  static const String _connectionError = 'Je bent offline. Probeer het later opnieuw.';
   static const Duration _saveTimeout = Duration(seconds: 6);
 
   final _controller = TextEditingController();
@@ -2557,7 +2557,7 @@ class _DashboardOnboardingNameCardState
     r"^[\p{L}\p{M} '\-]+$",
     unicode: true,
   );
-  static const String _connectionError = 'Geen verbinding';
+  static const String _connectionError = 'Je bent offline. Probeer het later opnieuw.';
   static const Duration _saveTimeout = Duration(seconds: 6);
 
   final _controller = TextEditingController();
@@ -2788,7 +2788,7 @@ class PrivacyPolicyPage extends StatelessWidget {
   }
 }
 
-const String _kLoginNetworkErrorMessage = 'Geen internetverbinding';
+const String _kLoginNetworkErrorMessage = 'Je bent offline. Probeer het later opnieuw.';
 const String _kLoginGenericErrorMessage = 'Inloggen niet gelukt';
 
 bool _loginGoogleSignInWasCanceledByUser(Object error) {
