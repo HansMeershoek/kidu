@@ -1403,14 +1403,29 @@ Future<PrivateNoteDialogResult?> _doManagePrivateNote(
     final ref = FirebaseFirestore.instance.doc(
       'households/$householdId/expenses/$expenseId/privateNotes/$uid',
     );
+    // Parent-level mirror of the note share-state so co-parents can gate
+    // reads without first reading the private note doc itself. Carries uids
+    // only, never note content. Written by the expense creator (the only
+    // caller able to manage this note), so the parent update is permitted.
+    final parentRef = FirebaseFirestore.instance.doc(
+      'households/$householdId/expenses/$expenseId',
+    );
     if (result is PrivateNoteDialogDelete) {
       await ref.delete();
+      await parentRef.update({
+        'privateNoteSharedWithUids': FieldValue.delete(),
+      });
     } else if (result is PrivateNoteDialogSave) {
       await ref.set({
         'note': result.note,
         'updatedAt': FieldValue.serverTimestamp(),
         if (result.sharedWithUids.isNotEmpty)
           'sharedWithUids': result.sharedWithUids,
+      });
+      await parentRef.update({
+        'privateNoteSharedWithUids': result.sharedWithUids.isNotEmpty
+            ? result.sharedWithUids
+            : FieldValue.delete(),
       });
     }
 
@@ -1483,14 +1498,30 @@ Future<PrivateNoteDialogResult?> _doManageRecurringMasterPrivateNote(
     final ref = FirebaseFirestore.instance.doc(
       'households/$householdId/recurringExpenses/$masterId/privateNotes/$uid',
     );
+    // Parent-level mirror of the note share-state on the recurring master.
+    // Carries uids only, never note content. Managed only by the master
+    // creator (note UI is creator-gated), so the parent update is permitted.
+    final parentRef = FirebaseFirestore.instance.doc(
+      'households/$householdId/recurringExpenses/$masterId',
+    );
     if (result is PrivateNoteDialogDelete) {
       await ref.delete();
+      await parentRef.update({
+        'privateNoteSharedWithUids': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     } else if (result is PrivateNoteDialogSave) {
       await ref.set({
         'note': result.note,
         'updatedAt': FieldValue.serverTimestamp(),
         if (result.sharedWithUids.isNotEmpty)
           'sharedWithUids': result.sharedWithUids,
+      });
+      await parentRef.update({
+        'privateNoteSharedWithUids': result.sharedWithUids.isNotEmpty
+            ? result.sharedWithUids
+            : FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     }
 
@@ -4462,26 +4493,41 @@ class _DashboardPageState extends State<DashboardPage> {
         }
       }
 
+      final noteTrimmed = note?.trim();
+      final hasNote = noteTrimmed != null && noteTrimmed.isNotEmpty;
+      // Resolve the share target up-front, but do NOT mirror it onto the
+      // initial expense data. The parent mirror is only written AFTER the
+      // private note doc has been persisted (see below), so a failed
+      // note-write can never leave a stale "shared" hint on the parent.
+      var sharedNoteUids = const <String>[];
+      if (hasNote && sharePrivateNoteWithCoParent) {
+        final others = memberUidsForShare
+            .where((id) => id != uid)
+            .toList(growable: false);
+        if (others.length == 1) {
+          sharedNoteUids = [others.single];
+        }
+      }
+
       final ref = await FirebaseFirestore.instance
           .collection('households/$householdId/expenses')
           .add(data);
       String? noteErrMsg;
-      final noteTrimmed = note?.trim();
-      if (noteTrimmed != null && noteTrimmed.isNotEmpty) {
+      if (hasNote) {
         try {
           final noteData = <String, dynamic>{
             'note': noteTrimmed,
             'updatedAt': FieldValue.serverTimestamp(),
           };
-          if (sharePrivateNoteWithCoParent) {
-            final others = memberUidsForShare
-                .where((id) => id != uid)
-                .toList(growable: false);
-            if (others.length == 1) {
-              noteData['sharedWithUids'] = [others.single];
-            }
+          if (sharedNoteUids.isNotEmpty) {
+            noteData['sharedWithUids'] = sharedNoteUids;
           }
           await ref.collection('privateNotes').doc(uid).set(noteData);
+          // Parent mirror only after a successful note-write, and only when
+          // the note is actually shared. Carries uids only, never content.
+          if (sharedNoteUids.isNotEmpty) {
+            await ref.update({'privateNoteSharedWithUids': sharedNoteUids});
+          }
         } catch (noteErr) {
           if (kDebugMode) debugPrint('Private note write error: $noteErr');
           noteErrMsg = mapUserFacingError(
@@ -16784,6 +16830,11 @@ Future<_RecurringMaterializationResult> _materializeRecurringMasterOnce({
       'materializedAt': FieldValue.serverTimestamp(),
       if (materializationSnapshot != null)
         ...materializationSnapshot.toExpenseFields(),
+      // Parent-level mirror of the master note share-state, copied onto the
+      // materialized instance (a regular expense). Carries uids only, never
+      // note content. Set only when the master note is actually shared.
+      if (masterNote != null && masterSharedWithUids.isNotEmpty)
+        'privateNoteSharedWithUids': masterSharedWithUids,
     };
 
     // Create-only write via transactie: we schrijven alleen als het
@@ -19025,6 +19076,16 @@ class _AddRecurringExpenseDialogState
           .collection('households/$householdId/recurringExpenses')
           .doc();
       final batch = firestore.batch();
+      // Resolve the initial note share target up-front so the parent-level
+      // mirror field can be written atomically in the same batch as the
+      // master. Carries uids only, never note content.
+      final noteShareUid =
+          noteTrimmed.isNotEmpty && _sharePrivateNoteWithCoParent
+          ? _eligibleCoParentUidForPrivateNoteShare()
+          : null;
+      final initialNoteSharedWithUids = noteShareUid != null
+          ? <String>[noteShareUid]
+          : const <String>[];
       batch.set(masterRef, <String, dynamic>{
         'title': title,
         'amountCents': amountCents,
@@ -19046,6 +19107,8 @@ class _AddRecurringExpenseDialogState
         'createdBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
         ..._recurringParentSplitFields(parentSplitSnapshot),
+        if (initialNoteSharedWithUids.isNotEmpty)
+          'privateNoteSharedWithUids': initialNoteSharedWithUids,
       });
       if (noteTrimmed.isNotEmpty) {
         final noteRef = masterRef.collection('privateNotes').doc(uid);
@@ -19053,9 +19116,8 @@ class _AddRecurringExpenseDialogState
           'note': noteTrimmed,
           'updatedAt': FieldValue.serverTimestamp(),
         };
-        final shareUid = _eligibleCoParentUidForPrivateNoteShare();
-        if (_sharePrivateNoteWithCoParent && shareUid != null) {
-          notePayload['sharedWithUids'] = [shareUid];
+        if (initialNoteSharedWithUids.isNotEmpty) {
+          notePayload['sharedWithUids'] = initialNoteSharedWithUids;
         }
         batch.set(noteRef, notePayload);
       }

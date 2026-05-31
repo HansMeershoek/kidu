@@ -236,7 +236,8 @@ service cloud.firestore {
           'periodKey',
           'materializedAt',
           'parentSplitParticipantUids',
-          'parentSplit0ShareBps'
+          'parentSplit0ShareBps',
+          'privateNoteSharedWithUids'
         ])
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents > 0
@@ -280,7 +281,16 @@ service cloud.firestore {
                 && isRecurringMasterCreator(householdId, request.resource.data.recurringExpenseId)
                 && get(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(request.resource.data.recurringExpenseId)).data.status == 'active'
                 && request.resource.data.createdAt is timestamp
-                && expenseId == 'rec_' + request.resource.data.recurringExpenseId + '_' + request.resource.data.periodKey));
+                && expenseId == 'rec_' + request.resource.data.recurringExpenseId + '_' + request.resource.data.periodKey))
+        // Parent-level mirror of the private note share-state. Hint/gate for
+        // clients only; never carries note content. Owner is the expense
+        // creator at create-time.
+        && (!('privateNoteSharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              request.resource.data.createdBy,
+              request.resource.data.privateNoteSharedWithUids
+            ));
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
@@ -291,7 +301,8 @@ service cloud.firestore {
           'childIds',
           'parentSplitParticipantUids',
           'parentSplit0ShareBps',
-          'hasAuditHistory'
+          'hasAuditHistory',
+          'privateNoteSharedWithUids'
         ])
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
               'hasAuditHistory'
@@ -325,7 +336,16 @@ service cloud.firestore {
               && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.resource.data.parentSplitParticipantUids[1]))
               && request.resource.data.parentSplit0ShareBps is int
               && request.resource.data.parentSplit0ShareBps >= 0
-              && request.resource.data.parentSplit0ShareBps <= 10000));
+              && request.resource.data.parentSplit0ShareBps <= 10000))
+        // Parent-level mirror of the private note share-state. createdBy is
+        // immutable on update (not in the affected-keys list), so the owner
+        // is read from the existing document.
+        && (!('privateNoteSharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              resource.data.createdBy,
+              request.resource.data.privateNoteSharedWithUids
+            ));
 
       allow delete: if false;
     }
@@ -350,7 +370,8 @@ service cloud.firestore {
           'recurringParentSplit0ShareBps',
           'createdAt',
           'createdBy',
-          'updatedAt'
+          'updatedAt',
+          'privateNoteSharedWithUids'
         ])
         && request.resource.data.title is string
         && request.resource.data.title.size() >= 1
@@ -385,7 +406,15 @@ service cloud.firestore {
         && request.resource.data.recurringParentSplit0ShareBps <= 10000
         && request.resource.data.createdAt == request.time
         && (!('updatedAt' in request.resource.data)
-            || request.resource.data.updatedAt == request.time);
+            || request.resource.data.updatedAt == request.time)
+        // Parent-level mirror of the recurring private note share-state.
+        // Owner is the recurring master creator at create-time.
+        && (!('privateNoteSharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              request.resource.data.createdBy,
+              request.resource.data.privateNoteSharedWithUids
+            ));
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
@@ -404,7 +433,8 @@ service cloud.firestore {
           'materializeFromDate',
           'recurringParentSplitParticipantUids',
           'recurringParentSplit0ShareBps',
-          'updatedAt'
+          'updatedAt',
+          'privateNoteSharedWithUids'
         ])
         && request.resource.data.updatedAt == request.time
         && (('recurringParentSplitParticipantUids' in request.resource.data)
@@ -444,7 +474,16 @@ service cloud.firestore {
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['materializeFromDate'])
             || (request.resource.data.materializeFromDate is timestamp
                 && request.resource.data.materializeFromDate >= request.time - duration.value(48, 'h')))
-        && request.resource.data.status in ['active', 'paused'];
+        && request.resource.data.status in ['active', 'paused']
+        // Parent-level mirror of the recurring private note share-state.
+        // createdBy is pinned unchanged above, so owner is read from the
+        // existing document.
+        && (!('privateNoteSharedWithUids' in request.resource.data)
+            || privateNoteSharedWithUidsValid(
+              householdId,
+              resource.data.createdBy,
+              request.resource.data.privateNoteSharedWithUids
+            ));
 
       // Creator-only hard delete of the recurring master.
       // Allowed from both 'active' and 'paused'. Stops only future monthly
