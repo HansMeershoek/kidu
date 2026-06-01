@@ -17219,19 +17219,40 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
     final messenger = ScaffoldMessenger.of(context);
     final nav = Navigator.of(context);
     final householdId = widget.householdId;
-    bool hasActiveChildren = false;
+    List<_ChildItem>? initialChildren;
     try {
       final snap = await FirebaseFirestore.instance
           .collection('households/$householdId/children')
           .get();
-      hasActiveChildren = snap.docs.any(
-        (d) => d.data()['isArchived'] != true && d.data()['isDeleted'] != true,
-      );
+      final docs =
+          snap.docs
+              .where(
+                (d) =>
+                    d.data()['isArchived'] != true &&
+                    d.data()['isDeleted'] != true,
+              )
+              .toList()
+            ..sort((a, b) {
+              final aTs = a.data()['createdAt'];
+              final bTs = b.data()['createdAt'];
+              if (aTs is Timestamp && bTs is Timestamp) {
+                return aTs.compareTo(bTs);
+              }
+              return 0;
+            });
+      initialChildren = docs
+          .map(
+            (d) => _ChildItem(
+              id: d.id,
+              name: (d.data()['name'] as String?)?.trim() ?? '?',
+            ),
+          )
+          .toList();
     } catch (_) {
-      hasActiveChildren = false;
+      initialChildren = null;
     }
     if (!mounted) return;
-    if (!hasActiveChildren) {
+    if (initialChildren == null || initialChildren.isEmpty) {
       messenger.hideCurrentSnackBar();
       // Flutter negeert de duration op een SnackBar met SnackBarAction zodra
       // MediaQuery.accessibleNavigation actief is; we sluiten dezelfde
@@ -17259,10 +17280,34 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
       );
       return;
     }
+    List<_ParentSplitMember>? initialParentSplitMembers;
+    ParentSplitSnapshot? initialParentSplitSnapshot;
+    try {
+      final members = await _loadParentSplitMembers(householdId);
+      final memberUids = members.map((m) => m.uid).toSet();
+      final defaults = await HouseholdSplitSettingsRepository().load(
+        householdId,
+      );
+      initialParentSplitMembers = members;
+      initialParentSplitSnapshot = buildSnapshotForNewExpense(
+        defaults: defaults,
+        currentMemberUids: memberUids,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Add recurring: initial split load skipped: $e');
+      }
+    }
+    if (!mounted) return;
     await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _AddRecurringExpenseDialog(householdId: householdId),
+      builder: (_) => _AddRecurringExpenseDialog(
+        householdId: householdId,
+        initialChildren: initialChildren,
+        initialParentSplitMembers: initialParentSplitMembers,
+        initialParentSplitSnapshot: initialParentSplitSnapshot,
+      ),
     );
     if (!mounted) return;
   }
@@ -18825,9 +18870,22 @@ class _RecurringMasterDetailPageState
 // ────────────────────────────────────────────────────────────────────────────
 
 class _AddRecurringExpenseDialog extends StatefulWidget {
-  const _AddRecurringExpenseDialog({required this.householdId});
+  const _AddRecurringExpenseDialog({
+    required this.householdId,
+    this.initialChildren,
+    this.initialParentSplitMembers,
+    this.initialParentSplitSnapshot,
+  });
 
   final String householdId;
+
+  /// Preloaded vóór `showDialog` zodat de `Voor:`-rij op frame 1 stabiel is.
+  final List<_ChildItem>? initialChildren;
+
+  /// Preloaded vóór `showDialog` zodat `Verdeling` en `Notitie delen` op frame
+  /// 1 stabiel zijn (zelfde patroon als `_openAddExpenseDialog`).
+  final List<_ParentSplitMember>? initialParentSplitMembers;
+  final ParentSplitSnapshot? initialParentSplitSnapshot;
 
   @override
   State<_AddRecurringExpenseDialog> createState() =>
@@ -18871,8 +18929,22 @@ class _AddRecurringExpenseDialogState
     _amountFocusNode = FocusNode();
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day);
-    _loadChildren();
-    _loadParentSplit();
+    final preChildren = widget.initialChildren;
+    if (preChildren != null) {
+      _children = preChildren;
+      _loadingChildren = false;
+    } else {
+      _loadChildren();
+    }
+    final preMembers = widget.initialParentSplitMembers;
+    if (preMembers != null) {
+      _parentSplitMembers = preMembers;
+      _parentSplitSnapshot = widget.initialParentSplitSnapshot;
+      _parentSplitHasError = widget.initialParentSplitSnapshot == null;
+      _loadingParentSplit = false;
+    } else {
+      _loadParentSplit();
+    }
   }
 
   @override
