@@ -19873,8 +19873,9 @@ class _AddChildDialogState extends State<_AddChildDialog> {
   Widget build(BuildContext context) {
     final text = _controller.text.trim();
     final isDuplicate =
-        text.isNotEmpty && widget.activeNormalised.contains(text.toLowerCase());
-    final canAdd = text.isNotEmpty && !isDuplicate;
+        text.length >= 2 &&
+        widget.activeNormalised.contains(text.toLowerCase());
+    final canAdd = text.length >= 2 && !isDuplicate;
 
     return AlertDialog(
       actionsAlignment: MainAxisAlignment.spaceBetween,
