@@ -5141,6 +5141,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                     ),
                                   ),
                                   if (coParentUidForShare != null) ...[
+                                    const SizedBox(height: 8),
                                     kiduNoteShareToggle(
                                       context: context,
                                       value:
@@ -19395,14 +19396,21 @@ class _AddRecurringExpenseDialogState
                         return const SizedBox.shrink();
                       }
                       final noteEmpty = _noteController.text.trim().isEmpty;
-                      return kiduNoteShareToggle(
-                        context: ctx,
-                        value: _sharePrivateNoteWithCoParent && !noteEmpty,
-                        onChanged: noteEmpty
-                            ? null
-                            : (v) => setState(
-                                () => _sharePrivateNoteWithCoParent = v,
-                              ),
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 8),
+                          kiduNoteShareToggle(
+                            context: ctx,
+                            value: _sharePrivateNoteWithCoParent && !noteEmpty,
+                            onChanged: noteEmpty
+                                ? null
+                                : (v) => setState(
+                                    () => _sharePrivateNoteWithCoParent = v,
+                                  ),
+                          ),
+                        ],
                       );
                     },
                   ),
