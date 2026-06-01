@@ -20171,7 +20171,7 @@ class _SetupPageState extends State<SetupPage> {
       pageBuilder: (context, a1, a2) => const _JoinSuccessOverlay(),
     );
 
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await Future.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
 
     // Close overlay, then close setup page.
