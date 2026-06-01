@@ -6314,7 +6314,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                     ),
                                                   ),
                                                 ),
-                                                const SizedBox(height: 8),
+                                                const SizedBox(height: 10),
                                                 SizedBox(
                                                   height: 38,
                                                   child: OutlinedButton(
