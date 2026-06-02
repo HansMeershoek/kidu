@@ -17302,11 +17302,39 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
     await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _AddRecurringExpenseDialog(
-        householdId: householdId,
-        initialChildren: initialChildren,
-        initialParentSplitMembers: initialParentSplitMembers,
-        initialParentSplitSnapshot: initialParentSplitSnapshot,
+      builder: (dialogContext) => Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  final keyboardVisible =
+                      MediaQuery.of(dialogContext).viewInsets.bottom > 0;
+                  if (keyboardVisible) {
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    return;
+                  }
+                  if (!dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Center(
+              child: GestureDetector(
+                onTap: () {},
+                child: _AddRecurringExpenseDialog(
+                  householdId: householdId,
+                  initialChildren: initialChildren,
+                  initialParentSplitMembers: initialParentSplitMembers,
+                  initialParentSplitSnapshot: initialParentSplitSnapshot,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
     if (!mounted) return;
