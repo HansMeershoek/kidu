@@ -4625,26 +4625,6 @@ class _DashboardPageState extends State<DashboardPage> {
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                   16,
-                                  12,
-                                  16,
-                                  0,
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 36,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: cs.outlineVariant.withValues(
-                                        alpha: 0.85,
-                                      ),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
                                   16,
                                   16,
                                   0,
@@ -8309,21 +8289,6 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                              child: Center(
-                                child: Container(
-                                  width: 36,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: cs.outlineVariant.withValues(
-                                      alpha: 0.85,
-                                    ),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-                            ),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                               child: kiduActionDialogTitle(
@@ -19743,19 +19708,6 @@ class _RecurringChildSelectionDialogState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                        child: Center(
-                          child: Container(
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: cs.outlineVariant.withValues(alpha: 0.85),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                      ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                         child: kiduActionDialogTitle(context, 'Kinderen selecteren'),
