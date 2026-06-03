@@ -4598,42 +4598,41 @@ class _DashboardPageState extends State<DashboardPage> {
                 horizontal: 24,
                 vertical: 24,
               ),
-              child: SafeArea(
-                child: Align(
-                  alignment: const Alignment(0, -0.08),
+              child: _kiduDismissibleDialogShell(
+                context: context,
+                child: SizedBox(
+                  width: dialogW,
                   child: SizedBox(
-                    width: dialogW,
-                    child: SizedBox(
-                      height: modalHeight,
-                      child: Material(
-                        color: dialogBackground,
-                        elevation: 3,
-                        clipBehavior: Clip.antiAlias,
-                        borderRadius: BorderRadius.circular(
-                          _DashboardPageState._cardRadius,
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(
-                              _DashboardPageState._cardRadius,
-                            ),
-                            border: Border.all(color: outlineV(context, a40)),
+                    height: modalHeight,
+                    child: Material(
+                      color: dialogBackground,
+                      elevation: 3,
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(
+                        _DashboardPageState._cardRadius,
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            _DashboardPageState._cardRadius,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  16,
-                                  16,
-                                  0,
-                                ),
-                                child: kiduActionDialogTitle(
-                                  context,
-                                  'Kinderen selecteren',
-                                ),
+                          border: Border.all(color: outlineV(context, a40)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                0,
                               ),
+                              child: kiduActionDialogTitle(
+                                context,
+                                'Kinderen selecteren',
+                              ),
+                            ),
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(
@@ -4853,7 +4852,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                 ),
-              ),
             );
           },
         );
@@ -8232,6 +8230,30 @@ Future<List<_ChildItem>> _loadRecurringMasterEditChildren(
   }
 }
 
+Widget _kiduDismissibleDialogShell({
+  required BuildContext context,
+  required Widget child,
+  Alignment alignment = const Alignment(0, -0.08),
+}) {
+  return SafeArea(
+    child: Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+            child: const SizedBox.expand(),
+          ),
+        ),
+        Align(
+          alignment: alignment,
+          child: child,
+        ),
+      ],
+    ),
+  );
+}
+
 Future<List<String>?> _showExpenseEditChildSelectionDialog(
   BuildContext context, {
   required List<_ChildItem> children,
@@ -8265,37 +8287,36 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
               horizontal: 24,
               vertical: 24,
             ),
-            child: SafeArea(
-              child: Align(
-                alignment: const Alignment(0, -0.08),
+            child: _kiduDismissibleDialogShell(
+              context: context,
+              child: SizedBox(
+                width: dialogW,
                 child: SizedBox(
-                  width: dialogW,
-                  child: SizedBox(
-                    height: modalHeight,
-                    child: Material(
-                      color: dialogBackground,
-                      elevation: 3,
-                      clipBehavior: Clip.antiAlias,
-                      borderRadius: BorderRadius.circular(
-                        _DashboardPageState._cardRadius,
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(
-                            _DashboardPageState._cardRadius,
-                          ),
-                          border: Border.all(color: outlineV(context, a40)),
+                  height: modalHeight,
+                  child: Material(
+                    color: dialogBackground,
+                    elevation: 3,
+                    clipBehavior: Clip.antiAlias,
+                    borderRadius: BorderRadius.circular(
+                      _DashboardPageState._cardRadius,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                          _DashboardPageState._cardRadius,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                              child: kiduActionDialogTitle(
-                                context,
-                                'Kinderen selecteren',
-                              ),
+                        border: Border.all(color: outlineV(context, a40)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                            child: kiduActionDialogTitle(
+                              context,
+                              'Kinderen selecteren',
                             ),
+                          ),
                             Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -8514,7 +8535,6 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                   ),
                 ),
               ),
-            ),
           );
         },
       );
@@ -19684,34 +19704,33 @@ class _RecurringChildSelectionDialogState
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SafeArea(
-        child: Align(
-          alignment: const Alignment(0, -0.08),
+      child: _kiduDismissibleDialogShell(
+        context: context,
+        child: SizedBox(
+          width: dialogW,
           child: SizedBox(
-            width: dialogW,
-            child: SizedBox(
-              height: modalHeight,
-              child: Material(
-                color: dialogBackground,
-                elevation: 3,
-                clipBehavior: Clip.antiAlias,
-                borderRadius: BorderRadius.circular(
-                  _DashboardPageState._cardRadius,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(
-                      _DashboardPageState._cardRadius,
-                    ),
-                    border: Border.all(color: outlineV(context, a40)),
+            height: modalHeight,
+            child: Material(
+              color: dialogBackground,
+              elevation: 3,
+              clipBehavior: Clip.antiAlias,
+              borderRadius: BorderRadius.circular(
+                _DashboardPageState._cardRadius,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(
+                    _DashboardPageState._cardRadius,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: kiduActionDialogTitle(context, 'Kinderen selecteren'),
-                      ),
+                  border: Border.all(color: outlineV(context, a40)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: kiduActionDialogTitle(context, 'Kinderen selecteren'),
+                    ),
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -19892,7 +19911,6 @@ class _RecurringChildSelectionDialogState
             ),
           ),
         ),
-      ),
     );
   }
 }
