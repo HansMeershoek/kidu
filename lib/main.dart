@@ -1346,11 +1346,16 @@ Future<PrivateNoteDialogResult> _showPrivateNoteDialog(
               child: const SizedBox.expand(),
             ),
           ),
-          _PrivateNoteDialogContent(
-            initialNote: initialNote,
-            hasInitialNote: hasInitialNote,
-            initialSharedWithUids: shareList,
-            coParentUid: coParentUid,
+          Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: _PrivateNoteDialogContent(
+                initialNote: initialNote,
+                hasInitialNote: hasInitialNote,
+                initialSharedWithUids: shareList,
+                coParentUid: coParentUid,
+              ),
+            ),
           ),
         ],
       ),
@@ -4922,8 +4927,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         child: const SizedBox.expand(),
                       ),
                     ),
-                    Align(
-                      alignment: const Alignment(0, -0.15),
+                    Center(
                       child: SizedBox(
                         width: dialogContentW,
                         child: AlertDialog(
@@ -8228,7 +8232,7 @@ Widget _kiduChildSelectionDialogCard({
 Widget _kiduDismissibleDialogShell({
   required BuildContext context,
   required Widget child,
-  Alignment alignment = const Alignment(0, -0.08),
+  Alignment alignment = Alignment.center,
 }) {
   return SafeArea(
     child: Stack(
@@ -9349,8 +9353,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
-    return Align(
-      alignment: const Alignment(0, -0.15),
+    return Center(
       child: SizedBox(
         width: dialogW,
         child: AlertDialog(
@@ -17902,23 +17905,25 @@ class _RecurringMasterDetailPageState
                 child: const SizedBox.expand(),
               ),
             ),
-            GestureDetector(
-              onTap: () {},
-              child: _EditRecurringMasterExpenseDialog(
-                householdId: widget.householdId,
-                masterId: widget.masterId,
-                currentAmountCents: currentAmountCents,
-                currentTitle: currentTitle,
-                currentChildIds: currentChildIds,
-                currentDueDayOfMonth: currentDueDayOfMonth,
-                currentParentSplitSnapshot: currentParentSplitSnapshot,
-                parentSplitMembersFuture: _parentSplitMembersFuture,
-                childrenFuture: preload != null
-                    ? Future<List<_ChildItem>>.value(
-                        List<_ChildItem>.from(preload),
-                      )
-                    : _recurringMasterEditChildrenFuture,
-                initialChildren: preload,
+            Center(
+              child: GestureDetector(
+                onTap: () {},
+                child: _EditRecurringMasterExpenseDialog(
+                  householdId: widget.householdId,
+                  masterId: widget.masterId,
+                  currentAmountCents: currentAmountCents,
+                  currentTitle: currentTitle,
+                  currentChildIds: currentChildIds,
+                  currentDueDayOfMonth: currentDueDayOfMonth,
+                  currentParentSplitSnapshot: currentParentSplitSnapshot,
+                  parentSplitMembersFuture: _parentSplitMembersFuture,
+                  childrenFuture: preload != null
+                      ? Future<List<_ChildItem>>.value(
+                          List<_ChildItem>.from(preload),
+                        )
+                      : _recurringMasterEditChildrenFuture,
+                  initialChildren: preload,
+                ),
               ),
             ),
           ],
