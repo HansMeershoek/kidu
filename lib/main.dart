@@ -4584,7 +4584,6 @@ class _DashboardPageState extends State<DashboardPage> {
             final selectedCount = selectedChildIds.length;
             final allSelected = selectedCount == allChildIds.length;
             final cs = Theme.of(context).colorScheme;
-            final dialogBackground = cs.surfaceContainerHigh;
             final screenW = MediaQuery.sizeOf(context).width;
             final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
             final modalHeight = min(
@@ -4600,106 +4599,78 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               child: _kiduDismissibleDialogShell(
                 context: context,
-                child: SizedBox(
+                child: _kiduChildSelectionDialogCard(
+                  context: context,
                   width: dialogW,
-                  child: SizedBox(
-                    height: modalHeight,
-                    child: Material(
-                      color: dialogBackground,
-                      elevation: 3,
-                      clipBehavior: Clip.antiAlias,
-                      borderRadius: BorderRadius.circular(
-                        _DashboardPageState._cardRadius,
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(
-                            _DashboardPageState._cardRadius,
-                          ),
-                          border: Border.all(color: outlineV(context, a40)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                0,
-                              ),
-                              child: kiduActionDialogTitle(
-                                context,
-                                'Kinderen selecteren',
-                              ),
-                            ),
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    12,
-                                    16,
-                                    0,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      TextButton(
-                                        onPressed: () => setLocalState(() {
-                                          selectedChildIds = allSelected
-                                              ? <String>{}
-                                              : allChildIds.toSet();
-                                        }),
-                                        style: TextButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          padding: EdgeInsets.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: Text(
-                                          allSelected
-                                              ? 'Alle deselecteren'
-                                              : 'Alle selecteren',
-                                        ),
+                  maxHeight: modalHeight,
+                  title: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: kiduActionDialogTitle(
+                      context,
+                      'Kinderen selecteren',
+                    ),
+                  ),
+                  content: Flexible(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  0,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () => setLocalState(() {
+                                        selectedChildIds = allSelected
+                                            ? <String>{}
+                                            : allChildIds.toSet();
+                                      }),
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      const SizedBox(height: 6),
-                                      SizedBox(
-                                        height: 28,
-                                        child: Align(
-                                          alignment: Alignment.topLeft,
-                                          child: Opacity(
-                                            opacity: selectedCount == 0 ? 1 : 0,
-                                            child: Text(
-                                              'Selecteer minimaal 1 kind om verder te gaan',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: onSurface(
-                                                      context,
-                                                      a68,
-                                                    ),
+                                      child: Text(
+                                        allSelected
+                                            ? 'Alle deselecteren'
+                                            : 'Alle selecteren',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      height: 28,
+                                      child: Align(
+                                        alignment: Alignment.topLeft,
+                                        child: Opacity(
+                                          opacity: selectedCount == 0 ? 1 : 0,
+                                          child: Text(
+                                            'Selecteer minimaal 1 kind om verder te gaan',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: onSurface(
+                                                    context,
+                                                    a68,
                                                   ),
-                                            ),
+                                                ),
                                           ),
                                         ),
                                       ),
-                                      Expanded(
-                                        child: ListView.separated(
-                                          padding: const EdgeInsets.only(
-                                            top: 2,
-                                            bottom: 4,
-                                          ),
-                                          itemCount: children.length,
-                                          separatorBuilder: (_, _) => Divider(
-                                            height: 1,
-                                            thickness: 0.4,
-                                            color: cs.outlineVariant.withValues(
-                                              alpha: 0.45,
-                                            ),
-                                          ),
-                                          itemBuilder: (context, index) {
+                                    ),
+                                    Flexible(
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        padding: const EdgeInsets.only(
+                                          top: 2,
+                                          bottom: 4,
+                                        ),
+                                        itemCount: children.length,
+                                        itemBuilder: (context, index) {
                                             final child = children[index];
                                             final selected = selectedChildIds
                                                 .contains(child.id);
@@ -4795,63 +4766,39 @@ class _DashboardPageState extends State<DashboardPage> {
                                   ),
                                 ),
                               ),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: dialogBackground,
-                                  border: Border(
-                                    top: BorderSide(
-                                      color: outlineV(context, a32),
-                                    ),
-                                  ),
-                                ),
-                                child: SafeArea(
-                                  top: false,
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      8,
-                                      16,
-                                      12,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        TextButton(
-                                          onPressed: dismissSelectionDialog,
-                                          child: const Text('Annuleren'),
-                                        ),
-                                        const Spacer(),
-                                        FilledButton(
-                                          style: kiduDialogPrimaryButtonStyle(
-                                            context,
-                                          ),
-                                          onPressed: selectedCount == 0
-                                              ? null
-                                              : () => Navigator.of(context).pop(
-                                                  children
-                                                      .where(
-                                                        (child) =>
-                                                            selectedChildIds
-                                                                .contains(
-                                                                  child.id,
-                                                                ),
-                                                      )
-                                                      .map((child) => child.id)
-                                                      .toList(),
-                                                ),
-                                          child: const Text('Opslaan'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                  footer: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: Row(
+                        children: [
+                          TextButton(
+                            onPressed: dismissSelectionDialog,
+                            child: const Text('Annuleren'),
                           ),
-                        ),
+                          const Spacer(),
+                          FilledButton(
+                            style: kiduDialogPrimaryButtonStyle(context),
+                            onPressed: selectedCount == 0
+                                ? null
+                                : () => Navigator.of(context).pop(
+                                    children
+                                        .where(
+                                          (child) => selectedChildIds.contains(
+                                            child.id,
+                                          ),
+                                        )
+                                        .map((child) => child.id)
+                                        .toList(),
+                                  ),
+                            child: const Text('Opslaan'),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+              ),
             );
           },
         );
@@ -8230,6 +8177,54 @@ Future<List<_ChildItem>> _loadRecurringMasterEditChildren(
   }
 }
 
+/// Shared card chrome for "Kinderen selecteren" dialogs (layout only).
+Widget _kiduChildSelectionDialogCard({
+  required BuildContext context,
+  required double width,
+  required double maxHeight,
+  required Widget title,
+  required Widget content,
+  required Widget footer,
+}) {
+  final dialogBackground =
+      Theme.of(context).colorScheme.surfaceContainerHigh;
+  return SizedBox(
+    width: width,
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Material(
+        color: dialogBackground,
+        elevation: 3,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(
+          _DashboardPageState._cardRadius,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(
+              _DashboardPageState._cardRadius,
+            ),
+            border: Border.all(color: outlineV(context, a40)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              title,
+              content,
+              const SizedBox(height: 20),
+              Container(
+                color: dialogBackground,
+                child: footer,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 Widget _kiduDismissibleDialogShell({
   required BuildContext context,
   required Widget child,
@@ -8273,7 +8268,6 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
           final selectedCount = selectedChildIds.length;
           final allSelected = selectedCount == allChildIds.length;
           final cs = Theme.of(context).colorScheme;
-          final dialogBackground = cs.surfaceContainerHigh;
           final screenW = MediaQuery.sizeOf(context).width;
           final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
           final modalHeight = min(
@@ -8289,45 +8283,24 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
             ),
             child: _kiduDismissibleDialogShell(
               context: context,
-              child: SizedBox(
+              child: _kiduChildSelectionDialogCard(
+                context: context,
                 width: dialogW,
-                child: SizedBox(
-                  height: modalHeight,
-                  child: Material(
-                    color: dialogBackground,
-                    elevation: 3,
-                    clipBehavior: Clip.antiAlias,
-                    borderRadius: BorderRadius.circular(
-                      _DashboardPageState._cardRadius,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                          _DashboardPageState._cardRadius,
-                        ),
-                        border: Border.all(color: outlineV(context, a40)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                            child: kiduActionDialogTitle(
-                              context,
-                              'Kinderen selecteren',
-                            ),
-                          ),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  12,
-                                  16,
-                                  0,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
+                maxHeight: modalHeight,
+                title: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: kiduActionDialogTitle(
+                    context,
+                    'Kinderen selecteren',
+                  ),
+                ),
+                content: Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                                     TextButton(
                                       onPressed: () => setLocalState(() {
                                         selectedChildIds = allSelected
@@ -8368,20 +8341,14 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                         ),
                                       ),
                                     ),
-                                    Expanded(
-                                      child: ListView.separated(
+                                    Flexible(
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
                                         padding: const EdgeInsets.only(
                                           top: 2,
                                           bottom: 4,
                                         ),
                                         itemCount: children.length,
-                                        separatorBuilder: (_, _) => Divider(
-                                          height: 1,
-                                          thickness: 0.4,
-                                          color: cs.outlineVariant.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                        ),
                                         itemBuilder: (context, index) {
                                           final child = children[index];
                                           final selected = selectedChildIds
@@ -8478,63 +8445,39 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
                                 ),
                               ),
                             ),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: dialogBackground,
-                                border: Border(
-                                  top: BorderSide(
-                                    color: outlineV(context, a32),
-                                  ),
-                                ),
-                              ),
-                              child: SafeArea(
-                                top: false,
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    8,
-                                    16,
-                                    12,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      TextButton(
-                                        onPressed: dismissSelectionDialog,
-                                        child: const Text('Annuleren'),
-                                      ),
-                                      const Spacer(),
-                                      FilledButton(
-                                        style: kiduDialogPrimaryButtonStyle(
-                                          context,
-                                        ),
-                                        onPressed: selectedCount == 0
-                                            ? null
-                                            : () => Navigator.of(context).pop(
-                                                children
-                                                    .where(
-                                                      (child) =>
-                                                          selectedChildIds
-                                                              .contains(
-                                                                child.id,
-                                                              ),
-                                                    )
-                                                    .map((child) => child.id)
-                                                    .toList(),
-                                              ),
-                                        child: const Text('Opslaan'),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                footer: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: Row(
+                      children: [
+                        TextButton(
+                          onPressed: dismissSelectionDialog,
+                          child: const Text('Annuleren'),
                         ),
-                      ),
+                        const Spacer(),
+                        FilledButton(
+                          style: kiduDialogPrimaryButtonStyle(context),
+                          onPressed: selectedCount == 0
+                              ? null
+                              : () => Navigator.of(context).pop(
+                                    children
+                                        .where(
+                                          (child) => selectedChildIds.contains(
+                                            child.id,
+                                          ),
+                                        )
+                                        .map((child) => child.id)
+                                        .toList(),
+                                  ),
+                          child: const Text('Opslaan'),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
+            ),
           );
         },
       );
@@ -19695,7 +19638,6 @@ class _RecurringChildSelectionDialogState
     final selectedCount = _selected.length;
     final allSelected = selectedCount == allCount;
     final cs = Theme.of(context).colorScheme;
-    final dialogBackground = cs.surfaceContainerHigh;
     final screenW = MediaQuery.sizeOf(context).width;
     final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
     final modalHeight = min(520.0, MediaQuery.of(context).size.height - 36);
@@ -19706,37 +19648,21 @@ class _RecurringChildSelectionDialogState
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: _kiduDismissibleDialogShell(
         context: context,
-        child: SizedBox(
+        child: _kiduChildSelectionDialogCard(
+          context: context,
           width: dialogW,
-          child: SizedBox(
-            height: modalHeight,
-            child: Material(
-              color: dialogBackground,
-              elevation: 3,
-              clipBehavior: Clip.antiAlias,
-              borderRadius: BorderRadius.circular(
-                _DashboardPageState._cardRadius,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(
-                    _DashboardPageState._cardRadius,
-                  ),
-                  border: Border.all(color: outlineV(context, a40)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: kiduActionDialogTitle(context, 'Kinderen selecteren'),
-                    ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+          maxHeight: modalHeight,
+          title: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: kiduActionDialogTitle(context, 'Kinderen selecteren'),
+          ),
+          content: Flexible(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                               TextButton(
                                 onPressed: () => setState(() {
                                   _selected = allSelected
@@ -19774,20 +19700,14 @@ class _RecurringChildSelectionDialogState
                                   ),
                                 ),
                               ),
-                              Expanded(
-                                child: ListView.separated(
+                              Flexible(
+                                child: ListView.builder(
+                                  shrinkWrap: true,
                                   padding: const EdgeInsets.only(
                                     top: 2,
                                     bottom: 4,
                                   ),
                                   itemCount: widget.children.length,
-                                  separatorBuilder: (_, _) => Divider(
-                                    height: 1,
-                                    thickness: 0.4,
-                                    color: cs.outlineVariant.withValues(
-                                      alpha: 0.45,
-                                    ),
-                                  ),
                                   itemBuilder: (context, index) {
                                     final child = widget.children[index];
                                     final selected = _selected.contains(
@@ -19872,45 +19792,30 @@ class _RecurringChildSelectionDialogState
                           ),
                         ),
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: dialogBackground,
-                          border: Border(
-                            top: BorderSide(color: outlineV(context, a32)),
-                          ),
-                        ),
-                        child: SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                            child: Row(
-                              children: [
-                                TextButton(
-                                  onPressed: dismissSelectionDialog,
-                                  child: const Text('Annuleren'),
-                                ),
-                                const Spacer(),
-                                FilledButton(
-                                  style: kiduDialogPrimaryButtonStyle(context),
-                                  onPressed: _selected.isEmpty
-                                      ? null
-                                      : () => Navigator.of(
-                                          context,
-                                        ).pop(_selected.toList()),
-                                  child: const Text('Opslaan'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+          footer: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: dismissSelectionDialog,
+                    child: const Text('Annuleren'),
                   ),
-                ),
+                  const Spacer(),
+                  FilledButton(
+                    style: kiduDialogPrimaryButtonStyle(context),
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => Navigator.of(context).pop(_selected.toList()),
+                    child: const Text('Opslaan'),
+                  ),
+                ],
               ),
             ),
           ),
         ),
+      ),
     );
   }
 }
