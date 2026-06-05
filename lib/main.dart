@@ -15543,8 +15543,26 @@ class _KinderenPageState extends State<_KinderenPage> {
   }
 
   Future<void> _restoreChild(String docId) async {
-    setState(() => _busy = true);
     try {
+      final snap = await FirebaseFirestore.instance
+          .collection('households/${widget.householdId}/children')
+          .get();
+      final activeCount = snap.docs
+          .where(
+            (d) =>
+                d.data()['isArchived'] != true &&
+                d.data()['isDeleted'] != true,
+          )
+          .length;
+      if (!mounted) return;
+      if (activeCount >= 7) {
+        _snackInfo(
+          'Maximaal 7 actieve kinderen. Archiveer eerst een kind.',
+        );
+        return;
+      }
+
+      setState(() => _busy = true);
       await FirebaseFirestore.instance
           .doc('households/${widget.householdId}/children/$docId')
           .update({'isArchived': false, 'updatedAt': Timestamp.now()});
