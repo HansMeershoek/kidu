@@ -779,6 +779,31 @@ class _ChildItem {
   final String name;
 }
 
+String _kiduCompactVoorLabelForSelection({
+  required List<_ChildItem> activeChildren,
+  required Iterable<String> selectedActiveChildIds,
+}) {
+  final selectedIds = selectedActiveChildIds.toSet();
+  final selectedActive = activeChildren
+      .where((c) => selectedIds.contains(c.id))
+      .toList(growable: false);
+
+  if (selectedActive.isEmpty) {
+    return '—';
+  }
+
+  if (selectedActive.length == activeChildren.length &&
+      activeChildren.length >= 2) {
+    return 'Alle kinderen';
+  }
+
+  if (selectedActive.length == 1) {
+    return selectedActive.first.name;
+  }
+
+  return '${selectedActive.first.name} + ${selectedActive.length - 1}';
+}
+
 class _DashboardSecondaryMetadata {
   const _DashboardSecondaryMetadata({
     required this.otherName,
@@ -4925,11 +4950,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               );
-              final childSelectionSummary =
-                  !hasCustomChildSelection ||
-                      effectiveSelectedChildIds.length == children.length
-                  ? 'Alle kinderen'
-                  : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+              final childSelectionSummary = _kiduCompactVoorLabelForSelection(
+                activeChildren: children,
+                selectedActiveChildIds: effectiveSelectedChildIds,
+              );
               return Material(
                 color: Colors.transparent,
                 child: Stack(
@@ -9092,10 +9116,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     }
 
     final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
-    final childSelectionSummary =
-        _isAllChildrenSelection(children, effectiveSelectedChildIds)
-        ? 'Alle kinderen'
-        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+    final childSelectionSummary = _kiduCompactVoorLabelForSelection(
+      activeChildren: children,
+      selectedActiveChildIds: effectiveSelectedChildIds,
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
@@ -10030,10 +10054,10 @@ class _EditRecurringMasterExpenseDialogState
     }
 
     final effectiveSelectedChildIds = _effectiveSelectedChildIds(children);
-    final childSelectionSummary =
-        _isAllChildrenSelection(children, effectiveSelectedChildIds)
-        ? 'Alle kinderen'
-        : '${effectiveSelectedChildIds.length} van ${children.length} geselecteerd';
+    final childSelectionSummary = _kiduCompactVoorLabelForSelection(
+      activeChildren: children,
+      selectedActiveChildIds: effectiveSelectedChildIds,
+    );
     final selectionSection = Row(
       children: [
         Expanded(
@@ -19064,13 +19088,10 @@ class _AddRecurringExpenseDialogState
     return _children.map((c) => c.id).toList(growable: false);
   }
 
-  String get _childSelectionSummary {
-    if (!_hasCustomChildSelection ||
-        _customSelectedChildIds.length == _children.length) {
-      return 'Alle kinderen';
-    }
-    return '${_customSelectedChildIds.length} van ${_children.length} geselecteerd';
-  }
+  String get _childSelectionSummary => _kiduCompactVoorLabelForSelection(
+        activeChildren: _children,
+        selectedActiveChildIds: _effectiveSelectedChildIds,
+      );
 
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
