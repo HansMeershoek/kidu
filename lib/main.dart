@@ -9057,6 +9057,8 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     BuildContext context, {
     required List<_ChildItem> children,
     required bool selectionDataReady,
+    required TextStyle? splitMetaLabelStyle,
+    required TextStyle? splitMetaValueStyle,
   }) {
     final showStaleBanner =
         selectionDataReady && _expenseReferencesInactiveChildren(children);
@@ -9135,11 +9137,11 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     children: [
                       TextSpan(
                         text: 'Voor: ',
-                        style: Theme.of(context).textTheme.labelMedium,
+                        style: splitMetaLabelStyle,
                       ),
                       TextSpan(
                         text: childSelectionSummary,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: splitMetaValueStyle,
                       ),
                     ],
                   ),
@@ -9535,6 +9537,8 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                     context,
                     children: _syncChildren!,
                     selectionDataReady: true,
+                    splitMetaLabelStyle: splitMetaLabelStyle,
+                    splitMetaValueStyle: splitMetaValueStyle,
                   )
                 else
                   FutureBuilder<List<_ChildItem>>(
@@ -9545,6 +9549,8 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                         context,
                         children: children,
                         selectionDataReady: snap.hasData,
+                        splitMetaLabelStyle: splitMetaLabelStyle,
+                        splitMetaValueStyle: splitMetaValueStyle,
                       );
                     },
                   ),
