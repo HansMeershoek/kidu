@@ -47,8 +47,9 @@ const double a85 = 0.85;
 // ── Modal / dialog card widths (centralized; per-card max via helper) ───
 const double _kiduDialogMinWidth = 280.0;
 const double _kiduDialogHorizontalMargin = 80.0;
-const double _kiduDialogNarrowMaxWidth = 320.0;
 const double _kiduDialogWideMaxWidth = 420.0;
+/// Max width for add/edit expense and recurring form dialogs.
+const double _kiduDialogFormMaxWidth = 320.0;
 const double _kiduDialogFixedSplitWidth = 320.0;
 
 double _kiduDialogWidth(
@@ -4917,7 +4918,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   : allChildIds;
               final dialogContentW = _kiduDialogWidth(
                 context,
-                maxWidth: _kiduDialogNarrowMaxWidth,
+                maxWidth: _kiduDialogFormMaxWidth,
               );
               final textTheme = Theme.of(context).textTheme;
               final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
@@ -9373,7 +9374,7 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
   Widget build(BuildContext context) {
     final dialogW = _kiduDialogWidth(
       context,
-      maxWidth: _kiduDialogWideMaxWidth,
+      maxWidth: _kiduDialogFormMaxWidth,
     );
     final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
         ?.copyWith(
@@ -9408,6 +9409,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
       child: SizedBox(
         width: dialogW,
         child: AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           actionsAlignment: MainAxisAlignment.spaceBetween,
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           title: kiduActionDialogTitle(context, 'Uitgave bewerken'),
@@ -10256,7 +10261,7 @@ class _EditRecurringMasterExpenseDialogState
   Widget build(BuildContext context) {
     final dialogContentW = _kiduDialogWidth(
       context,
-      maxWidth: _kiduDialogNarrowMaxWidth,
+      maxWidth: _kiduDialogFormMaxWidth,
     );
     final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
         ?.copyWith(
@@ -10293,7 +10298,9 @@ class _EditRecurringMasterExpenseDialogState
       padding: const EdgeInsets.symmetric(horizontal: 8),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
-    return AlertDialog(
+    return SizedBox(
+      width: dialogContentW,
+      child: AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       actionsAlignment: MainAxisAlignment.spaceBetween,
       title: kiduActionDialogTitle(context, 'Maandelijkse uitgave bewerken'),
@@ -10301,9 +10308,7 @@ class _EditRecurringMasterExpenseDialogState
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.75,
         ),
-        child: SizedBox(
-          width: dialogContentW,
-          child: SingleChildScrollView(
+        child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -10512,7 +10517,6 @@ class _EditRecurringMasterExpenseDialogState
             ),
           ),
         ),
-      ),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       actions: [
         TextButton(
@@ -10547,6 +10551,7 @@ class _EditRecurringMasterExpenseDialogState
           ),
         ),
       ],
+      ),
     );
   }
 }
@@ -19359,12 +19364,9 @@ class _AddRecurringExpenseDialogState
             FirebaseAuth.instance.currentUser?.uid,
           );
 
-    // Title-anchored width. Cap sits between the old narrow (420) and the
-    // too-wide (480) attempts so "Maandelijkse uitgave" still fits with calm
-    // side-margins while the meta-zone doesn't read as uitgesmeerd.
     final dialogContentW = _kiduDialogWidth(
       context,
-      maxWidth: _kiduDialogNarrowMaxWidth,
+      maxWidth: _kiduDialogFormMaxWidth,
     );
 
     // Labels stay regular; values pick up a touch more weight for scanability.
@@ -19382,7 +19384,9 @@ class _AddRecurringExpenseDialogState
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
 
-    return AlertDialog(
+    return SizedBox(
+      width: dialogContentW,
+      child: AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       actionsAlignment: MainAxisAlignment.spaceBetween,
       title: kiduActionDialogTitle(context, 'Maandelijkse uitgave'),
@@ -19390,9 +19394,7 @@ class _AddRecurringExpenseDialogState
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.75,
         ),
-        child: SizedBox(
-          width: dialogContentW,
-          child: SingleChildScrollView(
+        child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -19632,7 +19634,6 @@ class _AddRecurringExpenseDialogState
             ),
           ),
         ),
-      ),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       actions: [
         TextButton(
@@ -19665,6 +19666,7 @@ class _AddRecurringExpenseDialogState
               : const Text('Opslaan'),
         ),
       ],
+      ),
     );
   }
 }
