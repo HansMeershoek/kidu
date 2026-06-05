@@ -5138,78 +5138,75 @@ class _DashboardPageState extends State<DashboardPage> {
                                   // 2+ children so the form remains compact.
                                   if (children.length > 1) ...[
                                     const SizedBox(height: 12),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                    Row(
                                       children: [
-                                        Text(
-                                          'Voor:',
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.labelMedium,
+                                        Expanded(
+                                          child: Text.rich(
+                                            TextSpan(
+                                              children: [
+                                                TextSpan(
+                                                  text: 'Voor: ',
+                                                  style: metaLabelStyle,
+                                                ),
+                                                TextSpan(
+                                                  text: childSelectionSummary,
+                                                  style: metaValueStyle,
+                                                ),
+                                              ],
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                childSelectionSummary,
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.bodyMedium,
-                                              ),
-                                            ),
-                                            TextButton(
-                                              onPressed: saving
-                                                  ? null
-                                                  : () async {
-                                                      FocusManager
-                                                          .instance
-                                                          .primaryFocus
-                                                          ?.unfocus();
-                                                      final pickedChildIds =
-                                                          await _openAddExpenseChildSelectionDialog(
-                                                            children: children,
-                                                            initialSelectedChildIds:
-                                                                hasCustomChildSelection
-                                                                ? customSelectedChildIds
-                                                                : allChildIds,
-                                                          );
-                                                      if (pickedChildIds ==
-                                                              null ||
-                                                          !context.mounted) {
-                                                        return;
-                                                      }
-                                                      setLocalState(() {
-                                                        if (pickedChildIds
-                                                                .length ==
-                                                            children.length) {
-                                                          hasCustomChildSelection =
-                                                              false;
-                                                          customSelectedChildIds =
-                                                              [];
-                                                        } else {
-                                                          hasCustomChildSelection =
-                                                              true;
-                                                          customSelectedChildIds =
-                                                              pickedChildIds;
-                                                        }
-                                                      });
-                                                    },
-                                              style: TextButton.styleFrom(
-                                                visualDensity:
-                                                    VisualDensity.compact,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                    ),
-                                                tapTargetSize:
-                                                    MaterialTapTargetSize
-                                                        .shrinkWrap,
-                                              ),
-                                              child: const Text('Selectie'),
-                                            ),
-                                          ],
+                                        TextButton(
+                                          onPressed: saving
+                                              ? null
+                                              : () async {
+                                                  FocusManager
+                                                      .instance
+                                                      .primaryFocus
+                                                      ?.unfocus();
+                                                  final pickedChildIds =
+                                                      await _openAddExpenseChildSelectionDialog(
+                                                        children: children,
+                                                        initialSelectedChildIds:
+                                                            hasCustomChildSelection
+                                                            ? customSelectedChildIds
+                                                            : allChildIds,
+                                                      );
+                                                  if (pickedChildIds ==
+                                                          null ||
+                                                      !context.mounted) {
+                                                    return;
+                                                  }
+                                                  setLocalState(() {
+                                                    if (pickedChildIds
+                                                            .length ==
+                                                        children.length) {
+                                                      hasCustomChildSelection =
+                                                          false;
+                                                      customSelectedChildIds =
+                                                          [];
+                                                    } else {
+                                                      hasCustomChildSelection =
+                                                          true;
+                                                      customSelectedChildIds =
+                                                          pickedChildIds;
+                                                    }
+                                                  });
+                                                },
+                                          style: TextButton.styleFrom(
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                ),
+                                            tapTargetSize:
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                          ),
+                                          child: const Text('Selectie'),
                                         ),
                                       ],
                                     ),
@@ -9130,14 +9127,24 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
             _inactiveChildrenOnExpenseBanner(context),
             const SizedBox(height: 12),
           ],
-          Text('Voor:', style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 4),
           Row(
             children: [
               Expanded(
-                child: Text(
-                  childSelectionSummary,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Voor: ',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      TextSpan(
+                        text: childSelectionSummary,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               TextButton(
