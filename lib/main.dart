@@ -44,6 +44,25 @@ const double a80 = 0.80;
 const double a84 = 0.84;
 const double a85 = 0.85;
 
+// ── Modal / dialog card widths (centralized; per-card max via helper) ───
+const double _kiduDialogMinWidth = 280.0;
+const double _kiduDialogHorizontalMargin = 80.0;
+const double _kiduDialogNarrowMaxWidth = 320.0;
+const double _kiduDialogWideMaxWidth = 420.0;
+const double _kiduDialogFixedSplitWidth = 320.0;
+
+double _kiduDialogWidth(
+  BuildContext context, {
+  required double maxWidth,
+  double minWidth = _kiduDialogMinWidth,
+  double horizontalMargin = _kiduDialogHorizontalMargin,
+}) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  return (screenWidth - horizontalMargin)
+      .clamp(minWidth, maxWidth)
+      .toDouble();
+}
+
 /// Product UI limit for expense titles; stays below the Firestore rules cap.
 const int _kAddExpenseTitleMaxLength = 60;
 
@@ -1034,9 +1053,9 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
   Widget build(BuildContext context) {
     final hasShareSwitch =
         widget.coParentUid != null && widget.coParentUid!.trim().isNotEmpty;
-    final dialogW = (MediaQuery.sizeOf(context).width - 80.0).clamp(
-      280.0,
-      420.0,
+    final dialogW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogWideMaxWidth,
     );
     final deleteButton = TextButton(
       style: TextButton.styleFrom(
@@ -4589,8 +4608,10 @@ class _DashboardPageState extends State<DashboardPage> {
             final selectedCount = selectedChildIds.length;
             final allSelected = selectedCount == allChildIds.length;
             final cs = Theme.of(context).colorScheme;
-            final screenW = MediaQuery.sizeOf(context).width;
-            final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+            final dialogW = _kiduDialogWidth(
+              context,
+              maxWidth: _kiduDialogWideMaxWidth,
+            );
             final modalHeight = min(
               520.0,
               MediaQuery.of(context).size.height - 36,
@@ -4869,8 +4890,10 @@ class _DashboardPageState extends State<DashboardPage> {
               final effectiveSelectedChildIds = hasCustomChildSelection
                   ? customSelectedChildIds
                   : allChildIds;
-              final screenW = MediaQuery.sizeOf(context).width;
-              final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
+              final dialogContentW = _kiduDialogWidth(
+                context,
+                maxWidth: _kiduDialogNarrowMaxWidth,
+              );
               final textTheme = Theme.of(context).textTheme;
               final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
                   ?.copyWith(
@@ -8272,8 +8295,10 @@ Future<List<String>?> _showExpenseEditChildSelectionDialog(
           final selectedCount = selectedChildIds.length;
           final allSelected = selectedCount == allChildIds.length;
           final cs = Theme.of(context).colorScheme;
-          final screenW = MediaQuery.sizeOf(context).width;
-          final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+          final dialogW = _kiduDialogWidth(
+            context,
+            maxWidth: _kiduDialogWideMaxWidth,
+          );
           final modalHeight = min(
             520.0,
             MediaQuery.of(context).size.height - 36,
@@ -9322,8 +9347,10 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.sizeOf(context).width;
-    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final dialogW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogWideMaxWidth,
+    );
     final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
         ?.copyWith(
           color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
@@ -10203,8 +10230,10 @@ class _EditRecurringMasterExpenseDialogState
 
   @override
   Widget build(BuildContext context) {
-    final screenW = MediaQuery.sizeOf(context).width;
-    final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
+    final dialogContentW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogNarrowMaxWidth,
+    );
     final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
         ?.copyWith(
           color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
@@ -16228,7 +16257,7 @@ class _RecurringParentSplitDialogState
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       title: kiduActionDialogTitle(context, 'Uitgavenverdeling'),
       content: SizedBox(
-        width: 320,
+        width: _kiduDialogFixedSplitWidth,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -19294,8 +19323,10 @@ class _AddRecurringExpenseDialogState
     // Title-anchored width. Cap sits between the old narrow (420) and the
     // too-wide (480) attempts so "Maandelijkse uitgave" still fits with calm
     // side-margins while the meta-zone doesn't read as uitgesmeerd.
-    final screenW = MediaQuery.sizeOf(context).width;
-    final dialogContentW = (screenW - 80.0).clamp(280.0, 320.0);
+    final dialogContentW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogNarrowMaxWidth,
+    );
 
     // Labels stay regular; values pick up a touch more weight for scanability.
     final metaLabelStyle = textTheme.bodyMedium?.copyWith(
@@ -19643,8 +19674,10 @@ class _RecurringChildSelectionDialogState
     final selectedCount = _selected.length;
     final allSelected = selectedCount == allCount;
     final cs = Theme.of(context).colorScheme;
-    final screenW = MediaQuery.sizeOf(context).width;
-    final dialogW = (screenW - 80.0).clamp(280.0, 420.0);
+    final dialogW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogWideMaxWidth,
+    );
     final modalHeight = min(520.0, MediaQuery.of(context).size.height - 36);
     void dismissSelectionDialog() => Navigator.of(context).pop();
 
