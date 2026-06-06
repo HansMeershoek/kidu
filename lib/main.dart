@@ -9031,6 +9031,13 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
     return widget.currentChildIds.any((id) => !activeIds.contains(id));
   }
 
+  bool _showsVoorRowUi(List<_ChildItem> children, bool selectionDataReady) {
+    if (children.isEmpty) return true;
+    final showStaleBanner =
+        selectionDataReady && _expenseReferencesInactiveChildren(children);
+    return children.length >= 2 || (children.length == 1 && showStaleBanner);
+  }
+
   Widget _inactiveChildrenOnExpenseBanner(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -9554,46 +9561,71 @@ class _EditExpenseAmountDialogState extends State<_EditExpenseAmountDialog> {
                       );
                     },
                   ),
-                if (_pendingSplit != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: 'Verdeling: ',
-                                  style: splitMetaLabelStyle,
-                                ),
-                                TextSpan(
-                                  text: _formatParentSplitCompact(
-                                    _pendingSplit!,
-                                    FirebaseAuth.instance.currentUser?.uid,
+                if (_pendingSplit != null)
+                  Builder(
+                    builder: (context) {
+                      final verdelingRow = Row(
+                        children: [
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Verdeling: ',
+                                    style: splitMetaLabelStyle,
                                   ),
-                                  style: splitMetaValueStyle,
-                                ),
-                              ],
+                                  TextSpan(
+                                    text: _formatParentSplitCompact(
+                                      _pendingSplit!,
+                                      FirebaseAuth.instance.currentUser?.uid,
+                                    ),
+                                    style: splitMetaValueStyle,
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        TextButton(
-                          onPressed: _saving
-                              ? null
-                              : () async {
-                                  FocusManager.instance.primaryFocus?.unfocus();
-                                  await _openParentSplitDialog();
-                                },
-                          style: splitMetaActionStyle,
-                          child: const Text('Wijzigen'),
-                        ),
-                      ],
-                    ),
+                          TextButton(
+                            onPressed: _saving
+                                ? null
+                                : () async {
+                                    FocusManager.instance.primaryFocus
+                                        ?.unfocus();
+                                    await _openParentSplitDialog();
+                                  },
+                            style: splitMetaActionStyle,
+                            child: const Text('Wijzigen'),
+                          ),
+                        ],
+                      );
+                      final syncChildren = _syncChildren;
+                      if (syncChildren != null) {
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            top: _showsVoorRowUi(syncChildren, true) ? 6 : 12,
+                          ),
+                          child: verdelingRow,
+                        );
+                      }
+                      return FutureBuilder<List<_ChildItem>>(
+                        future: _childrenFuture,
+                        builder: (context, snap) {
+                          final children =
+                              snap.data ?? const <_ChildItem>[];
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              top: _showsVoorRowUi(children, snap.hasData)
+                                  ? 6
+                                  : 12,
+                            ),
+                            child: verdelingRow,
+                          );
+                        },
+                      );
+                    },
                   ),
-                ],
                 if (_showNoChangesMessage)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -10103,7 +10135,7 @@ class _EditRecurringMasterExpenseDialogState
       ],
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -10480,7 +10512,7 @@ class _EditRecurringMasterExpenseDialogState
                     },
                   ),
                 Padding(
-                  padding: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Row(
                     children: [
                       Expanded(
