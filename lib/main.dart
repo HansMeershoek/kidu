@@ -10450,7 +10450,7 @@ class _EditRecurringMasterExpenseDialogState
                                     style: metaLabelStyle,
                                   ),
                                   TextSpan(
-                                    text: 'Op de ${_selectedDueDay}e',
+                                    text: '${_selectedDueDay}e van de maand',
                                     style: metaValueStyle,
                                   ),
                                 ],
