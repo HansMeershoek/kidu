@@ -5214,7 +5214,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   if (pendingSplit != null)
                                     Padding(
                                       padding: const EdgeInsets.only(
-                                        bottom: 12,
+                                        top: 6,
                                       ),
                                       child: Row(
                                         children: [
