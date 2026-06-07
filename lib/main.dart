@@ -10984,7 +10984,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         children: [
                           Text(
                             displayTitle,
-                            style: textTheme.titleMedium?.copyWith(
+                            style: textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w600,
                               height: 1.25,
                             ),
@@ -18424,7 +18424,7 @@ class _RecurringMasterDetailPageState
                       children: [
                         Text(
                           title.isEmpty ? widget.title : title,
-                          style: textTheme.titleMedium?.copyWith(
+                          style: textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w600,
                             height: 1.25,
                           ),
