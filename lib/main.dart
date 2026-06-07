@@ -1075,6 +1075,38 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
     return [co];
   }
 
+  List<String> _initialResolvedSharedWithUids() {
+    final co = widget.coParentUid?.trim();
+    if (co == null || co.isEmpty || widget.initialNote.trim().isEmpty) {
+      return const [];
+    }
+    if (widget.initialSharedWithUids.any((id) => id.trim() == co)) {
+      return [co];
+    }
+    return const [];
+  }
+
+  bool _sharedWithUidsEqual(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  bool get _isDirty {
+    if (_draftNote.trim() != widget.initialNote.trim()) return true;
+    return !_sharedWithUidsEqual(
+      _resolvedSharedWithUidsForSave(),
+      _initialResolvedSharedWithUids(),
+    );
+  }
+
+  bool get _canSave {
+    if (widget.hasInitialNote) return _isDirty;
+    return _draftNote.trim().isNotEmpty;
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasShareSwitch =
@@ -1098,23 +1130,25 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
     );
     final saveButton = FilledButton(
       style: kiduDialogPrimaryButtonStyle(context),
-      onPressed: () {
-        final note = _draftNote.trim();
-        if (note.isEmpty) {
-          if (widget.hasInitialNote) {
-            _safePop(PrivateNoteDialogDelete());
-          } else {
-            _safePop(PrivateNoteDialogCancelled());
-          }
-        } else {
-          _safePop(
-            PrivateNoteDialogSave(
-              note,
-              sharedWithUids: _resolvedSharedWithUidsForSave(),
-            ),
-          );
-        }
-      },
+      onPressed: _canSave
+          ? () {
+              final note = _draftNote.trim();
+              if (note.isEmpty) {
+                if (widget.hasInitialNote) {
+                  _safePop(PrivateNoteDialogDelete());
+                } else {
+                  _safePop(PrivateNoteDialogCancelled());
+                }
+              } else {
+                _safePop(
+                  PrivateNoteDialogSave(
+                    note,
+                    sharedWithUids: _resolvedSharedWithUidsForSave(),
+                  ),
+                );
+              }
+            }
+          : null,
       child: const Text('Opslaan'),
     );
     return AlertDialog(
