@@ -11694,15 +11694,12 @@ class _LogboekPageState extends State<_LogboekPage>
   List<({String uid, String name})> _parentItems = [];
   bool _parentsLoaded = false;
   String? _filterChildId; // null = alle kinderen, anders één kind
-  String? _filterParentUid; // null = allebei ouders (geen createdBy-filter)
+  /// null = beide ouders; per tab: createdBy / editedBy / fromUserId.
+  String? _selectedParentUid;
   _PeriodFilter _periodFilter = _PeriodFilter.all;
   DateTime? _filterStart;
   DateTime? _filterEnd;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _expensesStream;
-  String? _paymentFilterParentUid; // null = beide ouders
-
-  /// null = beide ouders; otherwise filter amount edits by [editedBy] uid.
-  String? _wijzigFilterEditedByUid;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _paymentsStream;
   late final TabController _modeTabController;
   bool _isOffline = false;
@@ -11733,7 +11730,7 @@ class _LogboekPageState extends State<_LogboekPage>
     if (expenseDocs.isEmpty) return;
     final sig = _wijzigExpenseDocsSignature(expenseDocs);
     final preloadKey =
-        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$sig';
+        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_selectedParentUid}_$sig';
     if (_wijzigWarmPreloadKey == preloadKey) return;
     _wijzigWarmPreloadKey = preloadKey;
     _wijzigLogbookRowsFutureFor(expenseDocs, sig);
@@ -11744,7 +11741,7 @@ class _LogboekPageState extends State<_LogboekPage>
     String expenseDocsSig,
   ) {
     final loadKey =
-        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_${_wijzigExpenseDocsSignature(expenseDocs)}';
+        '${_periodFilter}_${_filterStart}_${_filterEnd}_${_selectedParentUid}_${_wijzigExpenseDocsSignature(expenseDocs)}';
     if (_wijzigLogbookRowsLoadKey != loadKey) {
       _wijzigLogbookRowsLoadKey = loadKey;
       _wijzigLogbookRowsFuture = _loadWijzigLogbookRows(expenseDocs);
@@ -11854,8 +11851,8 @@ class _LogboekPageState extends State<_LogboekPage>
   void _rebuildExpensesStream() {
     Query<Map<String, dynamic>> q = _basePeriodQuery();
 
-    if (_filterParentUid != null) {
-      q = q.where('createdBy', isEqualTo: _filterParentUid);
+    if (_selectedParentUid != null) {
+      q = q.where('createdBy', isEqualTo: _selectedParentUid);
     }
     if (_filterChildId != null) {
       q = q.where('childIds', arrayContains: _filterChildId);
@@ -11883,9 +11880,21 @@ class _LogboekPageState extends State<_LogboekPage>
     _paymentsStream = q.snapshots();
   }
 
+  void _clearLogboekFilters() {
+    _periodFilter = _PeriodFilter.all;
+    _filterStart = null;
+    _filterEnd = null;
+    _selectedParentUid = null;
+    _filterChildId = null;
+    _wijzigLogbookRowsLoadKey = null;
+    _wijzigWarmPreloadKey = null;
+    _rebuildExpensesStream();
+    _rebuildPaymentsStream();
+  }
+
   bool get _uitgavenFiltersActive {
     if (_periodFilter != _PeriodFilter.all) return true;
-    if (_filterParentUid != null) return true;
+    if (_selectedParentUid != null) return true;
     if (_filterChildId != null) return true;
     return false;
   }
@@ -11895,10 +11904,10 @@ class _LogboekPageState extends State<_LogboekPage>
       return _uitgavenFiltersActive;
     }
     if (mode == _LogboekMode.betalingen) {
-      if (_paymentFilterParentUid != null) return true;
+      if (_selectedParentUid != null) return true;
       return _periodFilter != _PeriodFilter.all;
     }
-    if (_wijzigFilterEditedByUid != null) return true;
+    if (_selectedParentUid != null) return true;
     return _periodFilter != _PeriodFilter.all;
   }
 
@@ -12145,9 +12154,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            if (_filterParentUid != null ||
-                                _filterChildId != null ||
-                                _periodFilter != _PeriodFilter.all)
+                            if (_uitgavenFiltersActive)
                               TextButton(
                                 style: TextButton.styleFrom(
                                   visualDensity: VisualDensity.compact,
@@ -12160,15 +12167,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () {
-                                  setState(() {
-                                    _filterParentUid = null;
-                                    _filterChildId = null;
-                                    _periodFilter = _PeriodFilter.all;
-                                    _filterStart = null;
-                                    _filterEnd = null;
-                                    _rebuildExpensesStream();
-                                    _rebuildPaymentsStream();
-                                  });
+                                  setState(_clearLogboekFilters);
                                   setModalState(() {});
                                 },
                                 child: const Text('Filters wissen'),
@@ -12198,11 +12197,11 @@ class _LogboekPageState extends State<_LogboekPage>
                                 visualDensity: VisualDensity.compact,
                                 materialTapTargetSize:
                                     MaterialTapTargetSize.shrinkWrap,
-                                selected: _filterParentUid == null,
+                                selected: _selectedParentUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
                                   setState(() {
-                                    _filterParentUid = null;
+                                    _selectedParentUid = null;
                                     _rebuildExpensesStream();
                                   });
                                   setModalState(() {});
@@ -12221,11 +12220,11 @@ class _LogboekPageState extends State<_LogboekPage>
                                   visualDensity: VisualDensity.compact,
                                   materialTapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
-                                  selected: _filterParentUid == p.uid,
+                                  selected: _selectedParentUid == p.uid,
                                   showCheckmark: false,
                                   onSelected: (v) {
                                     setState(() {
-                                      _filterParentUid = v ? p.uid : null;
+                                      _selectedParentUid = v ? p.uid : null;
                                       _rebuildExpensesStream();
                                     });
                                     setModalState(() {});
@@ -12396,8 +12395,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            if (_paymentFilterParentUid != null ||
-                                _periodFilter != _PeriodFilter.all)
+                            if (_uitgavenFiltersActive)
                               TextButton(
                                 style: TextButton.styleFrom(
                                   visualDensity: VisualDensity.compact,
@@ -12410,14 +12408,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () {
-                                  setState(() {
-                                    _paymentFilterParentUid = null;
-                                    _periodFilter = _PeriodFilter.all;
-                                    _filterStart = null;
-                                    _filterEnd = null;
-                                    _rebuildExpensesStream();
-                                    _rebuildPaymentsStream();
-                                  });
+                                  setState(_clearLogboekFilters);
                                   setModalState(() {});
                                 },
                                 child: const Text('Filters wissen'),
@@ -12447,11 +12438,12 @@ class _LogboekPageState extends State<_LogboekPage>
                                 visualDensity: VisualDensity.compact,
                                 materialTapTargetSize:
                                     MaterialTapTargetSize.shrinkWrap,
-                                selected: _paymentFilterParentUid == null,
+                                selected: _selectedParentUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
                                   setState(() {
-                                    _paymentFilterParentUid = null;
+                                    _selectedParentUid = null;
+                                    _rebuildExpensesStream();
                                   });
                                   setModalState(() {});
                                 },
@@ -12469,13 +12461,14 @@ class _LogboekPageState extends State<_LogboekPage>
                                   visualDensity: VisualDensity.compact,
                                   materialTapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
-                                  selected: _paymentFilterParentUid == p.uid,
+                                  selected: _selectedParentUid == p.uid,
                                   showCheckmark: false,
                                   onSelected: (v) {
                                     setState(() {
-                                      _paymentFilterParentUid = v
+                                      _selectedParentUid = v
                                           ? p.uid
                                           : null;
+                                      _rebuildExpensesStream();
                                     });
                                     setModalState(() {});
                                   },
@@ -12586,8 +12579,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                     ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
-                            if (_wijzigFilterEditedByUid != null ||
-                                _periodFilter != _PeriodFilter.all)
+                            if (_uitgavenFiltersActive)
                               TextButton(
                                 style: TextButton.styleFrom(
                                   visualDensity: VisualDensity.compact,
@@ -12600,14 +12592,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                   minimumSize: Size.zero,
                                 ),
                                 onPressed: () {
-                                  setState(() {
-                                    _wijzigFilterEditedByUid = null;
-                                    _periodFilter = _PeriodFilter.all;
-                                    _filterStart = null;
-                                    _filterEnd = null;
-                                    _rebuildExpensesStream();
-                                    _rebuildPaymentsStream();
-                                  });
+                                  setState(_clearLogboekFilters);
                                   setModalState(() {});
                                 },
                                 child: const Text('Filters wissen'),
@@ -12637,11 +12622,12 @@ class _LogboekPageState extends State<_LogboekPage>
                                 visualDensity: VisualDensity.compact,
                                 materialTapTargetSize:
                                     MaterialTapTargetSize.shrinkWrap,
-                                selected: _wijzigFilterEditedByUid == null,
+                                selected: _selectedParentUid == null,
                                 showCheckmark: false,
                                 onSelected: (_) {
                                   setState(() {
-                                    _wijzigFilterEditedByUid = null;
+                                    _selectedParentUid = null;
+                                    _rebuildExpensesStream();
                                   });
                                   setModalState(() {});
                                 },
@@ -12659,13 +12645,14 @@ class _LogboekPageState extends State<_LogboekPage>
                                   visualDensity: VisualDensity.compact,
                                   materialTapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
-                                  selected: _wijzigFilterEditedByUid == p.uid,
+                                  selected: _selectedParentUid == p.uid,
                                   showCheckmark: false,
                                   onSelected: (v) {
                                     setState(() {
-                                      _wijzigFilterEditedByUid = v
+                                      _selectedParentUid = v
                                           ? p.uid
                                           : null;
+                                      _rebuildExpensesStream();
                                     });
                                     setModalState(() {});
                                   },
@@ -12764,9 +12751,9 @@ class _LogboekPageState extends State<_LogboekPage>
   }
 
   String _expenseExportParentLabel() {
-    if (_filterParentUid == null) return 'Beide';
+    if (_selectedParentUid == null) return 'Beide';
     for (final parent in _parentItems) {
-      if (parent.uid == _filterParentUid) return parent.name;
+      if (parent.uid == _selectedParentUid) return parent.name;
     }
     return 'Beide';
   }
@@ -12820,7 +12807,7 @@ class _LogboekPageState extends State<_LogboekPage>
   List<({String label, String value})> _paymentExportSummaryRows() => [
     (
       label: 'Ouder',
-      value: _paymentExportParentLabelFor(_paymentFilterParentUid),
+      value: _paymentExportParentLabelFor(_selectedParentUid),
     ),
     (
       label: 'Periode',
@@ -12829,7 +12816,7 @@ class _LogboekPageState extends State<_LogboekPage>
   ];
 
   String _wijzigExportParentLabel() =>
-      _paymentExportParentLabelFor(_wijzigFilterEditedByUid);
+      _paymentExportParentLabelFor(_selectedParentUid);
 
   List<({String label, String value})> _wijzigExportSummaryRows() => [
     (label: 'Ouder', value: _wijzigExportParentLabel()),
@@ -13056,7 +13043,7 @@ class _LogboekPageState extends State<_LogboekPage>
   >
   _loadExpenseExportRows() async {
     final filterChildId = _filterChildId;
-    final filterParentUid = _filterParentUid;
+    final filterParentUid = _selectedParentUid;
     final periodFilter = _periodFilter;
     final filterStart = _filterStart;
     final filterEnd = _filterEnd;
@@ -13301,7 +13288,7 @@ class _LogboekPageState extends State<_LogboekPage>
   Future<void> _exportExpensesPdf() async {
     final messenger = ScaffoldMessenger.of(context);
     final frozenFilterChildId = _filterChildId;
-    final frozenFilterParentUid = _filterParentUid;
+    final frozenFilterParentUid = _selectedParentUid;
     final frozenPeriodFilter = _periodFilter;
     final frozenFilterStart = _filterStart;
     final frozenFilterEnd = _filterEnd;
@@ -13746,7 +13733,7 @@ class _LogboekPageState extends State<_LogboekPage>
     >
   >
   _loadPaymentExportRows() async {
-    final paymentFilterParentUid = _paymentFilterParentUid;
+    final paymentFilterParentUid = _selectedParentUid;
     final periodFilter = _periodFilter;
     final filterStart = _filterStart;
     final filterEnd = _filterEnd;
@@ -13794,7 +13781,7 @@ class _LogboekPageState extends State<_LogboekPage>
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final paymentFilterParentUid = _paymentFilterParentUid;
+      final paymentFilterParentUid = _selectedParentUid;
       final periodFilter = _periodFilter;
       final filterStart = _filterStart;
       final filterEnd = _filterEnd;
@@ -14171,7 +14158,7 @@ class _LogboekPageState extends State<_LogboekPage>
     final periodFilter = _periodFilter;
     final filterStart = _filterStart;
     final filterEnd = _filterEnd;
-    final editedByUid = _wijzigFilterEditedByUid;
+    final editedByUid = _selectedParentUid;
 
     final snap = await FirebaseFirestore.instance
         .collection('households/${widget.householdId}/expenses')
@@ -14644,7 +14631,7 @@ class _LogboekPageState extends State<_LogboekPage>
     final effectivePeriodFilter = periodFilter ?? _periodFilter;
     final effectiveFilterStart = filterStart ?? _filterStart;
     final effectiveFilterEnd = filterEnd ?? _filterEnd;
-    final effectiveEditedByUid = editedByUid ?? _wijzigFilterEditedByUid;
+    final effectiveEditedByUid = editedByUid ?? _selectedParentUid;
     final rows = <_WijzigLogbookRow>[];
 
     await Future.wait(
@@ -14734,7 +14721,7 @@ class _LogboekPageState extends State<_LogboekPage>
     final effectivePeriodFilter = periodFilter ?? _periodFilter;
     final effectiveFilterStart = filterStart ?? _filterStart;
     final effectiveFilterEnd = filterEnd ?? _filterEnd;
-    final effectiveEditedByUid = editedByUid ?? _wijzigFilterEditedByUid;
+    final effectiveEditedByUid = editedByUid ?? _selectedParentUid;
     final rows = <_WijzigRow>[];
     await Future.wait(
       expenseDocs.map((d) async {
@@ -15022,7 +15009,7 @@ class _LogboekPageState extends State<_LogboekPage>
             .join('|');
         return FutureBuilder<List<_WijzigLogbookRow>>(
           key: ValueKey(
-            '${_periodFilter}_${_filterStart}_${_filterEnd}_${_wijzigFilterEditedByUid}_$sig',
+            '${_periodFilter}_${_filterStart}_${_filterEnd}_${_selectedParentUid}_$sig',
           ),
           future: _wijzigLogbookRowsFutureFor(docs, sig),
           builder: (context, futSnap) {
@@ -15324,7 +15311,7 @@ class _LogboekPageState extends State<_LogboekPage>
             .where(
               (d) => _matchesPaymentParentFilter(
                 d.data(),
-                _paymentFilterParentUid,
+                _selectedParentUid,
               ),
             )
             .toList(growable: false);
