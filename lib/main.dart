@@ -2660,7 +2660,7 @@ class _NameFormCard extends StatelessWidget {
   }
 }
 
-/// Eerste naam binnen [DashboardPage] (settings in AppBar); zelfde save/huishouden-logica als [ProfileNamePage].
+/// Eerste naam binnen [DashboardPage]; zelfde save/huishouden-logica als [ProfileNamePage].
 class _DashboardOnboardingNameCard extends StatefulWidget {
   const _DashboardOnboardingNameCard();
 
@@ -6055,20 +6055,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   letterSpacing: 0.4,
                 ),
               ),
-              actions: [
-                IconButton(
-                  onPressed: () => _openSettingsPage(
-                    householdId: '',
-                    myUid: user.uid,
-                    otherName: null,
-                    canInvite: false,
-                    isCoParentLinked: false,
-                    myName: null,
-                  ),
-                  icon: const Icon(Icons.settings_rounded),
-                  tooltip: 'Instellingen',
-                ),
-              ],
             ),
             floatingActionButton: null,
             body: SafeArea(
