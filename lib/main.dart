@@ -11761,9 +11761,16 @@ class _LogboekPage extends StatefulWidget {
 
 class _LogboekPageState extends State<_LogboekPage>
     with SingleTickerProviderStateMixin {
-  static const int _logboekVisibleRowCount = 9;
+  static const int _logboekMinVisibleRowCount = 5;
+  static const int _logboekMaxVisibleRowCount = 10;
   static const double _logboekListRowExtent = 64;
   static const double _logboekListSeparatorExtent = 14;
+  static const double _logboekListVerticalPaddingExtent = 24;
+  /// Extra ademruimte die een rijenaantal moet overhouden onderaan het
+  /// scherm om te "passen"; houdt de kaart los van de onderrand, zonder de
+  /// kaarthoogte zelf te veranderen.
+  static const double _logboekListBottomComfortExtent =
+      _logboekListRowExtent / 2;
   static const double _wijzigingTrailingWidth = 154;
   static const double _wijzigingIconSlotWidth = 20;
   static const double _wijzigingIconSlotGap = 4;
@@ -11791,10 +11798,36 @@ class _LogboekPageState extends State<_LogboekPage>
   Future<List<_WijzigLogbookRow>>? _wijzigLogbookRowsFuture;
   String? _wijzigWarmPreloadKey;
 
-  double get _logboekListCardHeight =>
-      (_logboekVisibleRowCount * _logboekListRowExtent) +
-      ((_logboekVisibleRowCount - 1) * _logboekListSeparatorExtent) +
-      (12 * 2);
+  /// Kaarthoogte voor exact [rowCount] volledig zichtbare rijen (incl.
+  /// separators en de verticale KiduCard-padding).
+  double _logboekListCardHeightForRows(int rowCount) {
+    return rowCount * _logboekListRowExtent +
+        (rowCount - 1) * _logboekListSeparatorExtent +
+        _logboekListVerticalPaddingExtent;
+  }
+
+  /// Snapt naar het grootste rijenaantal (tussen [_logboekMinVisibleRowCount]
+  /// en [_logboekMaxVisibleRowCount]) waarvan de kaarthoogte, plús
+  /// [_logboekListBottomComfortExtent] ademruimte, nog past binnen
+  /// [availableHeight]. Zo blijft er onder de kaart altijd wat ruimte over
+  /// en komt de kaart nooit precies tegen de onderrand aan te staan. Er
+  /// wordt nooit onder [_logboekMinVisibleRowCount] gegaan, ook niet als die
+  /// ademruimte daar niet meer bij past.
+  int _logboekVisibleRowCountForAvailableHeight(double availableHeight) {
+    for (
+      var rowCount = _logboekMaxVisibleRowCount;
+      rowCount >= _logboekMinVisibleRowCount;
+      rowCount--
+    ) {
+      final requiredHeight =
+          _logboekListCardHeightForRows(rowCount) +
+          _logboekListBottomComfortExtent;
+      if (requiredHeight <= availableHeight) {
+        return rowCount;
+      }
+    }
+    return _logboekMinVisibleRowCount;
+  }
 
   String _wijzigExpenseDocsSignature(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs,
@@ -14878,25 +14911,33 @@ class _LogboekPageState extends State<_LogboekPage>
 
   @override
   Widget build(BuildContext context) {
-    final logboekContent = Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_isOffline)
-                Container(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  child: Text(
-                    'Offline — je ziet de laatst geladen gegevens.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a62),
-                    ),
-                  ),
-                ),
-              Expanded(
-                child: TabBarView(
+    final logboekContent = SafeArea(
+      top: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_isOffline)
+            Container(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 6,
+              ),
+              child: Text(
+                'Offline — je ziet de laatst geladen gegevens.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: onSurface(context, a62)),
+              ),
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, tabContentConstraints) {
+                final visibleRows = _logboekVisibleRowCountForAvailableHeight(
+                  tabContentConstraints.maxHeight,
+                );
+                final cardHeight = _logboekListCardHeightForRows(visibleRows);
+                return TabBarView(
                   controller: _modeTabController,
                   children: [
                     _LogboekTabKeepAlive(
@@ -14906,7 +14947,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           alignment: Alignment.topCenter,
                           child: SizedBox(
                             width: double.infinity,
-                            height: _logboekListCardHeight,
+                            height: cardHeight,
                             child: KiduCard(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -14925,7 +14966,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           alignment: Alignment.topCenter,
                           child: SizedBox(
                             width: double.infinity,
-                            height: _logboekListCardHeight,
+                            height: cardHeight,
                             child: KiduCard(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -14944,7 +14985,7 @@ class _LogboekPageState extends State<_LogboekPage>
                           alignment: Alignment.topCenter,
                           child: SizedBox(
                             width: double.infinity,
-                            height: _logboekListCardHeight,
+                            height: cardHeight,
                             child: KiduCard(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -14957,10 +14998,13 @@ class _LogboekPageState extends State<_LogboekPage>
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
-          );
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
     final appBar = AppBar(
       centerTitle: true,
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
