@@ -6001,11 +6001,15 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       await FirebaseAuth.instance.signOut();
     } catch (_) {}
-    try {
-      await _googleSignIn.signOut();
-    } catch (_) {
-      // Google was mogelijk al uitgelogd — negeren
-    }
+
+    // GoogleSignIn.signOut() kan enkele seconden duren en hoeft niet te
+    // worden afgewacht voordat de gebruiker teruggenavigeerd wordt naar
+    // AuthGate/login. We voeren deze best-effort op de achtergrond uit.
+    unawaited(
+      _googleSignIn.signOut().catchError((Object error, StackTrace stackTrace) {
+        debugPrint('Google sign-out cleanup failed.');
+      }),
+    );
 
     if (!context.mounted) {
       return;
