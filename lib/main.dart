@@ -3975,6 +3975,59 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _cardRadius = 18;
   static const double _cardGap = 16;
 
+  /// [FloatingActionButton] regular height in the gekoppeld dashboard FAB row.
+  static const double _dashboardFabRegularHeight = 56;
+
+  /// Bottom offset on the centered FAB row (`Padding.only(bottom: …)`).
+  static const double _dashboardFabRowBottomPadding = 16;
+
+  /// Visual gap between dashboard card content and the FAB overlay.
+  static const double _dashboardFabContentGap = 16;
+
+  /// Body bottom padding so content clears the centered FAB row overlay.
+  static const double _dashboardFabClearance =
+      _dashboardFabRowBottomPadding +
+      _dashboardFabRegularHeight +
+      _dashboardFabContentGap;
+
+  static const int _recentExpensePreviewMaxItems = 6;
+
+  /// Uniform dashboard preview row extent; shared by render layout and fit calc.
+  static const double _recentExpensePreviewRowExtent = 60;
+
+  /// Matches `Divider(height: …)` between dashboard preview rows.
+  static const double _recentExpensePreviewSeparatorExtent = 14;
+
+  static const double _recentExpensePreviewListHeightEpsilon = 0.5;
+
+  static double _recentExpenseListHeightForItemCount(int itemCount) {
+    if (itemCount <= 0) {
+      return 0;
+    }
+    return itemCount * _recentExpensePreviewRowExtent +
+        (itemCount - 1) * _recentExpensePreviewSeparatorExtent;
+  }
+
+  /// Preview cap from list-area height inside Recente-uitgaven card (rows only).
+  static int _recentExpensePreviewLimitForListHeight(
+    double availableListHeight,
+    int availableDocumentCount,
+  ) {
+    if (availableDocumentCount <= 0) {
+      return 0;
+    }
+    final maxCandidate = availableDocumentCount < _recentExpensePreviewMaxItems
+        ? availableDocumentCount
+        : _recentExpensePreviewMaxItems;
+    for (var count = maxCandidate; count >= 1; count--) {
+      if (_recentExpenseListHeightForItemCount(count) <=
+          availableListHeight + _recentExpensePreviewListHeightEpsilon) {
+        return count;
+      }
+    }
+    return 0;
+  }
+
   void _showSnackBar(String message, {Duration? duration}) {
     if (!mounted) {
       return;
@@ -6652,7 +6705,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           _pagePadding,
                           24,
                           _pagePadding,
-                          80,
+                          _dashboardFabClearance,
                         ),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
@@ -6660,6 +6713,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               alignment: Alignment.topCenter,
                               child: SizedBox(
                                 width: min(constraints.maxWidth, 520.0),
+                                height: constraints.maxHeight,
                                 child: ValueListenableBuilder<bool>(
                                   valueListenable: _freezeExpensesVN,
                                   builder: (context, frozen, _) {
@@ -6707,10 +6761,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 >
                                               >.of(effectiveSnap.docs)
                                               ..sort(_compareExpenseDocsStable);
-                                        final visibleDocs = docs
-                                            .take(6)
+                                        final metadataPreviewDocs = docs
+                                            .take(_recentExpensePreviewMaxItems)
                                             .toList(growable: false);
-                                        final visibleOwnExpenseIds = visibleDocs
+                                        final visibleOwnExpenseIds =
+                                            metadataPreviewDocs
                                             .where(
                                               (d) =>
                                                   ((d.data()['createdBy']
@@ -6721,7 +6776,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                             .map((d) => d.id)
                                             .toList(growable: false);
                                         final visiblePeerExpensePrivateNoteLookups =
-                                            visibleDocs
+                                            metadataPreviewDocs
                                                 .where((d) {
                                                   final data = d.data();
                                                   final cb =
@@ -7775,44 +7830,47 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 const SizedBox(
                                                   height: _cardGap,
                                                 ),
-                                                KiduCard(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 16,
-                                                        vertical: 12,
-                                                      ),
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .stretch,
-                                                    children: [
-                                                      Text(
-                                                        'Recente uitgaven',
-                                                        style: Theme.of(context)
-                                                            .textTheme
-                                                            .titleMedium
-                                                            ?.copyWith(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w700,
+                                                Flexible(
+                                                  fit: FlexFit.loose,
+                                                  child: KiduCard(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 16,
+                                                              vertical: 12,
                                                             ),
-                                                      ),
-                                                      const SizedBox(
-                                                        height: 10,
-                                                      ),
-                                                      docs.isEmpty
-                                                          ? Align(
-                                                              alignment:
-                                                                  Alignment
-                                                                      .topLeft,
-                                                              child: Text(
-                                                                canAddExpenses
-                                                                    ? 'Nog geen uitgaven. Voeg er één toe met +.'
-                                                                    : 'Nog geen uitgaven.',
-                                                                style: Theme.of(context)
-                                                                    .textTheme
-                                                                    .bodyMedium
-                                                                    ?.copyWith(
+                                                        child: Column(
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .stretch,
+                                                            children: [
+                                                              Text(
+                                                                'Recente uitgaven',
+                                                                style: Theme.of(
+                                                                  context,
+                                                                ).textTheme.titleMedium?.copyWith(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                height: 10,
+                                                              ),
+                                                              if (docs.isEmpty)
+                                                                Align(
+                                                                  alignment:
+                                                                      Alignment
+                                                                          .topLeft,
+                                                                  child: Text(
+                                                                    canAddExpenses
+                                                                        ? 'Nog geen uitgaven. Voeg er één toe met +.'
+                                                                        : 'Nog geen uitgaven.',
+                                                                    style: Theme.of(
+                                                                      context,
+                                                                    ).textTheme.bodyMedium?.copyWith(
                                                                       color: onSurface(
                                                                         context,
                                                                         a62,
@@ -7820,9 +7878,32 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       height:
                                                                           1.35,
                                                                     ),
-                                                              ),
-                                                            )
-                                                          : ListView.separated(
+                                                                  ),
+                                                                )
+                                                              else
+                                                                Flexible(
+                                                                  fit: FlexFit
+                                                                      .loose,
+                                                                  child: LayoutBuilder(
+                                                                    builder: (
+                                                                      context,
+                                                                      listConstraints,
+                                                                    ) {
+                                                                      final recentPreviewLimit =
+                                                                          _recentExpensePreviewLimitForListHeight(
+                                                                            listConstraints.maxHeight,
+                                                                            docs.length,
+                                                                          );
+                                                                      final renderedRecentDocs =
+                                                                          docs
+                                                                              .take(
+                                                                                recentPreviewLimit,
+                                                                              )
+                                                                              .toList(
+                                                                                growable:
+                                                                                    false,
+                                                                              );
+                                                                      return ListView.separated(
                                                               shrinkWrap: true,
                                                               padding:
                                                                   EdgeInsets
@@ -7830,14 +7911,16 @@ class _DashboardPageState extends State<DashboardPage> {
                                                               physics:
                                                                   const NeverScrollableScrollPhysics(),
                                                               itemCount:
-                                                                  visibleDocs
+                                                                  renderedRecentDocs
                                                                       .length,
                                                               separatorBuilder:
                                                                   (
                                                                     context,
                                                                     index,
                                                                   ) => Divider(
-                                                                    height: 14,
+                                                                    height:
+                                                                        _DashboardPageState
+                                                                            ._recentExpensePreviewSeparatorExtent,
                                                                     color:
                                                                         outlineV(
                                                                           context,
@@ -7846,7 +7929,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   ),
                                                               itemBuilder: (context, index) {
                                                                 final d =
-                                                                    visibleDocs[index];
+                                                                    renderedRecentDocs[index];
                                                                 final e = d
                                                                     .data();
                                                                 final title =
@@ -7981,14 +8064,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                   );
                                                                 }
 
-                                                                return Material(
-                                                                  type: MaterialType
-                                                                      .transparency,
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        8,
-                                                                      ),
-                                                                  child: InkWell(
+                                                                return SizedBox(
+                                                                  height:
+                                                                      _DashboardPageState
+                                                                          ._recentExpensePreviewRowExtent,
+                                                                  child: Material(
+                                                                    type: MaterialType
+                                                                        .transparency,
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                                    child: InkWell(
                                                                     borderRadius:
                                                                         BorderRadius.circular(
                                                                           8,
@@ -8164,10 +8251,15 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       ),
                                                                     ),
                                                                   ),
+                                                                ),
                                                                 );
                                                               },
-                                                            ),
-                                                    ],
+                                                            );
+                                                        },
+                                                      ),
+                                                    ),
+                                                            ],
+                                                          ),
                                                   ),
                                                 ),
                                               ],
