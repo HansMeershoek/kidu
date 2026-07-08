@@ -13564,6 +13564,7 @@ class _LogboekPageState extends State<_LogboekPage>
             value: selectedChildLabel.isNotEmpty ? selectedChildLabel : 'Kind',
           ),
         pdfPeriodSummaryRow(),
+        (label: 'Aantal uitgaven', value: '${rows.length}'),
       ];
       final pdfHeaders = hasSelectedChild
           ? [
@@ -14069,6 +14070,7 @@ class _LogboekPageState extends State<_LogboekPage>
           value: _paymentExportParentLabelFor(paymentFilterParentUid),
         ),
         pdfPeriodSummaryRow(),
+        (label: 'Aantal betalingen', value: '${rows.length}'),
       ];
 
       doc.addPage(
