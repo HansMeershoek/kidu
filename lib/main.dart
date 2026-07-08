@@ -14028,31 +14028,65 @@ class _LogboekPageState extends State<_LogboekPage>
         0,
         (total, row) => total + row.amountCents,
       );
+      const paymentStatusOrder = ['Bevestigd', 'In afwachting'];
+      final presentPaymentStatuses = rows
+          .map((row) => row.statusLabel)
+          .toSet();
+      final orderedPaymentStatuses = [
+        for (final status in paymentStatusOrder)
+          if (presentPaymentStatuses.contains(status)) status,
+        for (final status in presentPaymentStatuses)
+          if (!paymentStatusOrder.contains(status)) status,
+      ];
       final paymentTotalRows = paymentFilterParentUid == null
-          ? <({String label, int amountCents, bool emphasize})>[
+          ? <({String label, int amountCents, bool emphasize, bool isSectionHeader})>[
               (
-                label: 'Totaal betaald',
+                label: 'Totaal betalingen',
                 amountCents: totalPaidCents,
                 emphasize: true,
+                isSectionHeader: false,
+              ),
+              (
+                label: 'Betaald door',
+                amountCents: 0,
+                emphasize: false,
+                isSectionHeader: true,
               ),
               for (final parent in _parentItems)
                 (
-                  label: 'Totaal betaald door ${parent.name}',
+                  label: parent.name,
                   amountCents: rows
                       .where((row) => row.fromUserId == parent.uid)
                       .fold<int>(0, (total, row) => total + row.amountCents),
                   emphasize: false,
+                  isSectionHeader: false,
+                ),
+              (
+                label: 'Status',
+                amountCents: 0,
+                emphasize: false,
+                isSectionHeader: true,
+              ),
+              for (final status in orderedPaymentStatuses)
+                (
+                  label: status,
+                  amountCents: rows
+                      .where((row) => row.statusLabel == status)
+                      .fold<int>(0, (total, row) => total + row.amountCents),
+                  emphasize: false,
+                  isSectionHeader: false,
                 ),
             ]
-          : <({String label, int amountCents, bool emphasize})>[
+          : <({String label, int amountCents, bool emphasize, bool isSectionHeader})>[
               (
                 label: _paymentExportTotalLabelFor(paymentFilterParentUid),
                 amountCents: totalPaidCents,
                 emphasize: true,
+                isSectionHeader: false,
               ),
             ];
       final summaryRows = [
-        (label: 'Tab', value: 'Betalingen'),
+        (label: 'Logboek', value: 'Betalingen'),
         (
           label: 'Ouder',
           value: _paymentExportParentLabelFor(paymentFilterParentUid),
@@ -14205,12 +14239,34 @@ class _LogboekPageState extends State<_LogboekPage>
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     for (var i = 0; i < paymentTotalRows.length; i++) ...[
-                      pw.Row(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Expanded(
-                            child: pw.Text(
-                              paymentTotalRows[i].label,
+                      if (paymentTotalRows[i].isSectionHeader)
+                        pw.Text(
+                          paymentTotalRows[i].label,
+                          style: pw.TextStyle(
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        )
+                      else
+                        pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Expanded(
+                              child: pw.Text(
+                                paymentTotalRows[i].label,
+                                style: pw.TextStyle(
+                                  fontSize: paymentTotalRows[i].emphasize
+                                      ? 10
+                                      : 9,
+                                  fontWeight: paymentTotalRows[i].emphasize
+                                      ? pw.FontWeight.bold
+                                      : pw.FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                            pw.SizedBox(width: 12),
+                            pw.Text(
+                              _fmtCsvAmount(paymentTotalRows[i].amountCents),
                               style: pw.TextStyle(
                                 fontSize: paymentTotalRows[i].emphasize
                                     ? 10
@@ -14220,21 +14276,14 @@ class _LogboekPageState extends State<_LogboekPage>
                                     : pw.FontWeight.normal,
                               ),
                             ),
-                          ),
-                          pw.SizedBox(width: 12),
-                          pw.Text(
-                            _fmtCsvAmount(paymentTotalRows[i].amountCents),
-                            style: pw.TextStyle(
-                              fontSize: paymentTotalRows[i].emphasize ? 10 : 9,
-                              fontWeight: paymentTotalRows[i].emphasize
-                                  ? pw.FontWeight.bold
-                                  : pw.FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
                       if (i != paymentTotalRows.length - 1)
-                        pw.SizedBox(height: 6),
+                        pw.SizedBox(
+                          height: paymentTotalRows[i + 1].isSectionHeader
+                              ? 10
+                              : 6,
+                        ),
                     ],
                   ],
                 ),
