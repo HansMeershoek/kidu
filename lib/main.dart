@@ -12946,6 +12946,12 @@ class _LogboekPageState extends State<_LogboekPage>
   static String _csvLine(List<String> values) =>
       values.map(_csvEscape).join(';');
 
+  static const String _csvUtf8Bom = '\uFEFF';
+
+  static Future<void> _writeCsvFile(File file, String csvContent) {
+    return file.writeAsString('$_csvUtf8Bom$csvContent', flush: true);
+  }
+
   static String _fmtCsvAmount(int cents) {
     final negative = cents < 0;
     final abs = cents.abs();
@@ -13378,7 +13384,7 @@ class _LogboekPageState extends State<_LogboekPage>
       final file = File(
         '${tempDir.path}${Platform.pathSeparator}${_expenseExportFilename()}',
       );
-      await file.writeAsString(csv.toString(), flush: true);
+      await _writeCsvFile(file, csv.toString());
 
       await Share.shareXFiles(
         [XFile(file.path)],
@@ -13813,7 +13819,7 @@ class _LogboekPageState extends State<_LogboekPage>
       final file = File(
         '${tempDir.path}${Platform.pathSeparator}${_paymentExportFilename()}',
       );
-      await file.writeAsString(csv.toString(), flush: true);
+      await _writeCsvFile(file, csv.toString());
 
       await Share.shareXFiles(
         [XFile(file.path)],
@@ -14247,7 +14253,7 @@ class _LogboekPageState extends State<_LogboekPage>
       final file = File(
         '${tempDir.path}${Platform.pathSeparator}${_wijzigingenExportFilename('csv')}',
       );
-      await file.writeAsString(csv.toString(), flush: true);
+      await _writeCsvFile(file, csv.toString());
 
       await Share.shareXFiles(
         [XFile(file.path)],
