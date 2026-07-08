@@ -13505,12 +13505,37 @@ class _LogboekPageState extends State<_LogboekPage>
         0,
         (totalCents, row) => totalCents + row.childAmountCents,
       );
+
+      int expensePaidTotalFor(String parentUid) {
+        return rows
+            .where((row) => row.paidByUserId == parentUid)
+            .fold<int>(0, (totalCents, row) => totalCents + row.totalAmountCents);
+      }
+
+      int expenseSplitShareTotalFor(String parentUid, int parentIndex) {
+        return rows.fold<int>(0, (totalCents, row) {
+          final snapshot = row.parentSplitSnapshot;
+          final amountCents = row.totalAmountCents;
+          if (snapshot != null) {
+            return totalCents +
+                snapshot.fairShareCentsFor(parentUid, amountCents);
+          }
+          if (amountCents <= 0) return totalCents;
+          // No stored split for this expense: neutral 50/50 across the
+          // two current household parents (floor/remainder so the two
+          // shares still sum exactly to the row amount).
+          final halfFloor = amountCents ~/ 2;
+          return totalCents + (parentIndex == 0 ? halfFloor : amountCents - halfFloor);
+        });
+      }
+
       final expenseTotalRows =
-          <({String label, int amountCents, bool emphasize})>[
+          <({String label, int amountCents, bool emphasize, bool isSectionHeader})>[
             (
               label: 'Totaal volledige uitgaven',
               amountCents: fullExpensesTotalCents,
               emphasize: true,
+              isSectionHeader: false,
             ),
             if (hasSelectedChild)
               (
@@ -13519,22 +13544,42 @@ class _LogboekPageState extends State<_LogboekPage>
                     : 'Totaal voor kind',
                 amountCents: selectedChildTotalCents,
                 emphasize: false,
+                isSectionHeader: false,
               ),
-            if (frozenFilterParentUid == null)
+            if (frozenFilterParentUid == null) ...[
+              (
+                label: 'Betaald door',
+                amountCents: 0,
+                emphasize: false,
+                isSectionHeader: true,
+              ),
               for (final parent in _parentItems)
                 (
-                  label: 'Totaal uitgaven door ${parent.name}',
-                  amountCents: rows
-                      .where((row) => row.paidByUserId == parent.uid)
-                      .fold<int>(
-                        0,
-                        (totalCents, row) => totalCents + row.totalAmountCents,
-                      ),
+                  label: parent.name,
+                  amountCents: expensePaidTotalFor(parent.uid),
                   emphasize: false,
+                  isSectionHeader: false,
                 ),
+              (
+                label: 'Kosten volgens uitgavenverdeling',
+                amountCents: 0,
+                emphasize: false,
+                isSectionHeader: true,
+              ),
+              for (var i = 0; i < _parentItems.length; i++)
+                (
+                  label: _parentItems[i].name,
+                  amountCents: expenseSplitShareTotalFor(
+                    _parentItems[i].uid,
+                    i,
+                  ),
+                  emphasize: false,
+                  isSectionHeader: false,
+                ),
+            ],
           ];
       final summaryRows = [
-        (label: 'Tab', value: 'Uitgaven'),
+        (label: 'Logboek', value: 'Uitgaven'),
         (label: 'Ouder', value: pdfParentLabel()),
         if (hasSelectedChild)
           (
@@ -13718,13 +13763,38 @@ class _LogboekPageState extends State<_LogboekPage>
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     for (var i = 0; i < expenseTotalRows.length; i++) ...[
-                      if (i > 0) pw.SizedBox(height: 8),
-                      pw.Row(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Expanded(
-                            child: pw.Text(
-                              expenseTotalRows[i].label,
+                      if (i > 0)
+                        pw.SizedBox(
+                          height: expenseTotalRows[i].isSectionHeader
+                              ? 10
+                              : 8,
+                        ),
+                      if (expenseTotalRows[i].isSectionHeader)
+                        pw.Text(
+                          expenseTotalRows[i].label,
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        )
+                      else
+                        pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Expanded(
+                              child: pw.Text(
+                                expenseTotalRows[i].label,
+                                style: pw.TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: expenseTotalRows[i].emphasize
+                                      ? pw.FontWeight.bold
+                                      : pw.FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                            pw.SizedBox(width: 12),
+                            pw.Text(
+                              _fmtCsvAmount(expenseTotalRows[i].amountCents),
                               style: pw.TextStyle(
                                 fontSize: 10,
                                 fontWeight: expenseTotalRows[i].emphasize
@@ -13732,19 +13802,8 @@ class _LogboekPageState extends State<_LogboekPage>
                                     : pw.FontWeight.normal,
                               ),
                             ),
-                          ),
-                          pw.SizedBox(width: 12),
-                          pw.Text(
-                            _fmtCsvAmount(expenseTotalRows[i].amountCents),
-                            style: pw.TextStyle(
-                              fontSize: 10,
-                              fontWeight: expenseTotalRows[i].emphasize
-                                  ? pw.FontWeight.bold
-                                  : pw.FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
                     ],
                   ],
                 ),
