@@ -12832,6 +12832,15 @@ class _LogboekPageState extends State<_LogboekPage>
     return '$textMarker${two(dt.day)}-${two(dt.month)}-${dt.year}';
   }
 
+  /// Voor Logboek > Wijzigingen CSV-export (`dd-MM-yyyy HH:mm`).
+  static String _fmtCsvDateTime(DateTime? dt) {
+    if (dt == null) return '—';
+    String two(int n) => n.toString().padLeft(2, '0');
+    const textMarker = '\u200C';
+    return '$textMarker${two(dt.day)}-${two(dt.month)}-${dt.year} '
+        '${two(dt.hour)}:${two(dt.minute)}';
+  }
+
   static String _fmtEur(int cents) {
     final negative = cents < 0;
     final abs = cents.abs();
@@ -14319,11 +14328,22 @@ class _LogboekPageState extends State<_LogboekPage>
     }
   }
 
+  String _wijzigCsvSplitSnapshotLabel(ParentSplitSnapshot? snapshot) {
+    if (snapshot == null) return 'Verdeling aangepast';
+    final uids = snapshot.participantUids;
+    final bpsValues = [snapshot.share0Bps, snapshot.share1Bps];
+    return [
+      for (var i = 0; i < uids.length; i++)
+        '${_expenseExportParentNameFor(uids[i], i)} '
+            '${_formatParentSplitShare(bpsValues[i]).replaceAll('.', ',')}',
+    ].join(', ');
+  }
+
   Future<void> _exportWijzigingenCsv() async {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final rows = await _loadWijzigingenExportRows();
+      final rows = await _loadWijzigingenCsvRows();
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
@@ -14332,27 +14352,70 @@ class _LogboekPageState extends State<_LogboekPage>
         return;
       }
 
+      final childNamesById = <String, String>{
+        for (final child in _children) child.id: child.name,
+      };
+
+      ({String from, String to})? amountFromTo(_AuditRegistration reg) {
+        if (!reg.hasAmountChange) return null;
+        final fromC = reg.fromAmountCents ?? 0;
+        final toC = reg.toAmountCents ?? 0;
+        return (from: _fmtCsvAmount(fromC), to: _fmtCsvAmount(toC));
+      }
+
+      ({String from, String to})? childrenFromTo(_AuditRegistration reg) {
+        if (!reg.hasChildrenChange) return null;
+        final priorIds = reg.auditPriorChildIds ?? const <String>[];
+        final nextIds = reg.auditChildIds ?? const <String>[];
+        return (
+          from: _auditChildNamesLine(priorIds, childNamesById),
+          to: _auditChildNamesLine(nextIds, childNamesById),
+        );
+      }
+
+      ({String from, String to})? splitFromTo(_AuditRegistration reg) {
+        if (!reg.hasSplitChange) return null;
+        final prior = _auditSplitSnapshotFromRegistration(reg, prior: true);
+        final next = _auditSplitSnapshotFromRegistration(reg, prior: false);
+        return (
+          from: _wijzigCsvSplitSnapshotLabel(prior),
+          to: _wijzigCsvSplitSnapshotLabel(next),
+        );
+      }
+
       final csv = StringBuffer()
         ..writeln(
           _csvLine(const [
             'Datum wijziging',
             'Titel',
-            'Van',
-            'Naar',
-            'Reden',
             'Gewijzigd door',
+            'Bedrag van',
+            'Bedrag naar',
+            'Kinderen van',
+            'Kinderen naar',
+            'Uitgavenverdeling van',
+            'Uitgavenverdeling naar',
+            'Reden',
           ]),
         );
 
       for (final row in rows) {
+        final reg = row.registration;
+        final amount = amountFromTo(reg);
+        final children = childrenFromTo(reg);
+        final split = splitFromTo(reg);
         csv.writeln(
           _csvLine([
-            _ExpenseDetailPage._formatDateTime(row.editedAt),
+            _fmtCsvDateTime(reg.editedAt),
             row.title,
-            _fmtCsvAmount(row.fromAmountCents),
-            _fmtCsvAmount(row.toAmountCents),
-            row.reason,
-            _wijzigEditedByName(row.editedBy),
+            _wijzigEditedByName(reg.editedBy),
+            amount?.from ?? '',
+            amount?.to ?? '',
+            children?.from ?? '',
+            children?.to ?? '',
+            split?.from ?? '',
+            split?.to ?? '',
+            reg.reason,
           ]),
         );
       }
@@ -14381,6 +14444,64 @@ class _LogboekPageState extends State<_LogboekPage>
         ),
       );
     }
+  }
+
+  /// CSV-only: 1 rij per wijzigingsactie (amountEdits + expenseChanges
+  /// gemergd via `_mergeAuditRegistrations`, net als de Wijzigingen-tab UI).
+  /// Bewust los van `_loadWijzigRows` (legacy amount-only), zodat de
+  /// PDF-export ongewijzigd blijft.
+  Future<List<({String title, _AuditRegistration registration})>>
+  _loadWijzigingenCsvRows() async {
+    final periodFilter = _periodFilter;
+    final filterStart = _filterStart;
+    final filterEnd = _filterEnd;
+    final editedByUid = _selectedParentUid;
+
+    final snap = await FirebaseFirestore.instance
+        .collection('households/${widget.householdId}/expenses')
+        .get();
+
+    final rows = <({String title, _AuditRegistration registration})>[];
+
+    await Future.wait(
+      snap.docs.map((d) async {
+        final title = (d.data()['title'] as String?)?.trim() ?? '(zonder naam)';
+
+        final amountSnap = await FirebaseFirestore.instance
+            .collection(
+              'households/${widget.householdId}/expenses/${d.id}/amountEdits',
+            )
+            .get();
+        final changeSnap = await FirebaseFirestore.instance
+            .collection(
+              'households/${widget.householdId}/expenses/${d.id}/expenseChanges',
+            )
+            .get();
+
+        final registrations = _mergeAuditRegistrations(
+          amountEditDocs: amountSnap.docs,
+          expenseChangeDocs: changeSnap.docs,
+        );
+
+        for (final reg in registrations) {
+          if (periodFilter != _PeriodFilter.all &&
+              filterStart != null &&
+              filterEnd != null) {
+            final ed = reg.editedAt;
+            if (ed.isBefore(filterStart) || !ed.isBefore(filterEnd)) {
+              continue;
+            }
+          }
+          if (editedByUid != null && reg.editedBy != editedByUid) continue;
+          rows.add((title: title, registration: reg));
+        }
+      }),
+    );
+
+    rows.sort(
+      (a, b) => b.registration.editedAt.compareTo(a.registration.editedAt),
+    );
+    return rows;
   }
 
   Future<List<_WijzigRow>> _loadWijzigingenExportRows() async {
