@@ -11642,39 +11642,7 @@ enum _PeriodFilter { all, custom }
 
 enum _LogboekMode { uitgaven, wijzigingen, betalingen }
 
-class _WijzigRow {
-  const _WijzigRow({
-    required this.expenseId,
-    required this.title,
-    required this.fromAmountCents,
-    required this.toAmountCents,
-    required this.reason,
-    required this.editedBy,
-    required this.editedAt,
-    required this.expenseAmountCents,
-    required this.childIds,
-    required this.createdBy,
-    required this.createdAt,
-    required this.parentSplitSnapshot,
-    required this.isMaterializedMonthly,
-  });
-
-  final String expenseId;
-  final String title;
-  final int fromAmountCents;
-  final int toAmountCents;
-  final String reason;
-  final String editedBy;
-  final DateTime editedAt;
-  final int expenseAmountCents;
-  final List<String> childIds;
-  final String createdBy;
-  final DateTime? createdAt;
-  final ParentSplitSnapshot? parentSplitSnapshot;
-  final bool isMaterializedMonthly;
-}
-
-/// Logboek → Wijzigingen row (één registratie/save-actie; export gebruikt [_WijzigRow]).
+/// Logboek → Wijzigingen row (één registratie/save-actie; export gebruikt dit type).
 class _WijzigLogbookRow {
   const _WijzigLogbookRow({
     required this.registrationKey,
@@ -14328,7 +14296,7 @@ class _LogboekPageState extends State<_LogboekPage>
     }
   }
 
-  String _wijzigCsvSplitSnapshotLabel(ParentSplitSnapshot? snapshot) {
+  String _wijzigSplitSnapshotLabel(ParentSplitSnapshot? snapshot) {
     if (snapshot == null) return 'Verdeling aangepast';
     final uids = snapshot.participantUids;
     final bpsValues = [snapshot.share0Bps, snapshot.share1Bps];
@@ -14337,6 +14305,38 @@ class _LogboekPageState extends State<_LogboekPage>
         '${_expenseExportParentNameFor(uids[i], i)} '
             '${_formatParentSplitShare(bpsValues[i]).replaceAll('.', ',')}',
     ].join(', ');
+  }
+
+  /// Gedeeld door Wijzigingen-CSV en -PDF, zodat beide exports exact
+  /// dezelfde "van/naar"-waarden per wijzigingsactie tonen.
+  ({String from, String to})? _wijzigAmountFromTo(_AuditRegistration reg) {
+    if (!reg.hasAmountChange) return null;
+    final fromC = reg.fromAmountCents ?? 0;
+    final toC = reg.toAmountCents ?? 0;
+    return (from: _fmtCsvAmount(fromC), to: _fmtCsvAmount(toC));
+  }
+
+  ({String from, String to})? _wijzigChildrenFromTo(
+    _AuditRegistration reg,
+    Map<String, String> childNamesById,
+  ) {
+    if (!reg.hasChildrenChange) return null;
+    final priorIds = reg.auditPriorChildIds ?? const <String>[];
+    final nextIds = reg.auditChildIds ?? const <String>[];
+    return (
+      from: _auditChildNamesLine(priorIds, childNamesById),
+      to: _auditChildNamesLine(nextIds, childNamesById),
+    );
+  }
+
+  ({String from, String to})? _wijzigSplitFromTo(_AuditRegistration reg) {
+    if (!reg.hasSplitChange) return null;
+    final prior = _auditSplitSnapshotFromRegistration(reg, prior: true);
+    final next = _auditSplitSnapshotFromRegistration(reg, prior: false);
+    return (
+      from: _wijzigSplitSnapshotLabel(prior),
+      to: _wijzigSplitSnapshotLabel(next),
+    );
   }
 
   Future<void> _exportWijzigingenCsv() async {
@@ -14356,33 +14356,6 @@ class _LogboekPageState extends State<_LogboekPage>
         for (final child in _children) child.id: child.name,
       };
 
-      ({String from, String to})? amountFromTo(_AuditRegistration reg) {
-        if (!reg.hasAmountChange) return null;
-        final fromC = reg.fromAmountCents ?? 0;
-        final toC = reg.toAmountCents ?? 0;
-        return (from: _fmtCsvAmount(fromC), to: _fmtCsvAmount(toC));
-      }
-
-      ({String from, String to})? childrenFromTo(_AuditRegistration reg) {
-        if (!reg.hasChildrenChange) return null;
-        final priorIds = reg.auditPriorChildIds ?? const <String>[];
-        final nextIds = reg.auditChildIds ?? const <String>[];
-        return (
-          from: _auditChildNamesLine(priorIds, childNamesById),
-          to: _auditChildNamesLine(nextIds, childNamesById),
-        );
-      }
-
-      ({String from, String to})? splitFromTo(_AuditRegistration reg) {
-        if (!reg.hasSplitChange) return null;
-        final prior = _auditSplitSnapshotFromRegistration(reg, prior: true);
-        final next = _auditSplitSnapshotFromRegistration(reg, prior: false);
-        return (
-          from: _wijzigCsvSplitSnapshotLabel(prior),
-          to: _wijzigCsvSplitSnapshotLabel(next),
-        );
-      }
-
       final csv = StringBuffer()
         ..writeln(
           _csvLine(const [
@@ -14401,9 +14374,9 @@ class _LogboekPageState extends State<_LogboekPage>
 
       for (final row in rows) {
         final reg = row.registration;
-        final amount = amountFromTo(reg);
-        final children = childrenFromTo(reg);
-        final split = splitFromTo(reg);
+        final amount = _wijzigAmountFromTo(reg);
+        final children = _wijzigChildrenFromTo(reg, childNamesById);
+        final split = _wijzigSplitFromTo(reg);
         csv.writeln(
           _csvLine([
             _fmtCsvDateTime(reg.editedAt),
@@ -14446,10 +14419,9 @@ class _LogboekPageState extends State<_LogboekPage>
     }
   }
 
-  /// CSV-only: 1 rij per wijzigingsactie (amountEdits + expenseChanges
-  /// gemergd via `_mergeAuditRegistrations`, net als de Wijzigingen-tab UI).
-  /// Bewust los van `_loadWijzigRows` (legacy amount-only), zodat de
-  /// PDF-export ongewijzigd blijft.
+  /// CSV- en PDF-export: 1 rij/blok per wijzigingsactie (amountEdits +
+  /// expenseChanges gemergd via `_mergeAuditRegistrations`, net als de
+  /// Wijzigingen-tab UI).
   Future<List<({String title, _AuditRegistration registration})>>
   _loadWijzigingenCsvRows() async {
     final periodFilter = _periodFilter;
@@ -14504,29 +14476,11 @@ class _LogboekPageState extends State<_LogboekPage>
     return rows;
   }
 
-  Future<List<_WijzigRow>> _loadWijzigingenExportRows() async {
-    final periodFilter = _periodFilter;
-    final filterStart = _filterStart;
-    final filterEnd = _filterEnd;
-    final editedByUid = _selectedParentUid;
-
-    final snap = await FirebaseFirestore.instance
-        .collection('households/${widget.householdId}/expenses')
-        .get();
-    return _loadWijzigRows(
-      snap.docs,
-      periodFilter: periodFilter,
-      filterStart: filterStart,
-      filterEnd: filterEnd,
-      editedByUid: editedByUid,
-    );
-  }
-
   Future<void> _exportWijzigingenPdf() async {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final rows = await _loadWijzigingenExportRows();
+      final rows = await _loadWijzigingenCsvRows();
       if (rows.isEmpty) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
@@ -14535,10 +14489,20 @@ class _LogboekPageState extends State<_LogboekPage>
         return;
       }
 
+      final childNamesById = <String, String>{
+        for (final child in _children) child.id: child.name,
+      };
+
       String pdfExportedAtLabel(DateTime dt) {
         final hh = dt.hour.toString().padLeft(2, '0');
         final mm = dt.minute.toString().padLeft(2, '0');
         return '${_fmtDateWithYear(dt)} - $hh:$mm';
+      }
+
+      String pdfChangeDateTimeLabel(DateTime dt) {
+        String two(int n) => n.toString().padLeft(2, '0');
+        return '${two(dt.day)}-${two(dt.month)}-${dt.year} '
+            '${two(dt.hour)}:${two(dt.minute)}';
       }
 
       String pdfPeriodValue(DateTime start, DateTime end) {
@@ -14561,7 +14525,7 @@ class _LogboekPageState extends State<_LogboekPage>
         }
 
         final exportedDates = rows
-            .map((row) => row.editedAt)
+            .map((row) => row.registration.editedAt)
             .toList(growable: false);
         if (exportedDates.isEmpty) {
           return (label: 'Volledige periode', value: '-');
@@ -14585,10 +14549,112 @@ class _LogboekPageState extends State<_LogboekPage>
       final doc = pw.Document();
       final exportedAt = pdfExportedAtLabel(DateTime.now());
       final summaryRows = [
-        (label: 'Tab', value: 'Wijzigingen'),
+        (label: 'Logboek', value: 'Wijzigingen'),
         (label: 'Ouder', value: _wijzigExportParentLabel()),
         pdfPeriodSummaryRow(),
+        (label: 'Aantal wijzigingen', value: '${rows.length}'),
       ];
+
+      pw.Widget pdfChangeMiniTable(
+        List<({String label, String from, String to})> items,
+      ) {
+        return pw.TableHelper.fromTextArray(
+          headers: const ['Wat is gewijzigd', 'Van', 'Naar'],
+          data: [
+            for (final item in items) [item.label, item.from, item.to],
+          ],
+          headerStyle: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+          headerPadding: const pw.EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 4,
+          ),
+          cellStyle: const pw.TextStyle(fontSize: 9),
+          cellPadding: const pw.EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 4,
+          ),
+          cellAlignment: pw.Alignment.centerLeft,
+          border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+          columnWidths: const {
+            0: pw.FlexColumnWidth(1),
+            1: pw.FlexColumnWidth(1.7),
+            2: pw.FlexColumnWidth(1.7),
+          },
+        );
+      }
+
+      final changeBlocks = <pw.Widget>[];
+      for (var i = 0; i < rows.length; i++) {
+        final row = rows[i];
+        final reg = row.registration;
+        final amount = _wijzigAmountFromTo(reg);
+        final children = _wijzigChildrenFromTo(reg, childNamesById);
+        final split = _wijzigSplitFromTo(reg);
+        final reason = reg.reason.trim();
+
+        final tableItems = <({String label, String from, String to})>[
+          if (amount != null)
+            (label: 'Bedrag', from: amount.from, to: amount.to),
+          if (children != null)
+            (label: 'Kinderen', from: children.from, to: children.to),
+          if (split != null)
+            (
+              label: 'Uitgavenverdeling',
+              from: split.from,
+              to: split.to,
+            ),
+        ];
+
+        changeBlocks.add(
+          pw.Inseparable(
+            child: pw.Container(
+              width: double.infinity,
+              margin: pw.EdgeInsets.only(bottom: i == rows.length - 1 ? 0 : 10),
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                border: pw.Border.all(color: PdfColors.grey300),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    '${pdfChangeDateTimeLabel(reg.editedAt)} · ${row.title}',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    'Gewijzigd door: ${_wijzigEditedByName(reg.editedBy)}',
+                    style: const pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColors.grey700,
+                    ),
+                  ),
+                  if (reason.isNotEmpty) ...[
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Reden: $reason',
+                      style: const pw.TextStyle(fontSize: 9),
+                    ),
+                  ],
+                  if (tableItems.isNotEmpty) ...[
+                    pw.SizedBox(height: 8),
+                    pdfChangeMiniTable(tableItems),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      }
 
       doc.addPage(
         pw.MultiPage(
@@ -14683,51 +14749,7 @@ class _LogboekPageState extends State<_LogboekPage>
               ),
             ),
             pw.SizedBox(height: 16),
-            pw.TableHelper.fromTextArray(
-              headerStyle: pw.TextStyle(
-                fontSize: 9.5,
-                fontWeight: pw.FontWeight.bold,
-              ),
-              headerDecoration: const pw.BoxDecoration(
-                color: PdfColors.grey200,
-              ),
-              cellStyle: const pw.TextStyle(fontSize: 9),
-              cellAlignment: pw.Alignment.centerLeft,
-              cellAlignments: {
-                2: pw.Alignment.centerRight,
-                3: pw.Alignment.centerRight,
-              },
-              columnWidths: {
-                0: const pw.FixedColumnWidth(74),
-                1: const pw.FlexColumnWidth(1.8),
-                2: const pw.FixedColumnWidth(58),
-                3: const pw.FixedColumnWidth(58),
-                4: const pw.FlexColumnWidth(1.7),
-                5: const pw.FixedColumnWidth(78),
-              },
-              headers: const [
-                'Datum wijziging',
-                'Titel',
-                'Van',
-                'Naar',
-                'Reden',
-                'Gewijzigd door',
-              ],
-              data: rows
-                  .map(
-                    (row) => [
-                      _ExpenseDetailPage._formatDateTime(
-                        row.editedAt,
-                      ).replaceAll(' • ', ' - '),
-                      row.title,
-                      _fmtCsvAmount(row.fromAmountCents),
-                      _fmtCsvAmount(row.toAmountCents),
-                      row.reason,
-                      _wijzigEditedByName(row.editedBy),
-                    ],
-                  )
-                  .toList(growable: false),
-            ),
+            ...changeBlocks,
           ],
         ),
       );
@@ -15053,90 +15075,6 @@ class _LogboekPageState extends State<_LogboekPage>
       }),
     );
 
-    rows.sort((a, b) => b.editedAt.compareTo(a.editedAt));
-    if (effectiveEditedByUid != null) {
-      rows.removeWhere((r) => r.editedBy != effectiveEditedByUid);
-    }
-    return rows;
-  }
-
-  /// Export-only: amountEdits per expense (legacy amount-only).
-  Future<List<_WijzigRow>> _loadWijzigRows(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> expenseDocs, {
-    _PeriodFilter? periodFilter,
-    DateTime? filterStart,
-    DateTime? filterEnd,
-    String? editedByUid,
-  }) async {
-    final effectivePeriodFilter = periodFilter ?? _periodFilter;
-    final effectiveFilterStart = filterStart ?? _filterStart;
-    final effectiveFilterEnd = filterEnd ?? _filterEnd;
-    final effectiveEditedByUid = editedByUid ?? _selectedParentUid;
-    final rows = <_WijzigRow>[];
-    await Future.wait(
-      expenseDocs.map((d) async {
-        final e = d.data();
-        final title = (e['title'] as String?)?.trim() ?? '(zonder naam)';
-        final amountCents = (e['amountCents'] as num?)?.toInt() ?? 0;
-        final childIds =
-            (e['childIds'] as List?)?.whereType<String>().toList() ??
-            const <String>[];
-        final createdBy = (e['createdBy'] as String?)?.trim() ?? '';
-        final createdAtRaw = e['createdAt'];
-        DateTime? createdAt;
-        if (createdAtRaw is Timestamp) {
-          createdAt = createdAtRaw.toDate().toLocal();
-        } else if (createdAtRaw is DateTime) {
-          createdAt = createdAtRaw.toLocal();
-        }
-        final sub = await FirebaseFirestore.instance
-            .collection(
-              'households/${widget.householdId}/expenses/${d.id}/amountEdits',
-            )
-            .get();
-        for (final ed in sub.docs) {
-          final h = ed.data();
-          final fromC = (h['fromAmountCents'] as num?)?.toInt() ?? 0;
-          final toC = (h['toAmountCents'] as num?)?.toInt() ?? 0;
-          final reason = (h['reason'] as String?)?.trim() ?? '';
-          final editedBy = (h['editedBy'] as String?)?.trim() ?? '';
-          final editedAtRaw = h['editedAt'];
-          DateTime? editedAtDt;
-          if (editedAtRaw is Timestamp) {
-            editedAtDt = editedAtRaw.toDate().toLocal();
-          } else if (editedAtRaw is DateTime) {
-            editedAtDt = editedAtRaw.toLocal();
-          }
-          if (editedAtDt == null) continue;
-          if (effectivePeriodFilter != _PeriodFilter.all &&
-              effectiveFilterStart != null &&
-              effectiveFilterEnd != null) {
-            final ed = editedAtDt;
-            if (ed.isBefore(effectiveFilterStart) ||
-                !ed.isBefore(effectiveFilterEnd)) {
-              continue;
-            }
-          }
-          rows.add(
-            _WijzigRow(
-              expenseId: d.id,
-              title: title,
-              fromAmountCents: fromC,
-              toAmountCents: toC,
-              reason: reason,
-              editedBy: editedBy,
-              editedAt: editedAtDt,
-              expenseAmountCents: amountCents,
-              childIds: childIds,
-              createdBy: createdBy,
-              createdAt: createdAt,
-              parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(e),
-              isMaterializedMonthly: _expenseDocIsMaterializedMonthly(e),
-            ),
-          );
-        }
-      }),
-    );
     rows.sort((a, b) => b.editedAt.compareTo(a.editedAt));
     if (effectiveEditedByUid != null) {
       rows.removeWhere((r) => r.editedBy != effectiveEditedByUid);
