@@ -12822,8 +12822,8 @@ class _LogboekPageState extends State<_LogboekPage>
     return '${dt.day} ${mo[dt.month - 1]} ${dt.year}';
   }
 
-  /// Alleen voor Logboek > Uitgaven CSV-export (`dd-MM-yyyy`).
-  static String _fmtExpenseCsvDate(DateTime? dt) {
+  /// Voor Logboek CSV-exports (`dd-MM-yyyy`).
+  static String _fmtCsvDate(DateTime? dt) {
     if (dt == null) return '—';
     String two(int n) => n.toString().padLeft(2, '0');
     // CSV heeft geen celtype; deze onzichtbare markering voorkomt dat
@@ -13362,7 +13362,7 @@ class _LogboekPageState extends State<_LogboekPage>
             ? row.childAmountCents
             : row.totalAmountCents;
         final values = <String>[
-          _fmtExpenseCsvDate(row.createdAt),
+          _fmtCsvDate(row.createdAt),
           row.expenseType,
           row.title,
           row.paidByName,
@@ -13865,7 +13865,7 @@ class _LogboekPageState extends State<_LogboekPage>
       for (final row in rows) {
         csv.writeln(
           _csvLine([
-            _fmtDateWithYear(row.createdAt),
+            _fmtCsvDate(row.createdAt),
             _fmtCsvAmount(row.amountCents),
             row.fromName,
             row.toName,
