@@ -11,6 +11,16 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
     }
 
+    // Fase 1 read-only: a household that has been wound down (the other
+    // co-parent left / the household was ended) but whose remaining member
+    // may still view and export the existing administration. A missing
+    // `isReadOnly` field is treated as false (same semantics as the client).
+    function isHouseholdReadOnly(householdId) {
+      return exists(/databases/$(database)/documents/households/$(householdId))
+        && ('isReadOnly' in get(/databases/$(database)/documents/households/$(householdId)).data)
+        && get(/databases/$(database)/documents/households/$(householdId)).data.isReadOnly == true;
+    }
+
     function isRecurringMasterCreator(householdId, recurringId) {
       return exists(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId))
         && get(/databases/$(database)/documents/households/$(householdId)/recurringExpenses/$(recurringId)).data.createdBy == request.auth.uid;
@@ -148,10 +158,39 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.isConnected == false;
 
+      // Two disjoint update paths:
+      //  1. Existing 'isConnected' flip (unchanged behavior), now also
+      //     hard-blocked once the household is read-only.
+      //  2. Fase 1 preparation only: a future delete-flow may flip a
+      //     household from active to read-only. Not called from the app
+      //     yet in Fase 1 (no UI sets these fields), but the rule is
+      //     already safe: existing member only, strictly these four
+      //     fields, and only false -> true (never back to false).
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isConnected'])
-        && request.resource.data.isConnected == true;
+        && (
+          (
+            !isHouseholdReadOnly(householdId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isConnected'])
+            && request.resource.data.isConnected == true
+          )
+          || (
+            (!('isReadOnly' in resource.data) || resource.data.isReadOnly == false)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'isReadOnly',
+              'readOnlyAt',
+              'readOnlyReason',
+              'readOnlyBy'
+            ])
+            && request.resource.data.isReadOnly == true
+            && request.resource.data.readOnlyAt == request.time
+            && (!('readOnlyReason' in request.resource.data)
+                || (request.resource.data.readOnlyReason is string
+                    && request.resource.data.readOnlyReason.size() <= 500))
+            && (!('readOnlyBy' in request.resource.data)
+                || request.resource.data.readOnlyBy == request.auth.uid)
+          )
+        );
 
       allow delete: if false;
     }
@@ -159,8 +198,11 @@ service cloud.firestore {
     match /households/{householdId}/members/{memberId} {
       allow read: if isSignedIn() && isHouseholdMember(householdId);
 
+      // Fase 1 read-only: a read-only (ended) household may not be actively
+      // re-joined/re-linked.
       allow create: if isSignedIn()
         && request.auth.uid == memberId
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.keys().hasOnly(['role', 'joinedAt'])
         && request.resource.data.role is string;
 
@@ -173,6 +215,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.keys().hasOnly([
           'name',
           'createdAt',
@@ -192,6 +235,7 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name',
           'isArchived',
@@ -224,6 +268,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly([
           'amountCents',
@@ -294,6 +339,7 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.auth.uid == resource.data.createdBy
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'amountCents',
@@ -355,6 +401,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly([
           'title',
@@ -418,6 +465,7 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.auth.uid == resource.data.createdBy
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt
@@ -491,6 +539,7 @@ service cloud.firestore {
       // NOT deleted by this rule (expense delete stays disallowed below).
       allow delete: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.auth.uid == resource.data.createdBy
         && resource.data.status in ['active', 'paused'];
     }
@@ -500,6 +549,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && isRecurringMasterCreator(householdId, recurringId)
         && request.resource.data.keys().hasOnly([
           'changeType',
@@ -590,6 +640,7 @@ service cloud.firestore {
       // isRecurringMasterCreator resolves against the master document.
       allow delete: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && isRecurringMasterCreator(householdId, recurringId);
     }
 
@@ -630,6 +681,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.keys().hasOnly([
           'note',
           'updatedAt',
@@ -648,6 +700,7 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && isRecurringMasterCreator(householdId, recurringId)
         && request.resource.data.keys().hasOnly([
           'note',
@@ -673,6 +726,7 @@ service cloud.firestore {
       // run BEFORE the master itself is deleted).
       allow delete: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && isRecurringMasterCreator(householdId, recurringId);
     }
 
@@ -681,6 +735,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
         && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly([
@@ -716,6 +771,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
         && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly([
@@ -791,6 +847,8 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if false;
 
+      // Fase 1 read-only: no new invite may be created for a read-only
+      // (ended) household.
       allow create: if isSignedIn()
         && request.resource.data.keys().hasOnly([
           'householdId',
@@ -800,10 +858,16 @@ service cloud.firestore {
         ])
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.usedBy == null
-        && isHouseholdMember(request.resource.data.householdId);
+        && isHouseholdMember(request.resource.data.householdId)
+        && !isHouseholdReadOnly(request.resource.data.householdId);
 
+      // Fase 1 read-only: joining (claiming) an invite that points at a
+      // read-only household is blocked here too, in addition to the
+      // members-create guard above (belt-and-suspenders: this stops the
+      // invite claim itself, the members guard stops the membership write).
       allow update: if isSignedIn()
         && resource.data.usedBy == null
+        && !isHouseholdReadOnly(resource.data.householdId)
         && request.resource.data.usedBy == request.auth.uid
         && request.resource.data.householdId == resource.data.householdId
         && request.resource.data.createdBy == resource.data.createdBy
@@ -828,6 +892,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.keys().hasOnly([
           'amountCents',
           'currency',
@@ -854,6 +919,7 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.auth.uid == resource.data.toUserId
         && resource.data.status == 'pending'
         && request.resource.data.status == 'confirmed'
@@ -896,6 +962,7 @@ service cloud.firestore {
       allow create, update: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
         && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid
         && request.resource.data.keys().hasOnly([
@@ -916,6 +983,7 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && request.auth.uid == uid
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && exists(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId))
         && get(/databases/$(database)/documents/households/$(householdId)/expenses/$(expenseId)).data.createdBy == request.auth.uid;
     }
@@ -930,6 +998,7 @@ service cloud.firestore {
 
       allow create, update: if isSignedIn()
         && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
         && request.resource.data.keys().hasOnly([
           'share0Uid',
           'share1Uid',

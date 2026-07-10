@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../formatting/relative_time_nl.dart';
+import '../read_only/read_only_widgets.dart';
 import '../ui/kidu_styles.dart';
 import 'household_split_settings_repository.dart';
 import 'parent_split.dart';
@@ -53,11 +54,17 @@ class HouseholdSplitSettingsPage extends StatefulWidget {
     required this.householdId,
     this.initialMembers,
     this.initialDefaults,
+    this.isReadOnly = false,
   });
 
   final String householdId;
   final List<HouseholdSplitMember>? initialMembers;
   final HouseholdSplitDefaults? initialDefaults;
+
+  /// Fase 1 read-only defensief: geldt als dit scherm toch rechtstreeks
+  /// wordt geopend terwijl het huishouden read-only is (de normale ingang
+  /// via Instellingen is dan al geblokkeerd).
+  final bool isReadOnly;
 
   @override
   State<HouseholdSplitSettingsPage> createState() =>
@@ -179,6 +186,7 @@ class _HouseholdSplitSettingsPageState
   }
 
   Future<void> _save() async {
+    if (widget.isReadOnly) return;
     final share0Uid = _selectedShare0Uid;
     final other = _otherMember();
     if (share0Uid == null || other == null) return;
@@ -249,11 +257,14 @@ class _HouseholdSplitSettingsPageState
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-          'Uitgavenverdeling',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+        title: ReadOnlyAppBarTitle(
+          isReadOnly: widget.isReadOnly,
+          title: Text(
+            'Uitgavenverdeling',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
       ),
@@ -312,6 +323,7 @@ class _HouseholdSplitSettingsPageState
 
     return ListView(
       children: <Widget>[
+        if (widget.isReadOnly) const ReadOnlyExplanationBanner(),
         Text(
           'Dit is de standaardverdeling voor nieuwe uitgaven. Per uitgave '
           'kun je hiervan afwijken.',
@@ -349,7 +361,7 @@ class _HouseholdSplitSettingsPageState
                 )
                 .toDouble(),
             label: _formatShare(firstShareBps),
-            onChanged: _saving
+            onChanged: _saving || widget.isReadOnly
                 ? null
                 : (v) {
                     final rounded = v.round();
@@ -376,7 +388,9 @@ class _HouseholdSplitSettingsPageState
             Expanded(
               child: FilledButton(
                 style: kiduFormPrimaryButtonStyle(context),
-                onPressed: _saving || !_isDirty ? null : _save,
+                onPressed: _saving || !_isDirty || widget.isReadOnly
+                    ? null
+                    : _save,
                 child: _saving
                     ? Row(
                         mainAxisSize: MainAxisSize.min,

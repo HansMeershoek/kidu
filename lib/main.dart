@@ -20,6 +20,8 @@ import 'firebase_options.dart';
 import 'formatting/relative_time_nl.dart';
 import 'privacy/reopen_lock_gate.dart';
 import 'privacy/reopen_lock_service.dart';
+import 'read_only/read_only_utils.dart';
+import 'read_only/read_only_widgets.dart';
 import 'split/household_split_settings_page.dart';
 import 'split/household_split_settings_repository.dart';
 import 'split/parent_split.dart';
@@ -3259,9 +3261,13 @@ void _showAboutKiduDialog(BuildContext context) {
 
 /// Instellingen als volledig scherm (was bottom sheet).
 class _UitgavenverdelingSettingsTile extends StatefulWidget {
-  const _UitgavenverdelingSettingsTile({required this.householdId});
+  const _UitgavenverdelingSettingsTile({
+    required this.householdId,
+    this.isReadOnly = false,
+  });
 
   final String householdId;
+  final bool isReadOnly;
 
   @override
   State<_UitgavenverdelingSettingsTile> createState() =>
@@ -3301,6 +3307,7 @@ class _UitgavenverdelingSettingsTileState
                 householdId: widget.householdId,
                 initialMembers: members,
                 initialDefaults: defaults,
+                isReadOnly: widget.isReadOnly,
               ),
           transitionDuration: const Duration(milliseconds: 180),
           reverseTransitionDuration: const Duration(milliseconds: 180),
@@ -3319,7 +3326,7 @@ class _UitgavenverdelingSettingsTileState
     return ListTile(
       contentPadding: EdgeInsets.zero,
       visualDensity: VisualDensity.standard,
-      enabled: !_busy,
+      enabled: !_busy && !widget.isReadOnly,
       leading: Icon(
         Icons.percent_outlined,
         size: 18,
@@ -3331,7 +3338,7 @@ class _UitgavenverdelingSettingsTileState
           color: onSurface(context, 0.80),
         ),
       ),
-      onTap: _busy ? null : _onTap,
+      onTap: (_busy || widget.isReadOnly) ? null : _onTap,
     );
   }
 }
@@ -3346,6 +3353,7 @@ class _SettingsPage extends StatelessWidget {
     this.myName,
     required this.openPrivacySecuritySheet,
     required this.signOut,
+    this.isReadOnly = false,
   });
 
   final bool Function() dashboardMounted;
@@ -3356,6 +3364,7 @@ class _SettingsPage extends StatelessWidget {
   final String? myName;
   final void Function(BuildContext rootContext) openPrivacySecuritySheet;
   final Future<void> Function(BuildContext context) signOut;
+  final bool isReadOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -3364,11 +3373,14 @@ class _SettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-          'Instellingen',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+        title: ReadOnlyAppBarTitle(
+          isReadOnly: isReadOnly,
+          title: Text(
+            'Instellingen',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
       ),
@@ -3402,10 +3414,11 @@ class _SettingsPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      if (hasHousehold)
+                      if (hasHousehold && !isReadOnly)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           visualDensity: VisualDensity.standard,
+                          enabled: !isReadOnly,
                           leading: Icon(
                             Icons.child_care_outlined,
                             size: 18,
@@ -3416,23 +3429,29 @@ class _SettingsPage extends StatelessWidget {
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: onSurface(context, 0.80)),
                           ),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    _KinderenPage(householdId: householdId),
-                              ),
-                            );
-                          },
+                          onTap: isReadOnly
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => _KinderenPage(
+                                        householdId: householdId,
+                                        isReadOnly: isReadOnly,
+                                      ),
+                                    ),
+                                  );
+                                },
                         ),
-                      if (hasHousehold)
+                      if (hasHousehold && !isReadOnly)
                         _UitgavenverdelingSettingsTile(
                           householdId: householdId,
+                          isReadOnly: isReadOnly,
                         ),
-                      if (hasHousehold)
+                      if (hasHousehold && !isReadOnly)
                         ListTile(
                           contentPadding: EdgeInsets.zero,
                           visualDensity: VisualDensity.standard,
+                          enabled: !isReadOnly,
                           leading: Icon(
                             Icons.event_repeat_outlined,
                             size: 18,
@@ -3443,47 +3462,50 @@ class _SettingsPage extends StatelessWidget {
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: onSurface(context, 0.80)),
                           ),
-                          onTap: () {
-                            // Route-lokale fix voor swipe-back jank op deze
-                            // ene route. Een PageRouteBuilder negeert het
-                            // pageTransitionsTheme, waardoor Android
-                            // predictive-back / iOS swipe-back niet de
-                            // onderliggende dashboard-opbouw blootleggen.
-                            // Dezelfde korte fade speelt bij zowel pijltje
-                            // terug als swipe-back, zodat beide paden
-                            // visueel (vrijwel) identiek aanvoelen.
-                            Navigator.of(context).push<void>(
-                              PageRouteBuilder<void>(
-                                pageBuilder:
-                                    (
-                                      routeContext,
-                                      animation,
-                                      secondaryAnimation,
-                                    ) => _TerugkerendeKostenPage(
-                                      householdId: householdId,
-                                      isCoParentLinked: isCoParentLinked,
-                                      otherParentName: otherName,
-                                      myParentName: myName,
+                          onTap: isReadOnly
+                              ? null
+                              : () {
+                                  // Route-lokale fix voor swipe-back jank op
+                                  // deze ene route. Een PageRouteBuilder
+                                  // negeert het pageTransitionsTheme,
+                                  // waardoor Android predictive-back / iOS
+                                  // swipe-back niet de onderliggende
+                                  // dashboard-opbouw blootleggen. Dezelfde
+                                  // korte fade speelt bij zowel pijltje terug
+                                  // als swipe-back, zodat beide paden
+                                  // visueel (vrijwel) identiek aanvoelen.
+                                  Navigator.of(context).push<void>(
+                                    PageRouteBuilder<void>(
+                                      pageBuilder:
+                                          (
+                                            routeContext,
+                                            animation,
+                                            secondaryAnimation,
+                                          ) => _TerugkerendeKostenPage(
+                                            householdId: householdId,
+                                            isCoParentLinked: isCoParentLinked,
+                                            otherParentName: otherName,
+                                            myParentName: myName,
+                                            isReadOnly: isReadOnly,
+                                          ),
+                                      transitionDuration: const Duration(
+                                        milliseconds: 180,
+                                      ),
+                                      reverseTransitionDuration:
+                                          const Duration(milliseconds: 180),
+                                      transitionsBuilder:
+                                          (
+                                            routeContext,
+                                            animation,
+                                            secondaryAnimation,
+                                            child,
+                                          ) => FadeTransition(
+                                            opacity: animation,
+                                            child: child,
+                                          ),
                                     ),
-                                transitionDuration: const Duration(
-                                  milliseconds: 180,
-                                ),
-                                reverseTransitionDuration: const Duration(
-                                  milliseconds: 180,
-                                ),
-                                transitionsBuilder:
-                                    (
-                                      routeContext,
-                                      animation,
-                                      secondaryAnimation,
-                                      child,
-                                    ) => FadeTransition(
-                                      opacity: animation,
-                                      child: child,
-                                    ),
-                              ),
-                            );
-                          },
+                                  );
+                                },
                         ),
                       if (hasHousehold)
                         ListTile(
@@ -3517,6 +3539,7 @@ class _SettingsPage extends StatelessWidget {
                                       uid: myUid,
                                       myName: myName,
                                       otherName: otherName,
+                                      isReadOnly: isReadOnly,
                                     ),
                                 transitionDuration: const Duration(
                                   milliseconds: 180,
@@ -3619,30 +3642,34 @@ class _SettingsPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.standard,
-                        leading: Icon(
-                          Icons.edit_outlined,
-                          size: 18,
-                          color: onSurface(context, a45),
+                      if (!isReadOnly)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.standard,
+                          enabled: !isReadOnly,
+                          leading: Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: onSurface(context, a45),
+                          ),
+                          title: Text(
+                            'Naam wijzigen',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: onSurface(context, 0.80)),
+                          ),
+                          onTap: isReadOnly
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => ProfileNamePage(
+                                        fromSettings: true,
+                                        initialName: myName,
+                                      ),
+                                    ),
+                                  );
+                                },
                         ),
-                        title: Text(
-                          'Naam wijzigen',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: onSurface(context, 0.80)),
-                        ),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ProfileNamePage(
-                                fromSettings: true,
-                                initialName: myName,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         visualDensity: VisualDensity.standard,
@@ -3664,7 +3691,8 @@ class _SettingsPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (isCoParentLinked &&
+                if (!isReadOnly &&
+                    isCoParentLinked &&
                     (otherName ?? '').trim().isNotEmpty &&
                     (otherName ?? '').trim() != 'Co-parent') ...[
                   const SizedBox(height: 28),
@@ -3734,6 +3762,14 @@ class _DashboardPageState extends State<DashboardPage> {
   String? _dashChildrenSubHouseholdId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
   _dashChildrenSubscription;
+
+  // Fase 1 read-only: household-level `isReadOnly` flag. Missing/absent is
+  // treated as false (see [isHouseholdSnapshotReadOnly]). This phase only
+  // reads the flag; nothing in this file ever sets it.
+  bool _householdIsReadOnly = false;
+  String? _householdReadOnlySubHouseholdId;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _householdReadOnlySubscription;
 
   String? _settlementsHouseholdId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
@@ -4271,6 +4307,37 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  /// Fase 1 read-only: listens to the household root document purely for
+  /// `isReadOnly`. Does not write anything.
+  void _startHouseholdReadOnlySubscription(String householdId) {
+    if (householdId.isEmpty) return;
+    if (_householdReadOnlySubHouseholdId == householdId) return;
+    _householdReadOnlySubscription?.cancel();
+    _householdReadOnlySubHouseholdId = householdId;
+    _householdReadOnlySubscription = FirebaseFirestore.instance
+        .doc('households/$householdId')
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          final isReadOnly = isHouseholdSnapshotReadOnly(snap);
+          if (isReadOnly == _householdIsReadOnly) return;
+          setState(() {
+            _householdIsReadOnly = isReadOnly;
+          });
+        });
+  }
+
+  void _stopHouseholdReadOnlySubscription() {
+    _householdReadOnlySubscription?.cancel();
+    _householdReadOnlySubscription = null;
+    _householdReadOnlySubHouseholdId = null;
+    if (!mounted) return;
+    if (!_householdIsReadOnly) return;
+    setState(() {
+      _householdIsReadOnly = false;
+    });
+  }
+
   Future<void> _loadScreenshotBlockingSetting() async {
     final enabled = await _loadScreenshotsBlockedPreference();
     if (!mounted) return;
@@ -4511,6 +4578,7 @@ class _DashboardPageState extends State<DashboardPage> {
     required bool canInvite,
     required bool isCoParentLinked,
     String? myName,
+    bool isReadOnly = false,
   }) {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -4523,6 +4591,7 @@ class _DashboardPageState extends State<DashboardPage> {
           myName: myName,
           openPrivacySecuritySheet: _openPrivacySecuritySheet,
           signOut: _signOut,
+          isReadOnly: isReadOnly,
         ),
       ),
     );
@@ -5610,6 +5679,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _settlementsSubscription?.cancel();
     _paymentsSubscription?.cancel();
     _confirmedPaymentsSubscription?.cancel();
+    _householdReadOnlySubscription?.cancel();
     _addExpenseCheckBusyVN.dispose();
     _freezeExpensesVN.dispose();
     _addExpenseDialogOpenVN.dispose();
@@ -6172,6 +6242,11 @@ class _DashboardPageState extends State<DashboardPage> {
           Future.microtask(
             () => _startConfirmedPaymentsSubscription(householdIdStr, user.uid),
           );
+          Future.microtask(
+            () => _startHouseholdReadOnlySubscription(householdIdStr),
+          );
+        } else if (_householdReadOnlySubHouseholdId != null) {
+          Future.microtask(_stopHouseholdReadOnlySubscription);
         }
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>?>(
@@ -6231,13 +6306,27 @@ class _DashboardPageState extends State<DashboardPage> {
               }
             }
 
-            final canInvite = membersAwaitingFirstSnapshot || memberCount == 1;
+            // Fase 1 read-only: a read-only household must keep showing the
+            // full dashboard/logboek/admin view, even once there is no
+            // second member left. It must never fall back to the solo
+            // "koppelscherm". See _householdIsReadOnly (household-doc
+            // subscription started above).
+            final isReadOnly = _householdIsReadOnly;
+            final canInvite =
+                !isReadOnly &&
+                (membersAwaitingFirstSnapshot || memberCount == 1);
             final canAddExpenses =
                 otherUid != null && otherUid.trim().isNotEmpty;
+            // Whether the full (non-solo) dashboard shell should render.
+            final showsFullDashboard = canAddExpenses || isReadOnly;
+            // Whether shared household data may actually be mutated from
+            // this dashboard. Read-only always blocks this, regardless of
+            // whether a co-parent is present.
+            final canMutateHousehold = canAddExpenses && !isReadOnly;
             final showsPendingSoloPreview =
-                !canAddExpenses && membersAwaitingFirstSnapshot;
+                !showsFullDashboard && membersAwaitingFirstSnapshot;
             final showsStableSoloDashboard =
-                !canAddExpenses && !membersAwaitingFirstSnapshot;
+                !showsFullDashboard && !membersAwaitingFirstSnapshot;
             final myDashboardName = myProfileName;
 
             // While the first members snapshot is pending, keep the same ungekoppeld
@@ -6490,14 +6579,18 @@ class _DashboardPageState extends State<DashboardPage> {
                   resizeToAvoidBottomInset: false,
                   appBar: AppBar(
                     centerTitle: true,
-                    title: Text(
-                      'KiDu',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
+                    title: ReadOnlyAppBarTitle(
+                      isReadOnly: isReadOnly,
+                      title: Text(
+                        'KiDu',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
                       ),
                     ),
-                    actions: canAddExpenses
+                    actions: showsFullDashboard
                         ? [
                             IconButton(
                               onPressed: () => _openSettingsPage(
@@ -6507,6 +6600,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                 canInvite: canInvite,
                                 isCoParentLinked: canAddExpenses,
                                 myName: myProfileName,
+                                isReadOnly: isReadOnly,
                               ),
                               icon: const Icon(Icons.settings_rounded),
                               tooltip: 'Instellingen',
@@ -6539,6 +6633,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                           uid: user.uid,
                                           myName: myName,
                                           otherName: otherName,
+                                          isReadOnly: isReadOnly,
                                         ),
                                 transitionDuration: const Duration(
                                   milliseconds: 180,
@@ -6568,7 +6663,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             tooltip: 'Logboek',
                             child: const Icon(Icons.menu_book, size: 20),
                           ),
-                          if (canAddExpenses)
+                          if (canMutateHousehold)
                             ValueListenableBuilder<bool>(
                               valueListenable: _addExpenseDialogOpenVN,
                               builder: (context, dialogOpen, _) {
@@ -7047,7 +7142,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                                               .withValues(
                                                                 alpha: 0.08,
                                                               ),
-                                                      onTap: () {
+                                                      // Fase 1 read-only: de
+                                                      // balanskaart mag geen
+                                                      // bottomsheet meer
+                                                      // openen (geen betaling
+                                                      // melden/bevestigen).
+                                                      onTap: !canMutateHousehold
+                                                          ? null
+                                                          : () {
                                                         if (_pendingIncoming !=
                                                                 null &&
                                                             _pendingIncomingId !=
@@ -7869,7 +7971,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       Alignment
                                                                           .topLeft,
                                                                   child: Text(
-                                                                    canAddExpenses
+                                                                    canMutateHousehold
                                                                         ? 'Nog geen uitgaven. Voeg er één toe met +.'
                                                                         : 'Nog geen uitgaven.',
                                                                     style: Theme.of(
@@ -8169,10 +8271,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 createdAt: createdAtDateTime,
                                                                                 isPending: isPending,
                                                                                 onManageNote:
-                                                                                    createdBy ==
-                                                                                        user.uid
+                                                                                    (createdBy ==
+                                                                                            user.uid &&
+                                                                                        !isReadOnly)
                                                                                     ? openNoteFlow
                                                                                     : null,
+                                                                                isReadOnly: isReadOnly,
                                                                                 otherParentName: otherName,
                                                                                 parentSplitSnapshot: ParentSplitSnapshot.tryReadFromExpense(
                                                                                   e,
@@ -8671,6 +8775,7 @@ class _ExpenseDetailPage extends StatefulWidget {
     this.parentSplitMembers = const <_ParentSplitMember>[],
     this.initialChildNameById,
     this.showChildContext = true,
+    this.isReadOnly = false,
   });
 
   final String householdId;
@@ -8683,6 +8788,9 @@ class _ExpenseDetailPage extends StatefulWidget {
   final DateTime? createdAt;
   final bool isPending;
   final Future<void> Function()? onManageNote;
+  /// Fase 1 read-only: hides/disables the "Uitgave" edit action. Note
+  /// actions are already gated by passing `onManageNote: null` from callers.
+  final bool isReadOnly;
   final String? otherParentName;
   final ParentSplitSnapshot? parentSplitSnapshot;
   final List<_ParentSplitMember> parentSplitMembers;
@@ -10981,6 +11089,11 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }
 
   Widget _expenseEditTonalButtonStream({required bool wrapWithTopPadding}) {
+    // Fase 1 read-only: no Firestore-write UI for expenses in a read-only
+    // household — hide the edit button entirely rather than show a disabled
+    // control with an explanation, matching the "hoofdingang blokkeren"
+    // guidance for this phase.
+    if (widget.isReadOnly) return const SizedBox.shrink();
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .doc('households/${widget.householdId}/expenses/${widget.expenseId}')
@@ -11028,11 +11141,14 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
         appBar: AppBar(
           centerTitle: true,
           leading: BackButton(onPressed: _handleBack),
-          title: Text(
-            'Uitgave',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
+          title: ReadOnlyAppBarTitle(
+            isReadOnly: widget.isReadOnly,
+            title: Text(
+              'Uitgave',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
+              ),
             ),
           ),
         ),
@@ -11349,7 +11465,7 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                       ),
                                     ),
                                   ),
-                                if (isCreator)
+                                if (isCreator && !widget.isReadOnly)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8),
                                     child: FilledButton.tonalIcon(
@@ -11716,12 +11832,14 @@ class _LogboekPage extends StatefulWidget {
     required this.uid,
     this.myName,
     this.otherName,
+    this.isReadOnly = false,
   });
 
   final String householdId;
   final String uid;
   final String? myName;
   final String? otherName;
+  final bool isReadOnly;
 
   @override
   State<_LogboekPage> createState() => _LogboekPageState();
@@ -15183,11 +15301,14 @@ class _LogboekPageState extends State<_LogboekPage>
     final appBar = AppBar(
       centerTitle: true,
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
-      title: Text(
-        'Logboek',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
+      title: ReadOnlyAppBarTitle(
+        isReadOnly: widget.isReadOnly,
+        title: Text(
+          'Logboek',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
         ),
       ),
       actions: [
@@ -15373,7 +15494,9 @@ class _LogboekPageState extends State<_LogboekPage>
                             paidByName: paidByName,
                             createdAt: row.createdAt,
                             isPending: false,
-                            onManageNote: row.createdBy == widget.uid
+                            onManageNote:
+                                (row.createdBy == widget.uid &&
+                                    !widget.isReadOnly)
                                 ? () => _doManagePrivateNote(
                                     context,
                                     householdId: widget.householdId,
@@ -15381,6 +15504,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                     uid: widget.uid,
                                   )
                                 : null,
+                            isReadOnly: widget.isReadOnly,
                             otherParentName: widget.otherName,
                             parentSplitSnapshot: row.parentSplitSnapshot,
                             parentSplitMembers: _parentItems
@@ -15524,7 +15648,8 @@ class _LogboekPageState extends State<_LogboekPage>
                         paidByName: paidByName,
                         createdAt: createdAt,
                         isPending: false,
-                        onManageNote: createdBy == widget.uid
+                        onManageNote:
+                            (createdBy == widget.uid && !widget.isReadOnly)
                             ? () => _doManagePrivateNote(
                                 context,
                                 householdId: widget.householdId,
@@ -15532,6 +15657,7 @@ class _LogboekPageState extends State<_LogboekPage>
                                 uid: widget.uid,
                               )
                             : null,
+                        isReadOnly: widget.isReadOnly,
                         otherParentName: widget.otherName,
                         parentSplitSnapshot:
                             ParentSplitSnapshot.tryReadFromExpense(e),
@@ -15783,9 +15909,14 @@ void _showKinderenInfoSheet(BuildContext context) {
 }
 
 class _KinderenPage extends StatefulWidget {
-  const _KinderenPage({required this.householdId});
+  const _KinderenPage({required this.householdId, this.isReadOnly = false});
 
   final String householdId;
+
+  /// Fase 1 read-only defensief: geldt als dit scherm toch rechtstreeks
+  /// wordt geopend terwijl het huishouden read-only is (de normale ingang
+  /// via Instellingen is dan al geblokkeerd).
+  final bool isReadOnly;
 
   @override
   State<_KinderenPage> createState() => _KinderenPageState();
@@ -16005,11 +16136,14 @@ class _KinderenPageState extends State<_KinderenPage> {
           final appBar = AppBar(
             centerTitle: true,
             leading: BackButton(onPressed: _handleBack),
-            title: Text(
-              'Kinderen',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
+            title: ReadOnlyAppBarTitle(
+              isReadOnly: widget.isReadOnly,
+              title: Text(
+                'Kinderen',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
             ),
             actions: [
@@ -16125,7 +16259,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                         ),
                         icon: const Icon(Icons.edit_outlined, size: 22),
                         tooltip: 'Naam wijzigen',
-                        onPressed: _busy
+                        onPressed: (_busy || widget.isReadOnly)
                             ? null
                             : () => _renameChild(
                                 d.id,
@@ -16140,7 +16274,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                         ),
                         icon: const Icon(Icons.archive_outlined, size: 22),
                         tooltip: 'Archiveren',
-                        onPressed: _busy
+                        onPressed: (_busy || widget.isReadOnly)
                             ? null
                             : () => _archiveChild(d.id, name),
                       ),
@@ -16188,7 +16322,9 @@ class _KinderenPageState extends State<_KinderenPage> {
                           ),
                           icon: const Icon(Icons.unarchive_outlined, size: 22),
                           tooltip: 'Herstellen',
-                          onPressed: _busy ? null : () => _restoreChild(d.id),
+                          onPressed: (_busy || widget.isReadOnly)
+                              ? null
+                              : () => _restoreChild(d.id),
                         ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
@@ -16199,7 +16335,7 @@ class _KinderenPageState extends State<_KinderenPage> {
                           ),
                           icon: const Icon(Icons.delete_outline, size: 22),
                           tooltip: 'Definitief verwijderen',
-                          onPressed: _busy
+                          onPressed: (_busy || widget.isReadOnly)
                               ? null
                               : () => _softDeleteChild(d.id, name),
                         ),
@@ -16213,10 +16349,12 @@ class _KinderenPageState extends State<_KinderenPage> {
 
           return Scaffold(
             appBar: appBar,
-            floatingActionButton: Padding(
-              padding: const EdgeInsets.only(right: 8, bottom: 16),
-              child: fab,
-            ),
+            floatingActionButton: widget.isReadOnly
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(right: 8, bottom: 16),
+                    child: fab,
+                  ),
             body: items.isEmpty
                 ? const Center(
                     child: Padding(
@@ -17542,6 +17680,7 @@ class _TerugkerendeKostenPage extends StatefulWidget {
     required this.isCoParentLinked,
     this.otherParentName,
     this.myParentName,
+    this.isReadOnly = false,
   });
 
   final String householdId;
@@ -17555,6 +17694,11 @@ class _TerugkerendeKostenPage extends StatefulWidget {
   /// in plaats van `Jij` dezelfde soort naamweergave als de co-parent te
   /// tonen (transparantie/consistentie).
   final String? myParentName;
+
+  /// Fase 1 read-only defensief: geldt als deze pagina toch rechtstreeks
+  /// wordt geopend terwijl het huishouden read-only is (de normale ingang
+  /// via Instellingen is dan al geblokkeerd).
+  final bool isReadOnly;
 
   @override
   State<_TerugkerendeKostenPage> createState() =>
@@ -17718,7 +17862,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    if (!widget.isCoParentLinked) {
+    if (!widget.isCoParentLinked && !widget.isReadOnly) {
       return Scaffold(
         resizeToAvoidBottomInset: false,
         appBar: AppBar(
@@ -17753,11 +17897,14 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-          'Maandelijkse uitgaven',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+        title: ReadOnlyAppBarTitle(
+          isReadOnly: widget.isReadOnly,
+          title: Text(
+            'Maandelijkse uitgaven',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
           ),
         ),
         actions: [
@@ -17769,14 +17916,16 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(right: 8, bottom: 16),
-        child: FloatingActionButton(
-          heroTag: 'add_recurring_fab',
-          onPressed: _openAddRecurringDialog,
-          child: const Icon(Icons.add, size: 24),
-        ),
-      ),
+      floatingActionButton: widget.isReadOnly
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(right: 8, bottom: 16),
+              child: FloatingActionButton(
+                heroTag: 'add_recurring_fab',
+                onPressed: _openAddRecurringDialog,
+                child: const Icon(Icons.add, size: 24),
+              ),
+            ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
@@ -17841,6 +17990,7 @@ class _TerugkerendeKostenPageState extends State<_TerugkerendeKostenPage> {
                       otherParentName: widget.otherParentName,
                       myParentName: widget.myParentName,
                       showChildContext: _hasMultipleHouseholdChildDocs,
+                      isReadOnly: widget.isReadOnly,
                     ),
                   ),
                 ),
@@ -17869,6 +18019,7 @@ class _RecurringMasterList extends StatelessWidget {
     this.otherParentName,
     this.myParentName,
     this.showChildContext = true,
+    this.isReadOnly = false,
   });
 
   final String householdId;
@@ -17880,6 +18031,7 @@ class _RecurringMasterList extends StatelessWidget {
   /// voor de co-parent (geen `Jij`).
   final String? myParentName;
   final bool showChildContext;
+  final bool isReadOnly;
 
   // Ritme afgeleid van Logboek > Uitgaven (_LogboekPageState._logboekListRow*):
   // rij = 64, separator = 14. Vaste viewport voor exact 9 volledige rijen:
@@ -17912,6 +18064,7 @@ class _RecurringMasterList extends StatelessWidget {
           otherParentName,
           myParentName,
           showChildContext,
+          isReadOnly,
         ),
       ),
     );
@@ -17924,6 +18077,7 @@ class _RecurringMasterList extends StatelessWidget {
     String? otherParentName,
     String? myParentName,
     bool showChildContext,
+    bool isReadOnly,
   ) {
     final data = doc.data();
     final title = (data['title'] as String?)?.trim() ?? '—';
@@ -18047,6 +18201,7 @@ class _RecurringMasterList extends StatelessWidget {
                   otherParentName: otherParentName,
                   myParentName: myParentName,
                   showChildContext: showChildContext,
+                  isReadOnly: isReadOnly,
                 ),
               ),
             );
@@ -18143,6 +18298,7 @@ class _RecurringMasterDetailPage extends StatefulWidget {
     this.otherParentName,
     this.myParentName,
     this.showChildContext = true,
+    this.isReadOnly = false,
   });
 
   final String householdId;
@@ -18154,6 +18310,9 @@ class _RecurringMasterDetailPage extends StatefulWidget {
   final List<String> childIds;
   final DateTime? startDate;
   final String? status;
+
+  /// Fase 1 read-only defensief: zie [_TerugkerendeKostenPage.isReadOnly].
+  final bool isReadOnly;
 
   /// When false, hide the read-only "Voor" row (single-child households).
   final bool showChildContext;
@@ -18682,15 +18841,18 @@ class _RecurringMasterDetailPageState
         return Scaffold(
           appBar: AppBar(
             centerTitle: true,
-            title: Text(
-              'Maandelijkse uitgave',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
+            title: ReadOnlyAppBarTitle(
+              isReadOnly: widget.isReadOnly,
+              title: Text(
+                'Maandelijkse uitgave',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
             ),
             actions: [
-              if (isCreator)
+              if (isCreator && !widget.isReadOnly)
                 IconButton(
                   tooltip: 'Beheer',
                   iconSize: 20,
@@ -19008,7 +19170,7 @@ class _RecurringMasterDetailPageState
                         );
                       },
                     ),
-                    if (isCreator) ...[
+                    if (isCreator && !widget.isReadOnly) ...[
                       const SizedBox(height: 12),
                       StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                         stream: FirebaseFirestore.instance
@@ -20649,6 +20811,16 @@ class _SetupPageState extends State<SetupPage> {
         throw StateError('Invite is ongeldig.');
       }
 
+      // Fase 1 read-only: een oud, beëindigd huishouden mag niet opnieuw
+      // actief gekoppeld worden. Firestore rules blokkeren de write hierop
+      // ook hard; deze check is puur voor een duidelijke foutmelding.
+      final targetHouseholdSnap = await firestore
+          .doc('households/$targetHouseholdId')
+          .get();
+      if (isHouseholdSnapshotReadOnly(targetHouseholdSnap)) {
+        throw StateError('Dit huishouden is beëindigd (read-only).');
+      }
+
       final userSnap = await userRef.get();
       final userData = userSnap.data();
       final currentHouseholdId = (userData?['householdId'] as String?)?.trim();
@@ -20689,6 +20861,13 @@ class _SetupPageState extends State<SetupPage> {
         final hId = (inviteRecheck.data()?['householdId'] as String?)?.trim();
         if (hId == null || hId.isEmpty) {
           throw StateError('Invite is ongeldig.');
+        }
+
+        final targetHouseholdRecheck = await transaction.get(
+          firestore.doc('households/$hId'),
+        );
+        if (isHouseholdSnapshotReadOnly(targetHouseholdRecheck)) {
+          throw StateError('Dit huishouden is beëindigd (read-only).');
         }
 
         transaction.set(userRef, {
@@ -20737,6 +20916,13 @@ class _SetupPageState extends State<SetupPage> {
           setState(() {
             _joinInlineHint =
                 'Je hoeft deze code niet zelf in te voeren. Deel \'m met je co-parent.';
+          });
+        }
+      } else if (errStr.contains('beëindigd (read-only)')) {
+        if (mounted) {
+          setState(() {
+            _joinInlineHint =
+                'Dit huishouden is beëindigd en alleen-lezen. Koppelen is hier niet meer mogelijk.';
           });
         }
       } else {
