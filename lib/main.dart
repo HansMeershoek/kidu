@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
+import 'account/account_delete_info_page.dart';
 import 'firebase_options.dart';
 import 'formatting/relative_time_nl.dart';
 import 'privacy/reopen_lock_gate.dart';
@@ -3686,6 +3687,45 @@ class _SettingsPage extends StatelessWidget {
                         onTap: () {
                           final settingsContext = context;
                           unawaited(signOut(settingsContext));
+                        },
+                      ),
+                      // Fase 2: informational only. Visible in normal AND
+                      // read-only mode (the remaining co-parent must also be
+                      // able to see/open this later), and with or without a
+                      // household. Opens an explanation page — no
+                      // Firestore/Auth mutation happens here.
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.standard,
+                        leading: Icon(
+                          Icons.person_remove_outlined,
+                          size: 18,
+                          color: onSurface(context, a45),
+                        ),
+                        title: Text(
+                          'Mijn account verwijderen',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: onSurface(context, 0.80)),
+                        ),
+                        onTap: () {
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => AccountDeleteInfoPage(
+                                hasHousehold: hasHousehold,
+                                isReadOnly: isReadOnly,
+                                hasCoParent: isCoParentLinked,
+                                logboekPageBuilder: hasHousehold
+                                    ? (_) => _LogboekPage(
+                                        householdId: householdId,
+                                        uid: myUid,
+                                        myName: myName,
+                                        otherName: otherName,
+                                        isReadOnly: isReadOnly,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          );
                         },
                       ),
                     ],
