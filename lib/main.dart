@@ -3689,11 +3689,12 @@ class _SettingsPage extends StatelessWidget {
                           unawaited(signOut(settingsContext));
                         },
                       ),
-                      // Fase 2: informational only. Visible in normal AND
-                      // read-only mode (the remaining co-parent must also be
-                      // able to see/open this later), and with or without a
-                      // household. Opens an explanation page — no
-                      // Firestore/Auth mutation happens here.
+                      // Visible in normal AND read-only mode (the remaining
+                      // co-parent must also be able to see/open this
+                      // later), and with or without a household. Opens the
+                      // info page; the real delete flow inside only runs
+                      // for the `activeWithCoParent` state (see
+                      // `account_delete_info_page.dart`).
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         visualDensity: VisualDensity.standard,
@@ -3714,6 +3715,8 @@ class _SettingsPage extends StatelessWidget {
                                 hasHousehold: hasHousehold,
                                 isReadOnly: isReadOnly,
                                 hasCoParent: isCoParentLinked,
+                                householdId: householdId,
+                                onAccountDeleted: signOut,
                                 logboekPageBuilder: hasHousehold
                                     ? (_) => _LogboekPage(
                                         householdId: householdId,
@@ -3944,17 +3947,20 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<_DashboardSecondaryMetadata> _fetchDashboardSecondaryMetadata({
     required String householdId,
-    required String otherUid,
+    // Fase 3: after the co-parent's account is deleted, a read-only
+    // household can have only one member left, so there is no other
+    // uid to resolve a display name for. Fall back to [otherFallback]
+    // ("Co-parent") instead of requiring a uid.
+    required String? otherUid,
     required List<String> visibleOwnExpenseIds,
     required List<({String expenseId, String creatorUid})>
     visiblePeerExpensePrivateNoteLookups,
     required String viewerUid,
     required String otherFallback,
   }) async {
-    final otherNameFuture = _loadUserDisplayName(
-      uid: otherUid,
-      fallback: otherFallback,
-    );
+    final otherNameFuture = (otherUid != null && otherUid.trim().isNotEmpty)
+        ? _loadUserDisplayName(uid: otherUid, fallback: otherFallback)
+        : Future.value(otherFallback);
     final notesFuture = Future.wait(
       visibleOwnExpenseIds.map(
         (expenseId) => _getNoteFuture(
@@ -4000,7 +4006,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<_DashboardSecondaryMetadata> _getDashboardSecondaryMetadataFuture({
     required String householdId,
-    required String otherUid,
+    required String? otherUid,
     required List<String> visibleOwnExpenseIds,
     required List<({String expenseId, String creatorUid})>
     visiblePeerExpensePrivateNoteLookups,
@@ -4011,7 +4017,7 @@ class _DashboardPageState extends State<DashboardPage> {
         .map((p) => '${p.expenseId}:${p.creatorUid}')
         .join('|');
     final key =
-        '$householdId|$otherUid|$visibleIdsKey|$peerKey|$viewerUid|$_notesRefreshTick';
+        '$householdId|${otherUid ?? ''}|$visibleIdsKey|$peerKey|$viewerUid|$_notesRefreshTick';
     if (_dashboardSecondaryMetadataFuture == null ||
         _dashboardSecondaryMetadataCacheKey != key) {
       _dashboardSecondaryMetadataCacheKey = key;
@@ -7059,7 +7065,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                         final secondaryMetadataFuture =
                                             _getDashboardSecondaryMetadataFuture(
                                               householdId: householdIdStr,
-                                              otherUid: otherUid!,
+                                              otherUid: otherUid,
                                               visibleOwnExpenseIds:
                                                   visibleOwnExpenseIds,
                                               visiblePeerExpensePrivateNoteLookups:
@@ -8146,7 +8152,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                           createdBy ==
                                                                               otherUid)
                                                                     ? visibleOtherName
-                                                                    : null;
+                                                                    // Fase 3: same fallback as Logboek/detailscherm
+                                                                    // ("who"/paidByName above) when the co-parent's
+                                                                    // member doc is gone.
+                                                                    : 'Co-parent';
                                                                 final baseSubtitleText =
                                                                     actorLabel ==
                                                                             null ||
@@ -11280,6 +11289,15 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                                     effectiveSplit,
                                     widget.parentSplitMembers,
                                     widget.uid,
+                                    // Fase 3: when the co-parent's member
+                                    // doc is gone (read-only, no co-parent
+                                    // left), widget.parentSplitMembers no
+                                    // longer contains their uid, so the
+                                    // fallback label must use the same
+                                    // "Co-parent" name already shown
+                                    // elsewhere on this screen instead of
+                                    // defaulting to "Ouder 2".
+                                    otherParentName: widget.otherParentName,
                                   ),
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
@@ -20851,16 +20869,6 @@ class _SetupPageState extends State<SetupPage> {
         throw StateError('Invite is ongeldig.');
       }
 
-      // Fase 1 read-only: een oud, beëindigd huishouden mag niet opnieuw
-      // actief gekoppeld worden. Firestore rules blokkeren de write hierop
-      // ook hard; deze check is puur voor een duidelijke foutmelding.
-      final targetHouseholdSnap = await firestore
-          .doc('households/$targetHouseholdId')
-          .get();
-      if (isHouseholdSnapshotReadOnly(targetHouseholdSnap)) {
-        throw StateError('Dit huishouden is beëindigd (read-only).');
-      }
-
       final userSnap = await userRef.get();
       final userData = userSnap.data();
       final currentHouseholdId = (userData?['householdId'] as String?)?.trim();
@@ -20901,13 +20909,6 @@ class _SetupPageState extends State<SetupPage> {
         final hId = (inviteRecheck.data()?['householdId'] as String?)?.trim();
         if (hId == null || hId.isEmpty) {
           throw StateError('Invite is ongeldig.');
-        }
-
-        final targetHouseholdRecheck = await transaction.get(
-          firestore.doc('households/$hId'),
-        );
-        if (isHouseholdSnapshotReadOnly(targetHouseholdRecheck)) {
-          throw StateError('Dit huishouden is beëindigd (read-only).');
         }
 
         transaction.set(userRef, {

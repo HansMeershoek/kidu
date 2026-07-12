@@ -125,7 +125,11 @@ service cloud.firestore {
         && userWriteValidKeys()
         && userHouseholdIdSafe()
         && userNoPrivilegeKeys()
+        // Fase 3: account-delete batch minimizes the caller's own doc and
+        // sets profileName to null (same null-allowance already granted to
+        // email/photoUrl below).
         && (!('profileName' in request.resource.data)
+            || request.resource.data.profileName == null
             || (request.resource.data.profileName is string
                 && request.resource.data.profileName.size() >= 0
                 && request.resource.data.profileName.size() <= 40))
