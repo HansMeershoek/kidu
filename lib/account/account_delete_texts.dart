@@ -16,11 +16,11 @@ enum AccountDeleteHouseholdState { noHousehold, activeSolo, activeWithCoParent, 
 
 /// Which destructive delete path the confirmation flow executes.
 ///
-/// `readOnly` (Fase 3d): the household is already frozen (read-only) by an
-/// earlier account deletion. This mode deletes only the caller's own
-/// member-doc and minimizes their own user-doc — it never touches the
-/// household root document or its subcollections (that stays for a later
-/// Fase 4 server-side cleanup).
+/// `readOnly`: the household is already frozen (read-only) by an earlier
+/// account deletion, and the caller is its last remaining member. This mode
+/// calls the Fase 4 `deleteReadOnlyHouseholdAndAccount` Cloud Function,
+/// which validates server-side and then deletes the full household tree,
+/// its invites, the caller's user-doc, and the caller's Auth account.
 enum AccountDeleteFlowMode { activeWithCoParent, noHousehold, activeSolo, readOnly }
 
 /// Picks the right [AccountDeleteHouseholdState] from booleans the caller
@@ -156,6 +156,12 @@ const String accountDeleteSuccessBody =
     'De overgebleven co-ouder kan het huishouden read-only bekijken en '
     'exporteren.';
 
+/// Neutrale success-copy voor de laatste ouder die via readOnly verwijdert:
+/// er is dan geen overgebleven co-ouder meer.
+const String accountDeleteSuccessBodyReadOnly =
+    'Je KiDu-account is verwijderd.\n\n'
+    'Je kunt later opnieuw beginnen door opnieuw in te loggen.';
+
 const String accountDeleteSuccessBodyNoHousehold =
     'Je KiDu-account is verwijderd.\n\n'
     'Je kunt later opnieuw beginnen door opnieuw in te loggen.';
@@ -163,8 +169,9 @@ const String accountDeleteSuccessBodyNoHousehold =
 String accountDeleteSuccessBodyFor(AccountDeleteFlowMode mode) {
   switch (mode) {
     case AccountDeleteFlowMode.activeWithCoParent:
-    case AccountDeleteFlowMode.readOnly:
       return accountDeleteSuccessBody;
+    case AccountDeleteFlowMode.readOnly:
+      return accountDeleteSuccessBodyReadOnly;
     case AccountDeleteFlowMode.noHousehold:
     case AccountDeleteFlowMode.activeSolo:
       return accountDeleteSuccessBodyNoHousehold;

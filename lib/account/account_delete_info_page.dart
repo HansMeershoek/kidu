@@ -6,12 +6,13 @@
 /// household states, implemented further down in this file and in
 /// `account_delete_controller.dart`.
 ///
-/// For `readOnly` (Fase 3d), the administration itself stays frozen and is
-/// not touched: deleting the account only removes the caller's own
-/// member-doc and minimizes their own user-doc. It never hard-deletes the
-/// household document or its subcollections — a full read-only household
-/// cleanup is out of scope for Fase 3 and left to a later Fase 4
-/// server-side cleanup.
+/// For `readOnly`, deleting the account is the *last* remaining member of
+/// an already read-only household leaving for good: the flow calls the
+/// Fase 4 `deleteReadOnlyHouseholdAndAccount` Cloud Function, which
+/// validates everything server-side and then deletes the household tree,
+/// its invites, the caller's user-doc, and the caller's Auth account. This
+/// page/file never performs that cleanup itself — see
+/// `account_delete_controller.dart` and `functions/src/index.ts`.
 library;
 
 import 'dart:async';
@@ -328,8 +329,17 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
   bool _busy = false;
   // Once true, the destructive Firestore step already ran (household batch
   // or standalone user-doc minimization) — a retry must skip eligibility and
-  // must not repeat that write, and only retries `deleteAuthAccount()`.
+  // must not repeat that write, and only retries `deleteAuthAccount()`. Not
+  // used for `AccountDeleteFlowMode.readOnly` — see
+  // `_readOnlyCleanupAttempted` below.
   bool _firestoreStepDone = false;
+  // Fase 4: readOnly runs a single idempotent server-side callable
+  // (`deleteReadOnlyHouseholdAndAccount`) that covers both the Firestore
+  // cleanup and the Auth delete. Once true, a retry must skip the
+  // client-side `checkReadOnlyEligibility` pre-check — server-side state
+  // may already have changed by a previous partial attempt — and go
+  // straight back to Google re-auth + retrying the same callable.
+  bool _readOnlyCleanupAttempted = false;
   String? _errorText;
 
   @override
@@ -415,7 +425,34 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
       // push does not use `context` directly across that gap.
       final navigator = Navigator.of(context);
 
-      if (!_firestoreStepDone) {
+      if (widget.mode == AccountDeleteFlowMode.readOnly) {
+        // Fase 4: quick client-side pre-check only — the real, authoritative
+        // validation happens server-side in the callable. Skipped on retry:
+        // by then the server may already have (partially) minimized this
+        // account, which would make this pre-check fail even though the
+        // idempotent callable itself would succeed if tried again.
+        if (!_readOnlyCleanupAttempted) {
+          final householdId = widget.householdId?.trim() ?? '';
+          if (householdId.isEmpty) {
+            setState(() => _errorText = accountDeleteErrorNotEligible);
+            return;
+          }
+          final readOnlyEligibility =
+              await AccountDeleteController.checkReadOnlyEligibility(
+            householdId: householdId,
+            uid: user.uid,
+          );
+          if (!mounted) return;
+          if (!readOnlyEligibility.isEligible) {
+            setState(
+              () => _errorText = _readOnlyEligibilityFailureMessage(
+                readOnlyEligibility.failure!,
+              ),
+            );
+            return;
+          }
+        }
+      } else if (!_firestoreStepDone) {
         switch (widget.mode) {
           case AccountDeleteFlowMode.activeWithCoParent:
             final householdId = widget.householdId?.trim() ?? '';
@@ -471,25 +508,7 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
               return;
             }
           case AccountDeleteFlowMode.readOnly:
-            final householdId = widget.householdId?.trim() ?? '';
-            if (householdId.isEmpty) {
-              setState(() => _errorText = accountDeleteErrorNotEligible);
-              return;
-            }
-            final readOnlyEligibility =
-                await AccountDeleteController.checkReadOnlyEligibility(
-              householdId: householdId,
-              uid: user.uid,
-            );
-            if (!mounted) return;
-            if (!readOnlyEligibility.isEligible) {
-              setState(
-                () => _errorText = _readOnlyEligibilityFailureMessage(
-                  readOnlyEligibility.failure!,
-                ),
-              );
-              return;
-            }
+            break; // Handled above, before Google re-auth.
         }
       }
 
@@ -511,32 +530,39 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
       }
       setState(() => _busy = true);
 
-      if (!_firestoreStepDone) {
-        switch (widget.mode) {
-          case AccountDeleteFlowMode.activeWithCoParent:
-            await AccountDeleteController.runDeleteBatch(
-              householdId: widget.householdId!.trim(),
-              uid: user.uid,
-            );
-          case AccountDeleteFlowMode.noHousehold:
-            await AccountDeleteController.minimizeStandaloneUserDoc(
-              uid: user.uid,
-            );
-          case AccountDeleteFlowMode.activeSolo:
-            await AccountDeleteController.runActiveSoloDeleteBatch(
-              householdId: widget.householdId!.trim(),
-              uid: user.uid,
-            );
-          case AccountDeleteFlowMode.readOnly:
-            await AccountDeleteController.runReadOnlyDeleteBatch(
-              householdId: widget.householdId!.trim(),
-              uid: user.uid,
-            );
+      if (widget.mode == AccountDeleteFlowMode.readOnly) {
+        // Fase 4: flip the flag *before* the call, not after — the
+        // callable is idempotent, so a retry must skip the client
+        // pre-check above even if this very call throws partway through.
+        _readOnlyCleanupAttempted = true;
+        await AccountDeleteController.deleteReadOnlyHouseholdAndAccount(
+          householdId: widget.householdId!.trim(),
+        );
+      } else {
+        if (!_firestoreStepDone) {
+          switch (widget.mode) {
+            case AccountDeleteFlowMode.activeWithCoParent:
+              await AccountDeleteController.runDeleteBatch(
+                householdId: widget.householdId!.trim(),
+                uid: user.uid,
+              );
+            case AccountDeleteFlowMode.noHousehold:
+              await AccountDeleteController.minimizeStandaloneUserDoc(
+                uid: user.uid,
+              );
+            case AccountDeleteFlowMode.activeSolo:
+              await AccountDeleteController.runActiveSoloDeleteBatch(
+                householdId: widget.householdId!.trim(),
+                uid: user.uid,
+              );
+            case AccountDeleteFlowMode.readOnly:
+              break; // Handled above: single server-side callable.
+          }
+          _firestoreStepDone = true;
         }
-        _firestoreStepDone = true;
-      }
 
-      await AccountDeleteController.deleteAuthAccount();
+        await AccountDeleteController.deleteAuthAccount();
+      }
 
       if (!mounted) return;
       await Navigator.of(context).pushAndRemoveUntil<void>(
@@ -550,7 +576,10 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
       );
       return;
     } catch (e) {
-      final fallback = _firestoreStepDone
+      final destructiveStepAttempted = widget.mode == AccountDeleteFlowMode.readOnly
+          ? _readOnlyCleanupAttempted
+          : _firestoreStepDone;
+      final fallback = destructiveStepAttempted
           ? accountDeleteErrorAfterFirestoreStepFor(widget.mode)
           : accountDeleteErrorBeforeFirestoreStepFor(widget.mode);
       if (mounted) {
@@ -626,7 +655,9 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(
-                            _firestoreStepDone
+                            (widget.mode == AccountDeleteFlowMode.readOnly
+                                    ? _readOnlyCleanupAttempted
+                                    : _firestoreStepDone)
                                 ? accountDeleteConfirmRetryButtonLabel
                                 : accountDeleteConfirmButtonLabel,
                           ),

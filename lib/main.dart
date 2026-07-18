@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,6 +17,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_button/sign_in_button.dart';
 
+import 'account/account_delete_controller.dart' show kiduFunctionsRegion;
 import 'account/account_delete_info_page.dart';
 import 'firebase_options.dart';
 import 'formatting/relative_time_nl.dart';
@@ -20946,6 +20948,24 @@ class _SetupPageState extends State<SetupPage> {
       //   {'isConnected': true},
       //   SetOptions(merge: true),
       // );
+
+      // Best-effort (Fase 4b): het oude solo-household van deze ouder is nu
+      // leeg (het member-doc is net verwijderd in de transaction hierboven).
+      // De server valideert zelf opnieuw dat het echt leeg is en bij deze
+      // uid hoort voordat het root-document wordt opgeruimd. Faalt dit, dan
+      // blijft de koppeling gewoon succesvol — alleen loggen, geen fout aan
+      // de gebruiker tonen.
+      if (currentHouseholdId != null &&
+          currentHouseholdId.isNotEmpty &&
+          currentHouseholdId != targetHouseholdId) {
+        try {
+          await FirebaseFunctions.instanceFor(region: kiduFunctionsRegion)
+              .httpsCallable('deleteEmptySoloHousehold')
+              .call({'householdId': currentHouseholdId});
+        } catch (e) {
+          debugPrint('Old solo household cleanup skipped: $e');
+        }
+      }
 
       if (mounted) {
         await _showJoinSuccessAndClose();
