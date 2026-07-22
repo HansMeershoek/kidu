@@ -135,8 +135,8 @@ const String accountDeleteConfirmButtonLabel = 'Account definitief verwijderen';
 const String accountDeleteConfirmRetryButtonLabel = 'Verwijdering opnieuw proberen';
 
 const String accountDeleteConfirmSafetyNote =
-    'KiDu probeert je account veilig te verwijderen. Als Google opnieuw '
-    'bevestiging nodig heeft, leggen we dat eerst uit.';
+    'Voor je veiligheid kan KiDu in de volgende stap om bevestiging met '
+    'Google vragen.';
 
 const String accountDeleteGoogleConfirmTitle = 'Bevestig met Google';
 
