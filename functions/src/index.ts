@@ -1,13 +1,17 @@
 /**
- * KiDu — Fase 4 / 4b: server-side cleanup rond household-lifecycle.
+ * KiDu — Fase 4 / 4b / 4d: server-side cleanup rond household-lifecycle.
  *
  * Firestore verwijdert subcollecties niet automatisch wanneer een parent
  * document wordt verwijderd. Deze Cloud Functions zijn de enige plek die
  * household-trees server-side opruimen:
  * - `deleteReadOnlyHouseholdAndAccount` (Fase 4): definitieve cleanup voor
  *   de laatste overblijvende ouder in een read-only huishouden.
- * - `deleteEmptySoloHousehold` (Fase 4b): opruimen van een leeg orphan
- *   solo-household nadat een ouder via een invitecode is gekoppeld.
+ * - `deleteEmptySoloHousehold` (Fase 4b / 4d): opruimen van een leeg orphan
+ *   solo-household (incl. top-level invites) nadat een ouder via een
+ *   invitecode is gekoppeld.
+ * - `deleteInvitesForLinkedHousehold` (Fase 4d): best-effort opruimen van
+ *   alle invitecodes voor een household nadat twee co-ouders succesvol
+ *   zijn gekoppeld (client mag invites niet deleten).
  * Alle validatie gebeurt hier, nooit op basis van ongecontroleerde
  * client-input.
  */
@@ -137,11 +141,13 @@ async function deleteMinimizedUserDocIfSafe(
 /**
  * Verwijdert alle invite-docs die naar `householdId` verwijzen, in veilige
  * chunks via een BulkWriter. Neemt niet aan dat er maar één invite is.
+ * Geeft het aantal geplande deletes terug (idempotent: 0 als er geen zijn).
  */
-async function deleteInvitesForHousehold(householdId: string): Promise<void> {
+async function deleteInvitesForHousehold(householdId: string): Promise<number> {
   const bulkWriter = db.bulkWriter();
   const pageSize = 300;
   let lastDoc: admin.firestore.QueryDocumentSnapshot | undefined;
+  let deletedCount = 0;
 
   try {
     for (;;) {
@@ -159,6 +165,7 @@ async function deleteInvitesForHousehold(householdId: string): Promise<void> {
       for (const doc of snap.docs) {
         bulkWriter.delete(doc.ref);
       }
+      deletedCount += snap.docs.length;
 
       lastDoc = snap.docs[snap.docs.length - 1];
       if (snap.docs.length < pageSize) break;
@@ -166,6 +173,8 @@ async function deleteInvitesForHousehold(householdId: string): Promise<void> {
   } finally {
     await bulkWriter.close();
   }
+
+  return deletedCount;
 }
 
 export const deleteReadOnlyHouseholdAndAccount = onCall(
@@ -321,17 +330,21 @@ export const deleteReadOnlyHouseholdAndAccount = onCall(
 );
 
 /**
- * KiDu — Fase 4b: opruimen van een leeg orphan solo-household nadat een
- * ouder via een invitecode is gekoppeld aan een ander (gedeeld) household.
+ * KiDu — Fase 4b / 4d: opruimen van een leeg orphan solo-household nadat
+ * een ouder via een invitecode is gekoppeld aan een ander (gedeeld)
+ * household.
  *
  * Wanneer ouder B een account aanmaakt krijgt die eerst een eigen
  * solo-household. Voert B daarna de invitecode van ouder A in, dan wordt
  * B's `users/{uid}.householdId` gewijzigd naar A's household en wordt B's
  * member-doc onder het oude solo-household verwijderd — maar het lege
- * root-document van dat oude solo-household blijft achter. Deze callable
- * ruimt dat root-document op, maar alléén als server-side is vastgesteld
- * dat het echt leeg is en bij de aanroeper hoort. Faalt deze check, dan
- * wordt niets verwijderd; de koppeling zelf hangt hier nooit van af.
+ * root-document van dat oude solo-household blijft achter, evenals
+ * eventuele invitecodes die B eerder voor dat solo-household had
+ * gegenereerd (top-level `invites`, geen subcollectie). Deze callable
+ * ruimt eerst die invites en daarna het root-document op, maar alléén als
+ * server-side is vastgesteld dat het echt leeg is en bij de aanroeper
+ * hoort. Faalt deze check, dan wordt niets verwijderd; de koppeling zelf
+ * hangt hier nooit van af.
  */
 export const deleteEmptySoloHousehold = onCall(
   { region: REGION },
@@ -377,6 +390,7 @@ export const deleteEmptySoloHousehold = onCall(
     // alleen de bekende namen (members, children, expenses, payments,
     // changes, privateNotes, monthlyExpenses, ...) — zo blijft de check
     // ook kloppen als er later nieuwe subcollecties bijkomen.
+    // Top-level `invites` horen hier níet bij en blokkeren deze check niet.
     const subcollections = await householdRef.listCollections();
     for (const subcollection of subcollections) {
       const anyDocSnap = await subcollection.limit(1).get();
@@ -388,10 +402,89 @@ export const deleteEmptySoloHousehold = onCall(
     }
 
     // Alle checks geslaagd: bewezen leeg solo-household van de aanroeper
-    // zelf. Geen recursiveDelete nodig, want er zijn geen subcollectie-
-    // documenten gevonden — een simpele delete van het root-doc is genoeg.
-    await householdRef.delete();
+    // zelf. Eerst top-level invites voor dit household opruimen (Fase 4d);
+    // faalt dat, dan géén root-delete — anders blijven invites naar een
+    // verdwenen household hangen. Geen recursiveDelete nodig voor het
+    // household zelf: er zijn geen subcollectie-documenten gevonden.
+    const deletedInviteCount = await deleteInvitesForHousehold(householdId);
+    logger.info(
+      `deleteEmptySoloHousehold: deleted invites householdId=${householdId} count=${deletedInviteCount}`,
+    );
 
-    return { ok: true, deleted: true };
+    await householdRef.delete();
+    logger.info(
+      `deleteEmptySoloHousehold: deleted empty solo household householdId=${householdId}`,
+    );
+
+    return { ok: true, deleted: true, deletedInviteCount };
+  },
+);
+
+/**
+ * KiDu — Fase 4d: best-effort opruimen van alle invitecodes voor een
+ * household nadat twee co-ouders succesvol zijn gekoppeld.
+ *
+ * Firestore rules verbieden client-side delete op `invites` (`allow delete:
+ * if false`). De joiner heeft na de join-transaction wél een member-doc,
+ * maar kan ongebruikte invites van het target-household niet zelf wissen.
+ * Deze callable doet dat via de Admin SDK. Flutter roept hem best-effort
+ * aan na een geslaagde join; falen mag de koppeling nooit ongedaan maken.
+ *
+ * Validatie (restrictief, zonder `isConnected`: dat veld wordt client-side
+ * na koppelen tijdelijk niet gezet — zie TODO in `_joinHousehold`):
+ * 1. request.auth.uid bestaat
+ * 2. householdId is een niet-lege string
+ * 3. households/{householdId} bestaat
+ * 4. households/{householdId}/members/{uid} bestaat
+ */
+export const deleteInvitesForLinkedHousehold = onCall(
+  { region: REGION },
+  async (request) => {
+    const auth = request.auth;
+    if (!auth) {
+      logger.info(
+        "deleteInvitesForLinkedHousehold: skipped/permission denied unauthenticated",
+      );
+      throw new HttpsError("unauthenticated", "Je bent niet (meer) ingelogd.");
+    }
+    const uid = auth.uid;
+
+    const rawHouseholdId = request.data?.householdId;
+    if (typeof rawHouseholdId !== "string" || rawHouseholdId.trim().length === 0) {
+      logger.info(
+        "deleteInvitesForLinkedHousehold: skipped invalid-argument householdId",
+      );
+      throw new HttpsError("invalid-argument", "householdId is verplicht.");
+    }
+    const householdId = rawHouseholdId.trim();
+
+    const householdRef = db.doc(`households/${householdId}`);
+    const householdSnap = await householdRef.get();
+    if (!householdSnap.exists) {
+      logger.info(
+        `deleteInvitesForLinkedHousehold: skipped/not found householdId=${householdId}`,
+      );
+      throw new HttpsError(
+        "not-found",
+        "Huishouden bestaat niet (meer).",
+      );
+    }
+
+    const memberSnap = await householdRef.collection("members").doc(uid).get();
+    if (!memberSnap.exists) {
+      logger.info(
+        `deleteInvitesForLinkedHousehold: skipped/permission denied householdId=${householdId}`,
+      );
+      throw new HttpsError(
+        "permission-denied",
+        "Je bent geen lid van dit huishouden.",
+      );
+    }
+
+    const deletedCount = await deleteInvitesForHousehold(householdId);
+    logger.info(
+      `deleteInvitesForLinkedHousehold: deleted invites householdId=${householdId} count=${deletedCount}`,
+    );
+    return { ok: true, deletedCount };
   },
 );

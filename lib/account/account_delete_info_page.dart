@@ -632,9 +632,11 @@ class _AccountDeleteConfirmPageState extends State<_AccountDeleteConfirmPage> {
                     enabled: !_busy,
                     autocorrect: false,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
+                    decoration: kiduCompactInputDecoration(
+                      context: context,
                       labelText: accountDeleteConfirmInputLabel,
-                      border: const OutlineInputBorder(),
+                    ).copyWith(
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
