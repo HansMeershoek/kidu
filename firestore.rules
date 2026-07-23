@@ -906,7 +906,8 @@ service cloud.firestore {
           'createdAt',
           'createdBy',
           'confirmedAt',
-          'confirmedBy'
+          'confirmedBy',
+          'revision'
         ])
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.fromUserId == request.auth.uid
@@ -918,25 +919,125 @@ service cloud.firestore {
         && request.resource.data.amountCents is int
         && request.resource.data.amountCents > 0
         && request.resource.data.currency == 'EUR'
+        && request.resource.data.revision is int
+        && request.resource.data.revision == 0
         && (!('confirmedAt' in request.resource.data) || request.resource.data.confirmedAt == null)
         && (!('confirmedBy' in request.resource.data) || request.resource.data.confirmedBy == null);
 
+      // Two pending-payment update paths:
+      // 1) Receiver confirms (status only; amount + revision immutable).
+      // 2) Payer/createdBy edits amountCents with revision exactly +1.
       allow update: if isSignedIn()
         && isHouseholdMember(householdId)
         && !isHouseholdReadOnly(householdId)
-        && request.auth.uid == resource.data.toUserId
-        && resource.data.status == 'pending'
-        && request.resource.data.status == 'confirmed'
-        && request.resource.data.confirmedAt == request.time
-        && request.resource.data.confirmedBy == request.auth.uid
-        && request.resource.data.amountCents == resource.data.amountCents
-        && request.resource.data.currency == resource.data.currency
-        && request.resource.data.fromUserId == resource.data.fromUserId
-        && request.resource.data.toUserId == resource.data.toUserId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.createdBy == resource.data.createdBy;
+        && (
+          (
+            request.auth.uid == resource.data.toUserId
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'confirmed'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'confirmedAt',
+              'confirmedBy'
+            ])
+            && request.resource.data.confirmedAt == request.time
+            && request.resource.data.confirmedBy == request.auth.uid
+            && request.resource.data.amountCents == resource.data.amountCents
+            && request.resource.data.currency == resource.data.currency
+            && request.resource.data.fromUserId == resource.data.fromUserId
+            && request.resource.data.toUserId == resource.data.toUserId
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.createdBy == resource.data.createdBy
+            && (
+              (!('revision' in resource.data) && !('revision' in request.resource.data))
+              || (
+                ('revision' in resource.data)
+                && ('revision' in request.resource.data)
+                && request.resource.data.revision == resource.data.revision
+              )
+            )
+          )
+          || (
+            request.auth.uid == resource.data.fromUserId
+            && request.auth.uid == resource.data.createdBy
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'amountCents',
+              'revision'
+            ])
+            && request.resource.data.amountCents is int
+            && request.resource.data.amountCents > 0
+            && request.resource.data.amountCents != resource.data.amountCents
+            && request.resource.data.revision is int
+            && request.resource.data.revision
+               == (('revision' in resource.data) ? resource.data.revision : 0) + 1
+            && request.resource.data.currency == resource.data.currency
+            && request.resource.data.fromUserId == resource.data.fromUserId
+            && request.resource.data.toUserId == resource.data.toUserId
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.createdBy == resource.data.createdBy
+            && (
+              (!('confirmedAt' in request.resource.data)
+                || request.resource.data.confirmedAt == resource.data.confirmedAt)
+            )
+            && (
+              (!('confirmedBy' in request.resource.data)
+                || request.resource.data.confirmedBy == resource.data.confirmedBy)
+            )
+          )
+        );
 
       allow delete: if false;
+
+      match /amountEdits/{editId} {
+        allow read: if isSignedIn() && isHouseholdMember(householdId);
+
+        // History create must ride in the same batch/transaction as a
+        // pending payment amount+revision update. get() = state before the
+        // atomic write; getAfter() = projected payment state after it.
+        allow create: if isSignedIn()
+          && isHouseholdMember(householdId)
+          && !isHouseholdReadOnly(householdId)
+          && exists(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId))
+          && existsAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId))
+          && get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.status == 'pending'
+          && get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.fromUserId == request.auth.uid
+          && get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.createdBy == request.auth.uid
+          && getAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.status == 'pending'
+          && getAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.amountCents
+             != get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.amountCents
+          && getAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.revision is int
+          && getAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.revision
+             == (('revision' in get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data)
+                 ? get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.revision
+                 : 0) + 1
+          && request.resource.data.keys().hasOnly([
+            'fromAmountCents',
+            'toAmountCents',
+            'reason',
+            'editedBy',
+            'editedAt'
+          ])
+          && request.resource.data.editedBy == request.auth.uid
+          && request.resource.data.fromAmountCents is int
+          && request.resource.data.toAmountCents is int
+          && request.resource.data.toAmountCents > 0
+          && request.resource.data.toAmountCents != request.resource.data.fromAmountCents
+          && request.resource.data.fromAmountCents
+           == get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.amountCents
+          && request.resource.data.toAmountCents
+           == getAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.amountCents
+          && request.resource.data.reason is string
+          && request.resource.data.reason.size() >= 1
+          && request.resource.data.reason.size() <= 500
+          && request.resource.data.reason.matches('.*\\S.*')
+          && request.resource.data.reason
+             == request.resource.data.reason.trim()
+          && request.resource.data.editedAt == request.time;
+
+        allow update, delete: if false;
+      }
     }
 
     match /households/{householdId}/expenses/{expenseId}/privateNotes/{uid} {

@@ -73,17 +73,52 @@ double _kiduDialogWidth(
 const int _kAddExpenseTitleMaxLength = 60;
 
 /// Grace period na aanmaken: correcties zonder reden en zonder audit
-/// (`amountEdits` / `expenseChanges`).
+/// (expense `amountEdits` / `expenseChanges`, payment `amountEdits`).
 const Duration _expenseAmountCorrectionWindow = Duration(minutes: 15);
 
-/// Whether [createdAt] falls within the post-creation correction window as of [now].
+/// Max length for amount-edit reason strings (matches Firestore rules).
+const int _kAmountEditReasonMaxLength = 500;
+
+/// Whether [createdAt] falls within the shared 15-minute post-create correction
+/// window as of [now] (expenses and payments).
 ///
 /// Returns `false` when [createdAt] is null, in the future relative to [now], or
 /// when more than [_expenseAmountCorrectionWindow] has elapsed ([`<=`] at exact 15m).
-bool _isWithinExpenseAmountCorrectionWindow(DateTime? createdAt, DateTime now) {
+bool _isWithinPostCreateCorrectionWindow(DateTime? createdAt, DateTime now) {
   if (createdAt == null) return false;
   if (createdAt.isAfter(now)) return false;
   return now.difference(createdAt) <= _expenseAmountCorrectionWindow;
+}
+
+/// Expense alias for [_isWithinPostCreateCorrectionWindow].
+bool _isWithinExpenseAmountCorrectionWindow(DateTime? createdAt, DateTime now) =>
+    _isWithinPostCreateCorrectionWindow(createdAt, now);
+
+/// Logical payment revision; missing field is treated as 0 (no backfill).
+int _paymentRevisionOf(Map<String, dynamic>? data) {
+  final raw = data?['revision'];
+  if (raw is num) return raw.toInt();
+  return 0;
+}
+
+/// Shared opener for [_EditPaymentAmountDialog] (Balans-card + payment detail).
+Future<void> _showEditPaymentAmountDialog(
+  BuildContext context, {
+  required String householdId,
+  required String paymentId,
+  required int currentAmountCents,
+  DateTime? initialCreatedAt,
+}) {
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogCtx) => _EditPaymentAmountDialog(
+      householdId: householdId,
+      paymentId: paymentId,
+      currentAmountCents: currentAmountCents,
+      initialCreatedAt: initialCreatedAt,
+    ),
+  );
 }
 
 /// Firestore payload for [`expenseChanges`] audit docs from expense edit saves.
@@ -3858,6 +3893,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, dynamic>? _pendingIncoming;
   String? _pendingIncomingId;
   Map<String, dynamic>? _pendingOutgoing;
+  String? _pendingOutgoingId;
 
   String? _confirmedPaymentsHouseholdId;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
@@ -4304,6 +4340,7 @@ class _DashboardPageState extends State<DashboardPage> {
           Map<String, dynamic>? incoming;
           String? incomingId;
           Map<String, dynamic>? outgoing;
+          String? outgoingId;
           for (final doc in snap.docs) {
             final d = doc.data();
             final to = (d['toUserId'] as String?)?.trim();
@@ -4314,12 +4351,14 @@ class _DashboardPageState extends State<DashboardPage> {
             }
             if (from == myUid && outgoing == null) {
               outgoing = d;
+              outgoingId = doc.id;
             }
           }
           setState(() {
             _pendingIncoming = incoming;
             _pendingIncomingId = incomingId;
             _pendingOutgoing = outgoing;
+            _pendingOutgoingId = outgoingId;
           });
         });
   }
@@ -7241,6 +7280,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       as num?)
                                                                   ?.toInt() ??
                                                               0;
+                                                          final viewedRevision =
+                                                              _paymentRevisionOf(
+                                                                inPayment,
+                                                              );
+                                                          final viewedAmountCents =
+                                                              inCents;
                                                           showModalBottomSheet<
                                                             void
                                                           >(
@@ -7326,7 +7371,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       ),
                                                                       Text(
                                                                         _formatEur(
-                                                                          inCents,
+                                                                          viewedAmountCents,
                                                                         ),
                                                                         style:
                                                                             Theme.of(
@@ -7376,7 +7421,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                         'Ontvangst bevestigen',
                                                                                       ),
                                                                                       content: Text(
-                                                                                        'Je bevestigt dat je ${_formatEur(inCents)} van $otherName hebt ontvangen.',
+                                                                                        'Je bevestigt dat je ${_formatEur(viewedAmountCents)} van $otherName hebt ontvangen.',
                                                                                       ),
                                                                                       actions: [
                                                                                         TextButton(
@@ -7413,17 +7458,53 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 if (confirmed ==
                                                                                     true) {
                                                                                   try {
-                                                                                    await FirebaseFirestore.instance
+                                                                                    final payRef = FirebaseFirestore.instance
                                                                                         .doc(
                                                                                           'households/$householdIdStr/payments/$inId',
-                                                                                        )
-                                                                                        .update(
-                                                                                          {
-                                                                                            'status': 'confirmed',
-                                                                                            'confirmedAt': FieldValue.serverTimestamp(),
-                                                                                            'confirmedBy': user.uid,
-                                                                                          },
                                                                                         );
+                                                                                    await FirebaseFirestore.instance.runTransaction((
+                                                                                      tx,
+                                                                                    ) async {
+                                                                                      final fresh = await tx.get(
+                                                                                        payRef,
+                                                                                      );
+                                                                                      final data = fresh.data();
+                                                                                      if (!fresh.exists ||
+                                                                                          data ==
+                                                                                              null) {
+                                                                                        throw StateError(
+                                                                                          'Deze betaling is ondertussen gewijzigd. Bekijk het actuele bedrag voordat je bevestigt.',
+                                                                                        );
+                                                                                      }
+                                                                                      final status = (data['status']
+                                                                                              as String?)
+                                                                                          ?.trim();
+                                                                                      final liveAmount = (data['amountCents']
+                                                                                                  as num?)
+                                                                                              ?.toInt() ??
+                                                                                          0;
+                                                                                      final liveRevision = _paymentRevisionOf(
+                                                                                        data,
+                                                                                      );
+                                                                                      if (status !=
+                                                                                              'pending' ||
+                                                                                          liveRevision !=
+                                                                                              viewedRevision ||
+                                                                                          liveAmount !=
+                                                                                              viewedAmountCents) {
+                                                                                        throw StateError(
+                                                                                          'Deze betaling is ondertussen gewijzigd. Bekijk het actuele bedrag voordat je bevestigt.',
+                                                                                        );
+                                                                                      }
+                                                                                      tx.update(
+                                                                                        payRef,
+                                                                                        {
+                                                                                          'status': 'confirmed',
+                                                                                          'confirmedAt': FieldValue.serverTimestamp(),
+                                                                                          'confirmedBy': user.uid,
+                                                                                        },
+                                                                                      );
+                                                                                    });
                                                                                   } catch (
                                                                                     e
                                                                                   ) {
@@ -7456,14 +7537,33 @@ class _DashboardPageState extends State<DashboardPage> {
                                                         }
 
                                                         if (_pendingOutgoing !=
-                                                            null) {
+                                                                null &&
+                                                            _pendingOutgoingId !=
+                                                                null) {
                                                           final outPayment =
                                                               _pendingOutgoing!;
+                                                          final outId =
+                                                              _pendingOutgoingId!;
                                                           final outCents =
                                                               (outPayment['amountCents']
                                                                       as num?)
                                                                   ?.toInt() ??
                                                               0;
+                                                          final outCreatedAtRaw =
+                                                              outPayment['createdAt'];
+                                                          DateTime? outCreatedAt;
+                                                          if (outCreatedAtRaw
+                                                              is Timestamp) {
+                                                            outCreatedAt =
+                                                                outCreatedAtRaw
+                                                                    .toDate()
+                                                                    .toLocal();
+                                                          } else if (outCreatedAtRaw
+                                                              is DateTime) {
+                                                            outCreatedAt =
+                                                                outCreatedAtRaw
+                                                                    .toLocal();
+                                                          }
                                                           showModalBottomSheet<
                                                             void
                                                           >(
@@ -7574,6 +7674,34 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                               ),
                                                                               height: 1.4,
                                                                             ),
+                                                                      ),
+                                                                      const SizedBox(
+                                                                        height:
+                                                                            20,
+                                                                      ),
+                                                                      FilledButton(
+                                                                        style: kiduDialogPrimaryButtonStyle(
+                                                                          sheetCtx,
+                                                                        ),
+                                                                        onPressed: () {
+                                                                          Navigator.of(
+                                                                            sheetCtx,
+                                                                          ).pop();
+                                                                          _showEditPaymentAmountDialog(
+                                                                            context,
+                                                                            householdId:
+                                                                                householdIdStr,
+                                                                            paymentId:
+                                                                                outId,
+                                                                            currentAmountCents:
+                                                                                outCents,
+                                                                            initialCreatedAt:
+                                                                                outCreatedAt,
+                                                                          );
+                                                                        },
+                                                                        child: const Text(
+                                                                          'Bedrag wijzigen',
+                                                                        ),
                                                                       ),
                                                                     ],
                                                                   ),
@@ -7883,6 +8011,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                                         'createdBy': user.uid,
                                                                                                         'confirmedAt': null,
                                                                                                         'confirmedBy': null,
+                                                                                                        'revision': 0,
                                                                                                       },
                                                                                                     );
                                                                                               } catch (
@@ -11701,26 +11830,447 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }
 }
 
+/// Edit pending payment amount (payer only). Silent within 15 minutes of
+/// [initialCreatedAt]; after that requires a trimmed reason and writes
+/// `payments/{id}/amountEdits`. Always bumps `revision` by 1.
+class _EditPaymentAmountDialog extends StatefulWidget {
+  const _EditPaymentAmountDialog({
+    required this.householdId,
+    required this.paymentId,
+    required this.currentAmountCents,
+    this.initialCreatedAt,
+  });
+
+  final String householdId;
+  final String paymentId;
+  final int currentAmountCents;
+
+  /// UI hint for the reason gate; [_EditPaymentAmountDialogState._submit] uses
+  /// a fresh server `createdAt` when available.
+  final DateTime? initialCreatedAt;
+
+  @override
+  State<_EditPaymentAmountDialog> createState() =>
+      _EditPaymentAmountDialogState();
+}
+
+class _EditPaymentAmountDialogState extends State<_EditPaymentAmountDialog> {
+  late final TextEditingController _amountController;
+  late final TextEditingController _reasonController;
+  late final FocusNode _amountFocusNode;
+  late final FocusNode _reasonFocusNode;
+  bool _showReasonField = false;
+  bool _amountHasError = false;
+  bool _reasonHasError = false;
+  bool _sameAmountError = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(
+      text: _ExpenseDetailPage._prefillAmountForEdit(widget.currentAmountCents),
+    );
+    _reasonController = TextEditingController();
+    _amountFocusNode = FocusNode();
+    _reasonFocusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _reasonController.dispose();
+    _amountFocusNode.dispose();
+    _reasonFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Mirrors expense audit-reason gate semantics for amount-only payment edits:
+  /// hide within the 15-minute window; outside it, show only when the draft
+  /// amount is valid, > 0, and differs from the current amount.
+  void _refreshReasonGate() {
+    if (!mounted || _saving) return;
+
+    final now = DateTime.now();
+    if (_isWithinPostCreateCorrectionWindow(widget.initialCreatedAt, now)) {
+      if (_showReasonField ||
+          _reasonHasError ||
+          _reasonController.text.isNotEmpty) {
+        setState(() {
+          _showReasonField = false;
+          _reasonHasError = false;
+          if (_reasonController.text.isNotEmpty) {
+            _reasonController.clear();
+          }
+        });
+      }
+      return;
+    }
+
+    final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    final nextShow =
+        parsed != null &&
+        parsed > 0 &&
+        parsed != widget.currentAmountCents;
+
+    if (!nextShow && _reasonController.text.isNotEmpty) {
+      _reasonController.clear();
+    }
+
+    final shouldHideErrors = !nextShow;
+    if (nextShow != _showReasonField || (shouldHideErrors && _reasonHasError)) {
+      setState(() {
+        _showReasonField = nextShow;
+        if (shouldHideErrors) {
+          _reasonHasError = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    final parsed = _ExpenseDetailPage._parseEurToCents(_amountController.text);
+    final reasonTrimmed = _reasonController.text.trim();
+    if (parsed == null || parsed <= 0) {
+      if (!mounted) return;
+      setState(() {
+        _amountHasError = true;
+        _sameAmountError = false;
+      });
+      _amountFocusNode.requestFocus();
+      return;
+    }
+    if (parsed == widget.currentAmountCents) {
+      if (!mounted) return;
+      setState(() {
+        _amountHasError = true;
+        _sameAmountError = true;
+      });
+      _amountFocusNode.requestFocus();
+      return;
+    }
+
+    setState(() => _saving = true);
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Geen verbinding. Probeer het later opnieuw.'),
+        ),
+      );
+      setState(() => _saving = false);
+      return;
+    }
+
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+      final payRef = FirebaseFirestore.instance.doc(
+        'households/${widget.householdId}/payments/${widget.paymentId}',
+      );
+      final fresh = await payRef.get(const GetOptions(source: Source.server));
+      final data = fresh.data();
+      if (!fresh.exists || data == null) {
+        throw StateError('Betaling niet gevonden.');
+      }
+      final status = (data['status'] as String?)?.trim();
+      final fromUserId = (data['fromUserId'] as String?)?.trim();
+      final createdBy = (data['createdBy'] as String?)?.trim();
+      if (status != 'pending' ||
+          fromUserId != uid ||
+          createdBy != uid) {
+        throw StateError('Deze betaling kan nu niet worden gewijzigd.');
+      }
+      final fromCents =
+          (data['amountCents'] as num?)?.toInt() ?? widget.currentAmountCents;
+      if (parsed == fromCents) {
+        if (!mounted) return;
+        setState(() {
+          _saving = false;
+          _amountHasError = true;
+          _sameAmountError = true;
+        });
+        _amountFocusNode.requestFocus();
+        return;
+      }
+      final createdAtRaw = data['createdAt'];
+      DateTime? paymentCreatedAt;
+      if (createdAtRaw is Timestamp) {
+        paymentCreatedAt = createdAtRaw.toDate().toLocal();
+      } else if (createdAtRaw is DateTime) {
+        paymentCreatedAt = createdAtRaw.toLocal();
+      } else {
+        paymentCreatedAt = widget.initialCreatedAt;
+      }
+      final withinCorrectionWindow = _isWithinPostCreateCorrectionWindow(
+        paymentCreatedAt,
+        DateTime.now(),
+      );
+      if (!withinCorrectionWindow) {
+        if (reasonTrimmed.isEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _showReasonField = true;
+            _reasonHasError = true;
+            _saving = false;
+          });
+          _reasonFocusNode.requestFocus();
+          return;
+        }
+        if (reasonTrimmed.length > _kAmountEditReasonMaxLength) {
+          if (!mounted) return;
+          setState(() {
+            _showReasonField = true;
+            _reasonHasError = true;
+            _saving = false;
+          });
+          _reasonFocusNode.requestFocus();
+          return;
+        }
+      }
+
+      final nextRevision = _paymentRevisionOf(data) + 1;
+      final updateFields = <String, dynamic>{
+        'amountCents': parsed,
+        'revision': nextRevision,
+      };
+
+      if (withinCorrectionWindow) {
+        await payRef.update(updateFields);
+      } else {
+        final batch = FirebaseFirestore.instance.batch();
+        final editRef = payRef.collection('amountEdits').doc();
+        batch.set(editRef, {
+          'fromAmountCents': fromCents,
+          'toAmountCents': parsed,
+          'reason': reasonTrimmed,
+          'editedBy': uid,
+          'editedAt': FieldValue.serverTimestamp(),
+        });
+        batch.update(payRef, updateFields);
+        await batch.commit();
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Edit payment amount error: $e');
+      }
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'Opslaan mislukt. Probeer opnieuw.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dialogW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogFormMaxWidth,
+    );
+    final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(
+          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.85),
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+        );
+    final subtleErrorInputStyle = Theme.of(context).textTheme.bodyLarge
+        ?.copyWith(
+          color: Theme.of(context).colorScheme.error.withValues(alpha: 0.88),
+          fontWeight: FontWeight.w400,
+        );
+    final amountErrorHint = _sameAmountError
+        ? 'Nieuw bedrag moet afwijken van het huidige bedrag'
+        : 'Voer een geldig bedrag groter dan nul in';
+    return Center(
+      child: SizedBox(
+        width: dialogW,
+        child: AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          title: kiduActionDialogTitle(context, 'Bedrag wijzigen'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Huidig bedrag',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: onSurface(context, a70),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _ExpenseDetailPage._formatEur(widget.currentAmountCents),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _amountController,
+                  focusNode: _amountFocusNode,
+                  style: _amountHasError ? subtleErrorInputStyle : null,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  onTap: () {
+                    if (_amountHasError) {
+                      setState(() {
+                        _amountHasError = false;
+                        _sameAmountError = false;
+                      });
+                    }
+                  },
+                  onChanged: (_) {
+                    if (_amountHasError) {
+                      setState(() {
+                        _amountHasError = false;
+                        _sameAmountError = false;
+                      });
+                    }
+                    _refreshReasonGate();
+                  },
+                  decoration: kiduCompactInputDecoration(
+                    context: context,
+                    labelText: 'Nieuw bedrag (EUR)',
+                    hintText: _amountHasError ? amountErrorHint : null,
+                  ).copyWith(
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    hintStyle: _amountHasError ? subtleErrorHintStyle : null,
+                    prefixText: '€ ',
+                  ),
+                ),
+                if (_showReasonField) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _reasonController,
+                    focusNode: _reasonFocusNode,
+                    textCapitalization: TextCapitalization.sentences,
+                    maxLength: _kAmountEditReasonMaxLength,
+                    buildCounter:
+                        (
+                          context, {
+                          required int currentLength,
+                          required bool isFocused,
+                          required int? maxLength,
+                        }) => null,
+                    onTap: () {
+                      if (_reasonHasError) {
+                        setState(() => _reasonHasError = false);
+                      }
+                    },
+                    onChanged: (_) {
+                      if (_reasonHasError) {
+                        setState(() => _reasonHasError = false);
+                      }
+                    },
+                    decoration: kiduCompactInputDecoration(
+                      context: context,
+                      labelText: 'Reden',
+                      hintText: _reasonHasError
+                          ? 'Vul een geldige reden in'
+                          : null,
+                    ).copyWith(
+                      floatingLabelBehavior: FloatingLabelBehavior.always,
+                      hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _saving ? null : () => Navigator.of(context).pop(),
+              child: const Text('Annuleren'),
+            ),
+            FilledButton(
+              style: kiduDialogPrimaryButtonStyle(context),
+              onPressed: _saving ? null : _submit,
+              child: SizedBox(
+                width: 82,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Text('Opslaan'),
+                    if (_saving)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PaymentDetailPage extends StatelessWidget {
   const _PaymentDetailPage({
+    required this.householdId,
+    required this.paymentId,
     required this.title,
     required this.amountCents,
     required this.status,
     required this.createdAt,
+    required this.viewerUid,
     this.confirmedAt,
     this.statusExplanation,
+    this.isReadOnly = false,
   });
 
+  final String householdId;
+  final String paymentId;
   final String title;
   final int amountCents;
   final String status;
   final DateTime? createdAt;
+  final String viewerUid;
   final DateTime? confirmedAt;
   final String? statusExplanation;
+  final bool isReadOnly;
 
   @override
   Widget build(BuildContext context) {
-    final isConfirmed = status == 'confirmed';
+    final paymentRef = FirebaseFirestore.instance.doc(
+      'households/$householdId/payments/$paymentId',
+    );
+    final amountEditsStream = paymentRef
+        .collection('amountEdits')
+        .orderBy('editedAt', descending: true)
+        .snapshots();
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -11730,110 +12280,263 @@ class _PaymentDetailPage extends StatelessWidget {
         appBar: AppBar(
           centerTitle: true,
           leading: BackButton(onPressed: () => Navigator.of(context).pop()),
-          title: Text(
-            'Betaling',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _ExpenseDetailPage._formatEur(amountCents),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Aangemaakt',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: Text(
-                      _ExpenseDetailPage._formatDateTime(createdAt),
-                    ),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Status',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    subtitle: isConfirmed
-                        ? Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text('Bevestigd'),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              Icon(
-                                Icons.schedule,
-                                size: 16,
-                                color: onSurface(context, a60),
-                              ),
-                              const SizedBox(width: 6),
-                              const Text('In afwachting'),
-                            ],
-                          ),
-                  ),
-                  if (isConfirmed && confirmedAt != null)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Bevestigd op',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: onSurface(context, a70),
-                        ),
-                      ),
-                      subtitle: Text(
-                        _ExpenseDetailPage._formatDateTime(confirmedAt),
-                      ),
-                    ),
-                  if (statusExplanation != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      statusExplanation!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a55),
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ],
+          title: ReadOnlyAppBarTitle(
+            isReadOnly: isReadOnly,
+            title: Text(
+              'Betaling',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.4,
               ),
             ),
           ),
+        ),
+        body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: paymentRef.snapshots(),
+          builder: (context, paySnap) {
+            final live = paySnap.data?.data();
+            final liveAmount =
+                (live?['amountCents'] as num?)?.toInt() ?? amountCents;
+            final liveStatus =
+                (live?['status'] as String?)?.trim() ?? status;
+            final isConfirmed = liveStatus == 'confirmed';
+            DateTime? liveConfirmedAt = confirmedAt;
+            final confirmedAtRaw = live?['confirmedAt'];
+            if (confirmedAtRaw is Timestamp) {
+              liveConfirmedAt = confirmedAtRaw.toDate().toLocal();
+            } else if (confirmedAtRaw is DateTime) {
+              liveConfirmedAt = confirmedAtRaw.toLocal();
+            }
+            DateTime? liveCreatedAt = createdAt;
+            final createdAtRaw = live?['createdAt'];
+            if (createdAtRaw is Timestamp) {
+              liveCreatedAt = createdAtRaw.toDate().toLocal();
+            } else if (createdAtRaw is DateTime) {
+              liveCreatedAt = createdAtRaw.toLocal();
+            }
+
+            final uid = viewerUid.trim();
+            final fromUserId = (live?['fromUserId'] as String?)?.trim() ?? '';
+            final createdBy = (live?['createdBy'] as String?)?.trim() ?? '';
+            final paymentExists =
+                paySnap.hasData && (paySnap.data?.exists ?? false);
+            final canEditAmount =
+                !isReadOnly &&
+                householdId.trim().isNotEmpty &&
+                paymentId.trim().isNotEmpty &&
+                uid.isNotEmpty &&
+                paymentExists &&
+                liveStatus == 'pending' &&
+                fromUserId == uid &&
+                createdBy == uid;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _ExpenseDetailPage._formatEur(liveAmount),
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Aangemaakt',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: onSurface(context, a70)),
+                        ),
+                        subtitle: Text(
+                          _ExpenseDetailPage._formatDateTime(liveCreatedAt),
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          'Status',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: onSurface(context, a70)),
+                        ),
+                        subtitle: isConfirmed
+                            ? Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 16,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text('Bevestigd'),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    size: 16,
+                                    color: onSurface(context, a60),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text('In afwachting'),
+                                ],
+                              ),
+                      ),
+                      if (isConfirmed && liveConfirmedAt != null)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            'Bevestigd op',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: onSurface(context, a70)),
+                          ),
+                          subtitle: Text(
+                            _ExpenseDetailPage._formatDateTime(
+                              liveConfirmedAt,
+                            ),
+                          ),
+                        ),
+                      if (!isConfirmed && statusExplanation != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          statusExplanation!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: onSurface(context, a55),
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
+                      ],
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: amountEditsStream,
+                        builder: (context, histSnap) {
+                          if (!histSnap.hasData ||
+                              histSnap.data!.docs.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          final histDocs = histSnap.data!.docs;
+                          final textTheme = Theme.of(context).textTheme;
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Wijzigingsgeschiedenis',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: onSurface(context, a70),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                ...histDocs.map((doc) {
+                                  final h = doc.data();
+                                  final fromC =
+                                      (h['fromAmountCents'] as num?)
+                                          ?.toInt() ??
+                                      0;
+                                  final toC =
+                                      (h['toAmountCents'] as num?)?.toInt() ??
+                                      0;
+                                  final reason =
+                                      (h['reason'] as String?)?.trim() ?? '';
+                                  final editedAtRaw = h['editedAt'];
+                                  DateTime? editedAtDt;
+                                  if (editedAtRaw is Timestamp) {
+                                    editedAtDt = editedAtRaw
+                                        .toDate()
+                                        .toLocal();
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: 12,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _ExpenseDetailPage._formatDateTime(
+                                            editedAtDt,
+                                          ),
+                                          style: textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: onSurface(
+                                                  context,
+                                                  a68,
+                                                ),
+                                                height: 1.35,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${_ExpenseDetailPage._formatEur(fromC)} → ${_ExpenseDetailPage._formatEur(toC)}',
+                                          style: textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: onSurface(
+                                                  context,
+                                                  a68,
+                                                ),
+                                                height: 1.35,
+                                              ),
+                                        ),
+                                        if (reason.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            reason,
+                                            style: textTheme.bodyMedium
+                                                ?.copyWith(height: 1.35),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      if (canEditAmount)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: FilledButton.tonalIcon(
+                            onPressed: () => _showEditPaymentAmountDialog(
+                              context,
+                              householdId: householdId,
+                              paymentId: paymentId,
+                              currentAmountCents: liveAmount,
+                              initialCreatedAt: liveCreatedAt,
+                            ),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: Text(
+                              'Bedrag wijzigen',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -15899,12 +16602,16 @@ class _LogboekPageState extends State<_LogboekPage>
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _PaymentDetailPage(
+                        householdId: widget.householdId,
+                        paymentId: d.id,
                         title: 'Betaald door $fromName',
                         amountCents: amountCents,
                         status: status,
                         createdAt: createdAt,
                         confirmedAt: confirmedAt,
                         statusExplanation: statusExplanation,
+                        viewerUid: widget.uid,
+                        isReadOnly: widget.isReadOnly,
                       ),
                     ),
                   ),
