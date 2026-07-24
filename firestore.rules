@@ -988,7 +988,12 @@ service cloud.firestore {
           )
         );
 
-      allow delete: if false;
+      allow delete: if isSignedIn()
+        && isHouseholdMember(householdId)
+        && !isHouseholdReadOnly(householdId)
+        && resource.data.status == 'pending'
+        && request.auth.uid == resource.data.fromUserId
+        && request.auth.uid == resource.data.createdBy;
 
       match /amountEdits/{editId} {
         allow read: if isSignedIn() && isHouseholdMember(householdId);
@@ -1036,7 +1041,20 @@ service cloud.firestore {
              == request.resource.data.reason.trim()
           && request.resource.data.editedAt == request.time;
 
-        allow update, delete: if false;
+        allow update: if false;
+
+        // amountEdit delete is only allowed in the same atomic operation
+        // that hard-deletes the parent pending payment (existsAfter false).
+        // Standalone history wipes and confirmed-payment history deletes
+        // remain forbidden.
+        allow delete: if isSignedIn()
+          && isHouseholdMember(householdId)
+          && !isHouseholdReadOnly(householdId)
+          && exists(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId))
+          && get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.status == 'pending'
+          && get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.fromUserId == request.auth.uid
+          && get(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId)).data.createdBy == request.auth.uid
+          && !existsAfter(/databases/$(database)/documents/households/$(householdId)/payments/$(paymentId));
       }
     }
 

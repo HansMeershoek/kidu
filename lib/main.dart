@@ -101,6 +101,10 @@ int _paymentRevisionOf(Map<String, dynamic>? data) {
   return 0;
 }
 
+/// Stale/race message for pending-payment delete (shared constant).
+const String _kPaymentStaleMessage =
+    'Deze betaling is ondertussen gewijzigd. Bekijk de actuele betaling en probeer opnieuw.';
+
 /// Shared opener for [_EditPaymentAmountDialog] (Balans-card + payment detail).
 Future<void> _showEditPaymentAmountDialog(
   BuildContext context, {
@@ -111,7 +115,7 @@ Future<void> _showEditPaymentAmountDialog(
 }) {
   return showDialog<bool>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     builder: (dialogCtx) => _EditPaymentAmountDialog(
       householdId: householdId,
       paymentId: paymentId,
@@ -119,6 +123,84 @@ Future<void> _showEditPaymentAmountDialog(
       initialCreatedAt: initialCreatedAt,
     ),
   );
+}
+
+/// Permanently deletes a pending payment notification (payer/createdBy only).
+///
+/// Fetches `amountEdits` refs first, then in one transaction re-reads the
+/// payment, applies stale/actor/status checks, and deletes all known edits
+/// plus the payment document. Caller must gate with [_checkCanWriteNow].
+Future<void> _deletePendingPayment({
+  required String householdId,
+  required String paymentId,
+  required int viewedAmountCents,
+  required int viewedRevision,
+}) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) {
+    throw StateError(_kPaymentStaleMessage);
+  }
+  final payRef = FirebaseFirestore.instance.doc(
+    'households/$householdId/payments/$paymentId',
+  );
+
+  // Prefetch edit refs outside the transaction: Flutter Transaction.get
+  // only accepts DocumentReference, not a collection query.
+  final editsSnap = await payRef.collection('amountEdits').get(
+    const GetOptions(source: Source.server),
+  );
+  final editRefs = editsSnap.docs
+      .map((d) => d.reference)
+      .toList(growable: false);
+
+  await FirebaseFirestore.instance.runTransaction((tx) async {
+    final fresh = await tx.get(payRef);
+    final data = fresh.data();
+    if (!fresh.exists || data == null) {
+      throw StateError(_kPaymentStaleMessage);
+    }
+    final status = (data['status'] as String?)?.trim();
+    final fromUserId = (data['fromUserId'] as String?)?.trim();
+    final createdBy = (data['createdBy'] as String?)?.trim();
+    final liveAmount = (data['amountCents'] as num?)?.toInt() ?? 0;
+    final liveRevision = _paymentRevisionOf(data);
+    if (status != 'pending' ||
+        fromUserId != uid ||
+        createdBy != uid ||
+        liveAmount != viewedAmountCents ||
+        liveRevision != viewedRevision) {
+      throw StateError(_kPaymentStaleMessage);
+    }
+    // All reads complete before any write/delete.
+    for (final ref in editRefs) {
+      tx.delete(ref);
+    }
+    tx.delete(payRef);
+  });
+}
+
+/// Shared delete-confirm dialog (Balans-card + payment detail).
+///
+/// Returns `true` only when the payment (and known amountEdits) were
+/// deleted successfully so callers can close the sheet / pop detail.
+Future<bool> _showDeletePendingPaymentDialog(
+  BuildContext context, {
+  required String householdId,
+  required String paymentId,
+  required int viewedAmountCents,
+  required int viewedRevision,
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) => _DeletePendingPaymentDialog(
+      householdId: householdId,
+      paymentId: paymentId,
+      viewedAmountCents: viewedAmountCents,
+      viewedRevision: viewedRevision,
+    ),
+  );
+  return result == true;
 }
 
 /// Firestore payload for [`expenseChanges`] audit docs from expense edit saves.
@@ -7549,6 +7631,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       as num?)
                                                                   ?.toInt() ??
                                                               0;
+                                                          final outRevision =
+                                                              _paymentRevisionOf(
+                                                                outPayment,
+                                                              );
                                                           final outCreatedAtRaw =
                                                               outPayment['createdAt'];
                                                           DateTime? outCreatedAt;
@@ -7616,7 +7702,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             20,
                                                                       ),
                                                                       Text(
-                                                                        'Betaling melden',
+                                                                        'Betaling gemeld',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -7627,23 +7713,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       const SizedBox(
                                                                         height:
                                                                             16,
-                                                                      ),
-                                                                      Text(
-                                                                        'Betaling gemeld',
-                                                                        style:
-                                                                            Theme.of(
-                                                                              context,
-                                                                            ).textTheme.bodyMedium?.copyWith(
-                                                                              color: onSurface(
-                                                                                context,
-                                                                                a84,
-                                                                              ),
-                                                                              height: 1.4,
-                                                                            ),
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        height:
-                                                                            4,
                                                                       ),
                                                                       Text(
                                                                         '${_formatEur(outCents)} aan $otherName',
@@ -7679,29 +7748,70 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         height:
                                                                             20,
                                                                       ),
-                                                                      FilledButton(
-                                                                        style: kiduDialogPrimaryButtonStyle(
-                                                                          sheetCtx,
-                                                                        ),
-                                                                        onPressed: () {
-                                                                          Navigator.of(
-                                                                            sheetCtx,
-                                                                          ).pop();
-                                                                          _showEditPaymentAmountDialog(
-                                                                            context,
-                                                                            householdId:
-                                                                                householdIdStr,
-                                                                            paymentId:
-                                                                                outId,
-                                                                            currentAmountCents:
-                                                                                outCents,
-                                                                            initialCreatedAt:
-                                                                                outCreatedAt,
-                                                                          );
-                                                                        },
-                                                                        child: const Text(
-                                                                          'Bedrag wijzigen',
-                                                                        ),
+                                                                      Row(
+                                                                        children: [
+                                                                          Expanded(
+                                                                            child: FilledButton.icon(
+                                                                              style: kiduDialogPrimaryButtonStyle(
+                                                                                sheetCtx,
+                                                                              ),
+                                                                              onPressed: () {
+                                                                                Navigator.of(
+                                                                                  sheetCtx,
+                                                                                ).pop();
+                                                                                _showEditPaymentAmountDialog(
+                                                                                  context,
+                                                                                  householdId:
+                                                                                      householdIdStr,
+                                                                                  paymentId:
+                                                                                      outId,
+                                                                                  currentAmountCents:
+                                                                                      outCents,
+                                                                                  initialCreatedAt:
+                                                                                      outCreatedAt,
+                                                                                );
+                                                                              },
+                                                                              icon: const Icon(
+                                                                                Icons.edit_outlined,
+                                                                                size: 18,
+                                                                              ),
+                                                                              label: const Text(
+                                                                                'Wijzigen',
+                                                                              ),
+                                                                            ),
+                                                                          ),
+                                                                          const SizedBox(
+                                                                            width:
+                                                                                8,
+                                                                          ),
+                                                                          Expanded(
+                                                                            child: OutlinedButton.icon(
+                                                                              onPressed: () {
+                                                                                Navigator.of(
+                                                                                  sheetCtx,
+                                                                                ).pop();
+                                                                                _showDeletePendingPaymentDialog(
+                                                                                  context,
+                                                                                  householdId:
+                                                                                      householdIdStr,
+                                                                                  paymentId:
+                                                                                      outId,
+                                                                                  viewedAmountCents:
+                                                                                      outCents,
+                                                                                  viewedRevision:
+                                                                                      outRevision,
+                                                                                );
+                                                                              },
+                                                                              icon: const Icon(
+                                                                                Icons.delete_outline,
+                                                                                size: 18,
+                                                                              ),
+                                                                              label: const Text(
+                                                                                'Verwijderen',
+                                                                              ),
+                                                                            ),
+                                                                          ),
+                                                                        ],
                                                                       ),
                                                                     ],
                                                                   ),
@@ -11830,6 +11940,139 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
   }
 }
 
+/// Confirm + execute pending-payment hard delete (loading stays in-dialog).
+class _DeletePendingPaymentDialog extends StatefulWidget {
+  const _DeletePendingPaymentDialog({
+    required this.householdId,
+    required this.paymentId,
+    required this.viewedAmountCents,
+    required this.viewedRevision,
+  });
+
+  final String householdId;
+  final String paymentId;
+  final int viewedAmountCents;
+  final int viewedRevision;
+
+  @override
+  State<_DeletePendingPaymentDialog> createState() =>
+      _DeletePendingPaymentDialogState();
+}
+
+class _DeletePendingPaymentDialogState
+    extends State<_DeletePendingPaymentDialog> {
+  bool _deleting = false;
+
+  Future<void> _confirmDelete() async {
+    if (_deleting) return;
+    setState(() => _deleting = true);
+    if (!await _checkCanWriteNow()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Geen verbinding. Probeer het later opnieuw.'),
+        ),
+      );
+      setState(() => _deleting = false);
+      return;
+    }
+    try {
+      await _deletePendingPayment(
+        householdId: widget.householdId,
+        paymentId: widget.paymentId,
+        viewedAmountCents: widget.viewedAmountCents,
+        viewedRevision: widget.viewedRevision,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Delete pending payment error: $e');
+      }
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mapUserFacingError(
+              e,
+              fallback: 'Betaling kon niet worden verwijderd.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dialogW = _kiduDialogWidth(
+      context,
+      maxWidth: _kiduDialogWideMaxWidth,
+    );
+    return PopScope(
+      canPop: !_deleting,
+      child: Center(
+        child: SizedBox(
+          width: dialogW,
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            actionsAlignment: MainAxisAlignment.spaceBetween,
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            title: kiduActionDialogTitle(
+              context,
+              'Betaling verwijderen',
+            ),
+            content: Text(
+              'Je verwijdert de betaling van '
+              '${_ExpenseDetailPage._formatEur(widget.viewedAmountCents)} '
+              'permanent. De balans verandert niet.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: _deleting
+                    ? null
+                    : () => Navigator.of(context).pop(false),
+                child: const Text('Annuleren'),
+              ),
+              FilledButton(
+                style: kiduDialogPrimaryButtonStyle(context),
+                onPressed: _deleting ? null : _confirmDelete,
+                child: SizedBox(
+                  width: 110,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Text('Verwijderen'),
+                      if (_deleting)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSecondaryContainer,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Edit pending payment amount (payer only). Silent within 15 minutes of
 /// [initialCreatedAt]; after that requires a trimmed reason and writes
 /// `payments/{id}/amountEdits`. Always bumps `revision` by 1.
@@ -12078,7 +12321,7 @@ class _EditPaymentAmountDialogState extends State<_EditPaymentAmountDialog> {
   Widget build(BuildContext context) {
     final dialogW = _kiduDialogWidth(
       context,
-      maxWidth: _kiduDialogFormMaxWidth,
+      maxWidth: _kiduDialogWideMaxWidth,
     );
     final subtleErrorHintStyle = Theme.of(context).textTheme.bodySmall
         ?.copyWith(
@@ -12094,149 +12337,161 @@ class _EditPaymentAmountDialogState extends State<_EditPaymentAmountDialog> {
     final amountErrorHint = _sameAmountError
         ? 'Nieuw bedrag moet afwijken van het huidige bedrag'
         : 'Voer een geldig bedrag groter dan nul in';
-    return Center(
-      child: SizedBox(
-        width: dialogW,
-        child: AlertDialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 24,
-          ),
-          actionsAlignment: MainAxisAlignment.spaceBetween,
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          title: kiduActionDialogTitle(context, 'Bedrag wijzigen'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Huidig bedrag',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: onSurface(context, a70),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _ExpenseDetailPage._formatEur(widget.currentAmountCents),
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _amountController,
-                  focusNode: _amountFocusNode,
-                  style: _amountHasError ? subtleErrorInputStyle : null,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  onTap: () {
-                    if (_amountHasError) {
-                      setState(() {
-                        _amountHasError = false;
-                        _sameAmountError = false;
-                      });
-                    }
-                  },
-                  onChanged: (_) {
-                    if (_amountHasError) {
-                      setState(() {
-                        _amountHasError = false;
-                        _sameAmountError = false;
-                      });
-                    }
-                    _refreshReasonGate();
-                  },
-                  decoration: kiduCompactInputDecoration(
-                    context: context,
-                    labelText: 'Nieuw bedrag (EUR)',
-                    hintText: _amountHasError ? amountErrorHint : null,
-                  ).copyWith(
-                    floatingLabelBehavior: FloatingLabelBehavior.always,
-                    hintStyle: _amountHasError ? subtleErrorHintStyle : null,
-                    prefixText: '€ ',
-                  ),
-                ),
-                if (_showReasonField) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _reasonController,
-                    focusNode: _reasonFocusNode,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLength: _kAmountEditReasonMaxLength,
-                    buildCounter:
-                        (
-                          context, {
-                          required int currentLength,
-                          required bool isFocused,
-                          required int? maxLength,
-                        }) => null,
-                    onTap: () {
-                      if (_reasonHasError) {
-                        setState(() => _reasonHasError = false);
-                      }
-                    },
-                    onChanged: (_) {
-                      if (_reasonHasError) {
-                        setState(() => _reasonHasError = false);
-                      }
-                    },
-                    decoration: kiduCompactInputDecoration(
-                      context: context,
-                      labelText: 'Reden',
-                      hintText: _reasonHasError
-                          ? 'Vul een geldige reden in'
-                          : null,
-                    ).copyWith(
-                      floatingLabelBehavior: FloatingLabelBehavior.always,
-                      hintStyle: _reasonHasError ? subtleErrorHintStyle : null,
-                    ),
-                  ),
-                ],
-              ],
+    return PopScope(
+      canPop: !_saving,
+      child: Center(
+        child: SizedBox(
+          width: dialogW,
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: _saving ? null : () => Navigator.of(context).pop(),
-              child: const Text('Annuleren'),
-            ),
-            FilledButton(
-              style: kiduDialogPrimaryButtonStyle(context),
-              onPressed: _saving ? null : _submit,
-              child: SizedBox(
-                width: 82,
-                child: Stack(
-                  alignment: Alignment.center,
+            actionsAlignment: MainAxisAlignment.spaceBetween,
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            title: kiduActionDialogTitle(context, 'Bedrag wijzigen'),
+            // AlertDialog sizes to its children; without an explicit width the
+            // shorter edit content kept the Material card narrower than the
+            // outer SizedBox (unlike the longer delete copy). Match delete's
+            // visible outer width by expanding content to the max constraint.
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Opslaan'),
-                    if (_saving)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSecondaryContainer,
-                          ),
+                    Text(
+                      'Huidig bedrag',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: onSurface(context, a70),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _ExpenseDetailPage._formatEur(widget.currentAmountCents),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _amountController,
+                      focusNode: _amountFocusNode,
+                      style: _amountHasError ? subtleErrorInputStyle : null,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onTap: () {
+                        if (_amountHasError) {
+                          setState(() {
+                            _amountHasError = false;
+                            _sameAmountError = false;
+                          });
+                        }
+                      },
+                      onChanged: (_) {
+                        if (_amountHasError) {
+                          setState(() {
+                            _amountHasError = false;
+                            _sameAmountError = false;
+                          });
+                        }
+                        _refreshReasonGate();
+                      },
+                      decoration: kiduCompactInputDecoration(
+                        context: context,
+                        labelText: 'Nieuw bedrag (EUR)',
+                        hintText: _amountHasError ? amountErrorHint : null,
+                      ).copyWith(
+                        floatingLabelBehavior: FloatingLabelBehavior.always,
+                        hintStyle:
+                            _amountHasError ? subtleErrorHintStyle : null,
+                        prefixText: '€ ',
+                      ),
+                    ),
+                    if (_showReasonField) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _reasonController,
+                        focusNode: _reasonFocusNode,
+                        textCapitalization: TextCapitalization.sentences,
+                        maxLength: _kAmountEditReasonMaxLength,
+                        buildCounter:
+                            (
+                              context, {
+                              required int currentLength,
+                              required bool isFocused,
+                              required int? maxLength,
+                            }) => null,
+                        onTap: () {
+                          if (_reasonHasError) {
+                            setState(() => _reasonHasError = false);
+                          }
+                        },
+                        onChanged: (_) {
+                          if (_reasonHasError) {
+                            setState(() => _reasonHasError = false);
+                          }
+                        },
+                        decoration: kiduCompactInputDecoration(
+                          context: context,
+                          labelText: 'Reden',
+                          hintText: _reasonHasError
+                              ? 'Vul een geldige reden in'
+                              : null,
+                        ).copyWith(
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
+                          hintStyle:
+                              _reasonHasError ? subtleErrorHintStyle : null,
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                child: const Text('Annuleren'),
+              ),
+              FilledButton(
+                style: kiduDialogPrimaryButtonStyle(context),
+                onPressed: _saving ? null : _submit,
+                child: SizedBox(
+                  width: 82,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Text('Opslaan'),
+                      if (_saving)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSecondaryContainer,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _PaymentDetailPage extends StatelessWidget {
+class _PaymentDetailPage extends StatefulWidget {
   const _PaymentDetailPage({
     required this.householdId,
     required this.paymentId,
@@ -12262,52 +12517,92 @@ class _PaymentDetailPage extends StatelessWidget {
   final bool isReadOnly;
 
   @override
+  State<_PaymentDetailPage> createState() => _PaymentDetailPageState();
+}
+
+class _PaymentDetailPageState extends State<_PaymentDetailPage> {
+  /// Guards against double leave when the melder deletes successfully and the
+  /// live stream also observes the missing document (or vice versa).
+  bool _leftSilently = false;
+
+  /// Leaves this detail route exactly once: first any modal above it, then
+  /// the detail itself. Route-aware so a bare [Navigator.pop] cannot stop at
+  /// an open dialog and leave an empty detail underneath.
+  void _leaveSilently() {
+    if (!mounted || _leftSilently) return;
+    _leftSilently = true;
+
+    final navigator = Navigator.of(context);
+    final route = ModalRoute.of(context);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (route == null || !route.isActive) return;
+
+      // Close dialogs/sheets stacked above this page, then pop the page.
+      if (!route.isCurrent) {
+        navigator.popUntil((r) => identical(r, route));
+      }
+      if (!mounted) return;
+      if (!route.isActive) return;
+      if (navigator.canPop()) {
+        navigator.pop();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final paymentRef = FirebaseFirestore.instance.doc(
-      'households/$householdId/payments/$paymentId',
+      'households/${widget.householdId}/payments/${widget.paymentId}',
     );
     final amountEditsStream = paymentRef
         .collection('amountEdits')
         .orderBy('editedAt', descending: true)
         .snapshots();
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.of(context).pop();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          leading: BackButton(onPressed: () => Navigator.of(context).pop()),
-          title: ReadOnlyAppBarTitle(
-            isReadOnly: isReadOnly,
-            title: Text(
-              'Betaling',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
+    // Read-only detail: allow normal system/app-bar pops. Do not block the
+    // route with PopScope(canPop: false) — that can trap programmatic leave
+    // and recurse via onPopInvokedWithResult.
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        leading: const BackButton(),
+        title: ReadOnlyAppBarTitle(
+          isReadOnly: widget.isReadOnly,
+          title: Text(
+            'Betaling',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
             ),
           ),
         ),
-        body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: paymentRef.snapshots(),
-          builder: (context, paySnap) {
+      ),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: paymentRef.snapshots(),
+        builder: (context, paySnap) {
+          // Melder deleted elsewhere / receiver still on detail: leave
+          // silently — no snackbar, popup, or empty error page.
+          if (paySnap.hasData && !(paySnap.data?.exists ?? false)) {
+            _leaveSilently();
+            return const SizedBox.shrink();
+          }
+
             final live = paySnap.data?.data();
             final liveAmount =
-                (live?['amountCents'] as num?)?.toInt() ?? amountCents;
+                (live?['amountCents'] as num?)?.toInt() ?? widget.amountCents;
             final liveStatus =
-                (live?['status'] as String?)?.trim() ?? status;
+                (live?['status'] as String?)?.trim() ?? widget.status;
             final isConfirmed = liveStatus == 'confirmed';
-            DateTime? liveConfirmedAt = confirmedAt;
+            DateTime? liveConfirmedAt = widget.confirmedAt;
             final confirmedAtRaw = live?['confirmedAt'];
             if (confirmedAtRaw is Timestamp) {
               liveConfirmedAt = confirmedAtRaw.toDate().toLocal();
             } else if (confirmedAtRaw is DateTime) {
               liveConfirmedAt = confirmedAtRaw.toLocal();
             }
-            DateTime? liveCreatedAt = createdAt;
+            DateTime? liveCreatedAt = widget.createdAt;
             final createdAtRaw = live?['createdAt'];
             if (createdAtRaw is Timestamp) {
               liveCreatedAt = createdAtRaw.toDate().toLocal();
@@ -12315,15 +12610,15 @@ class _PaymentDetailPage extends StatelessWidget {
               liveCreatedAt = createdAtRaw.toLocal();
             }
 
-            final uid = viewerUid.trim();
+            final uid = widget.viewerUid.trim();
             final fromUserId = (live?['fromUserId'] as String?)?.trim() ?? '';
             final createdBy = (live?['createdBy'] as String?)?.trim() ?? '';
             final paymentExists =
                 paySnap.hasData && (paySnap.data?.exists ?? false);
             final canEditAmount =
-                !isReadOnly &&
-                householdId.trim().isNotEmpty &&
-                paymentId.trim().isNotEmpty &&
+                !widget.isReadOnly &&
+                widget.householdId.trim().isNotEmpty &&
+                widget.paymentId.trim().isNotEmpty &&
                 uid.isNotEmpty &&
                 paymentExists &&
                 liveStatus == 'pending' &&
@@ -12348,7 +12643,7 @@ class _PaymentDetailPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            title,
+                            widget.title,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
@@ -12412,10 +12707,10 @@ class _PaymentDetailPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                      if (!isConfirmed && statusExplanation != null) ...[
+                      if (!isConfirmed && widget.statusExplanation != null) ...[
                         const SizedBox(height: 12),
                         Text(
-                          statusExplanation!,
+                          widget.statusExplanation!,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: onSurface(context, a55),
@@ -12513,24 +12808,61 @@ class _PaymentDetailPage extends StatelessWidget {
                           );
                         },
                       ),
-                      if (canEditAmount)
+                      if (canEditAmount) ...[
                         Padding(
                           padding: const EdgeInsets.only(top: 16),
-                          child: FilledButton.tonalIcon(
-                            onPressed: () => _showEditPaymentAmountDialog(
-                              context,
-                              householdId: householdId,
-                              paymentId: paymentId,
-                              currentAmountCents: liveAmount,
-                              initialCreatedAt: liveCreatedAt,
-                            ),
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            label: Text(
-                              'Bedrag wijzigen',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.tonalIcon(
+                                  onPressed: () =>
+                                      _showEditPaymentAmountDialog(
+                                    context,
+                                    householdId: widget.householdId,
+                                    paymentId: widget.paymentId,
+                                    currentAmountCents: liveAmount,
+                                    initialCreatedAt: liveCreatedAt,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    'Wijzigen',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final deleted =
+                                        await _showDeletePendingPaymentDialog(
+                                      context,
+                                      householdId: widget.householdId,
+                                      paymentId: widget.paymentId,
+                                      viewedAmountCents: liveAmount,
+                                      viewedRevision:
+                                          _paymentRevisionOf(live),
+                                    );
+                                    if (deleted) {
+                                      _leaveSilently();
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Verwijderen'),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -12538,7 +12870,6 @@ class _PaymentDetailPage extends StatelessWidget {
             );
           },
         ),
-      ),
     );
   }
 }
