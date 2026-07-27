@@ -7422,7 +7422,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             20,
                                                                       ),
                                                                       Text(
-                                                                        'Ontvangst bevestigen',
+                                                                        'Betaling gemeld door $otherName',
                                                                         style:
                                                                             Theme.of(
                                                                               context,
@@ -7433,23 +7433,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                       const SizedBox(
                                                                         height:
                                                                             16,
-                                                                      ),
-                                                                      Text(
-                                                                        'Betaling gemeld door $otherName',
-                                                                        style:
-                                                                            Theme.of(
-                                                                              context,
-                                                                            ).textTheme.bodyMedium?.copyWith(
-                                                                              color: onSurface(
-                                                                                context,
-                                                                                a84,
-                                                                              ),
-                                                                              height: 1.4,
-                                                                            ),
-                                                                      ),
-                                                                      const SizedBox(
-                                                                        height:
-                                                                            4,
                                                                       ),
                                                                       Text(
                                                                         _formatEur(
@@ -7899,7 +7882,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                         Text(
                                                                           balanceCents <
                                                                                   0
-                                                                              ? 'Betaling melden'
+                                                                              ? 'Betaling aan $otherName melden'
                                                                               : 'Balans',
                                                                           style:
                                                                               Theme.of(
@@ -7960,39 +7943,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                                 ),
                                                                           ),
                                                                         ] else ...[
-                                                                          Text(
-                                                                            'Open bedrag: ${_formatEur(absBalance)}',
-                                                                            style:
-                                                                                Theme.of(
-                                                                                  context,
-                                                                                ).textTheme.titleSmall?.copyWith(
-                                                                                  fontWeight: FontWeight.w600,
-                                                                                  color: onSurface(
-                                                                                    context,
-                                                                                    a84,
-                                                                                  ),
-                                                                                ),
-                                                                          ),
-                                                                          const SizedBox(
-                                                                            height:
-                                                                                4,
-                                                                          ),
-                                                                          Text(
-                                                                            'Jij betaalt $otherName',
-                                                                            style:
-                                                                                Theme.of(
-                                                                                  context,
-                                                                                ).textTheme.bodySmall?.copyWith(
-                                                                                  color: onSurface(
-                                                                                    context,
-                                                                                    a62,
-                                                                                  ),
-                                                                                ),
-                                                                          ),
-                                                                          const SizedBox(
-                                                                            height:
-                                                                                16,
-                                                                          ),
                                                                           TextField(
                                                                             controller:
                                                                                 amountCtrl,
@@ -8001,7 +7951,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                             ),
                                                                             decoration: kiduCompactInputDecoration(
                                                                               context: context,
-                                                                              labelText: 'Bedrag',
+                                                                              labelText: 'Open bedrag',
                                                                               errorText:
                                                                                   amountCtrl.text.trim().isNotEmpty &&
                                                                                       (enteredCents ==
