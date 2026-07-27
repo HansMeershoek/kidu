@@ -3346,24 +3346,27 @@ void _showPrivacyPolicyDialog(BuildContext context) {
       title: const Text('Privacy in KiDu'),
       content: SingleChildScrollView(
         child: Text(
-          'KiDu is gebouwd met één uitgangspunt: zo min mogelijk privacy-gevoelige data.\n\n'
+          'Privacy is een belangrijk onderdeel van KiDu. Daarom verzamelen we alleen de gegevens die nodig zijn om de app goed te laten werken.\n\n'
           'Wat we wél gebruiken (alleen wat nodig is):\n'
           '• Je gekozen naam (zodat jullie elkaar herkennen)\n'
           '• Je Google-account (voor veilig inloggen)\n'
           '• Jullie gedeelde uitgaven in KiDu\n\n'
-          'Wat KiDu níét vraagt of gebruikt:\n'
+          'Wat KiDu níét gebruikt:\n'
           '• Geen telefoonnummer\n'
           '• Geen toegang tot je contacten\n'
           '• Geen locatie\n'
           '• Geen agenda, microfoon of camera\n'
-          '• Geen push-notificaties of "ping-gedrag"\n\n'
-          'Delen met anderen?\n'
-          '• Jullie gegevens zijn bedoeld voor jou en je co-parent in jullie huishouden (max. 2 accounts).\n'
-          '• We delen geen gegevens voor marketingdoeleinden.\n'
+          '• Geen pushmeldingen of andere onderbrekende meldingen\n\n'
+          'Waarom?\n'
+          'KiDu is bedoeld als een rustige app die je alleen gebruikt wanneer jij dat wilt.\n\n'
+          'Delen met anderen:\n'
+          '• Jullie gegevens zijn alleen zichtbaar voor jou en je co-parent binnen jullie huishouden (maximaal 2 accounts).\n'
+          '• We delen je gegevens niet voor marketingdoeleinden.\n'
           '• We verkopen je gegevens niet.\n\n'
-          'Je houdt de controle:\n'
+          'Jij houdt de controle:\n'
           '• Je kunt je naam altijd aanpassen.\n'
-          '• Je kunt uitloggen wanneer je wilt.',
+          '• Je kunt op elk moment uitloggen.\n'
+          '• Je kunt je account verwijderen wanneer je dat wilt.',
           style: Theme.of(
             ctx,
           ).textTheme.bodyMedium?.copyWith(color: onSurface(ctx, a68)),
