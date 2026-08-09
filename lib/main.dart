@@ -8511,11 +8511,11 @@ class BalanceCard extends StatelessWidget {
       amountText = null;
       hintText = 'Wacht op bevestiging';
     } else if (balanceCents > 0) {
-      lineText = '$otherName betaalt jou';
+      lineText = 'Je hebt tegoed van $otherName';
       amountText = formatEur(balanceCents.abs());
       hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     } else if (balanceCents < 0) {
-      lineText = 'Jij betaalt $otherName';
+      lineText = '$otherName heeft tegoed van jou';
       amountText = formatEur(balanceCents.abs());
       hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     } else {

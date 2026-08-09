@@ -30,9 +30,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Frits betaalt jou'), findsOneWidget);
+      expect(find.text('Je hebt tegoed van Frits'), findsOneWidget);
       expect(find.text('€268,29'), findsOneWidget);
       expect(find.text('Klik hier om een betaling te melden'), findsOneWidget);
+      expect(find.text('Frits betaalt jou'), findsNothing);
+      expect(find.textContaining('betaalt jou'), findsNothing);
       expect(find.text('Tik om een betaling te melden'), findsNothing);
       expect(find.text('Totaal samen uitgegeven'), findsNothing);
     });
@@ -52,9 +54,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Jij betaalt Frits'), findsOneWidget);
+      expect(find.text('Frits heeft tegoed van jou'), findsOneWidget);
       expect(find.text('€268,29'), findsOneWidget);
       expect(find.text('Klik hier om een betaling te melden'), findsOneWidget);
+      expect(find.text('Jij betaalt Frits'), findsNothing);
+      expect(find.textContaining('Jij betaalt'), findsNothing);
     });
 
     testWidgets('zero balance', (tester) async {
