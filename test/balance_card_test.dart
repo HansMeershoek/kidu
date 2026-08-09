@@ -32,7 +32,8 @@ void main() {
 
       expect(find.text('Frits betaalt jou'), findsOneWidget);
       expect(find.text('€268,29'), findsOneWidget);
-      expect(find.text('Tik om een betaling te melden'), findsOneWidget);
+      expect(find.text('Klik hier om een betaling te melden'), findsOneWidget);
+      expect(find.text('Tik om een betaling te melden'), findsNothing);
       expect(find.text('Totaal samen uitgegeven'), findsNothing);
     });
 
@@ -53,7 +54,7 @@ void main() {
 
       expect(find.text('Jij betaalt Frits'), findsOneWidget);
       expect(find.text('€268,29'), findsOneWidget);
-      expect(find.text('Tik om een betaling te melden'), findsOneWidget);
+      expect(find.text('Klik hier om een betaling te melden'), findsOneWidget);
     });
 
     testWidgets('zero balance', (tester) async {
@@ -73,7 +74,7 @@ void main() {
 
       expect(find.text('Jullie zijn in balans'), findsOneWidget);
       expect(find.text('€0,00'), findsOneWidget);
-      expect(find.text('Tik om een betaling te melden'), findsOneWidget);
+      expect(find.text('Klik hier om een betaling te melden'), findsOneWidget);
     });
 
     testWidgets('outgoing pending', (tester) async {
@@ -93,7 +94,11 @@ void main() {
 
       expect(find.text('Betaling gemeld'), findsOneWidget);
       expect(find.text('Wacht op bevestiging'), findsOneWidget);
-      expect(find.text('Tik om een betaling te melden'), findsNothing);
+      expect(find.text('Klik hier om een betaling te melden'), findsNothing);
+      expect(
+        find.text('Klik hier om de betaling te bevestigen'),
+        findsNothing,
+      );
     });
 
     testWidgets('incoming pending', (tester) async {
@@ -111,8 +116,13 @@ void main() {
         ),
       );
 
-      expect(find.text('Bevestig gemelde betaling'), findsOneWidget);
-      expect(find.text('Tik om een betaling te melden'), findsNothing);
+      expect(find.text('Er is een betaling gemeld'), findsOneWidget);
+      expect(
+        find.text('Klik hier om de betaling te bevestigen'),
+        findsOneWidget,
+      );
+      expect(find.text('Bevestig gemelde betaling'), findsNothing);
+      expect(find.text('Klik hier om een betaling te melden'), findsNothing);
       expect(find.text('Wacht op bevestiging'), findsNothing);
     });
 
@@ -211,7 +221,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Tik om een betaling te melden'), findsNothing);
+      expect(find.text('Klik hier om een betaling te melden'), findsNothing);
+      expect(
+        find.text('Klik hier om de betaling te bevestigen'),
+        findsNothing,
+      );
 
       await tester.tap(find.byKey(BalanceCard.bodyKey));
       await tester.pump();
@@ -271,8 +285,9 @@ void main() {
         ),
       );
 
-      expect(find.text('Bevestig gemelde betaling'), findsOneWidget);
+      expect(find.text('Er is een betaling gemeld'), findsOneWidget);
       expect(find.text('Betaling gemeld'), findsNothing);
+      expect(find.text('Bevestig gemelde betaling'), findsNothing);
     });
   });
 }

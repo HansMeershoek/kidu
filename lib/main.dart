@@ -8540,7 +8540,7 @@ class BalanceCard extends StatelessWidget {
   final VoidCallback onInfoPressed;
   final VoidCallback? onBodyTap;
 
-  /// When false (read-only), omit the "Tik om een betaling te melden" hint.
+  /// When false (read-only), omit the report/confirm action hint.
   final bool showReportHint;
 
   static const Key infoButtonKey = Key('balance_card_info');
@@ -8553,9 +8553,11 @@ class BalanceCard extends StatelessWidget {
     final String? hintText;
 
     if (hasIncomingPending) {
-      lineText = 'Bevestig gemelde betaling';
+      lineText = 'Er is een betaling gemeld';
       amountText = null;
-      hintText = null;
+      hintText = showReportHint
+          ? 'Klik hier om de betaling te bevestigen'
+          : null;
     } else if (hasOutgoingPending) {
       lineText = 'Betaling gemeld';
       amountText = null;
@@ -8563,15 +8565,15 @@ class BalanceCard extends StatelessWidget {
     } else if (balanceCents > 0) {
       lineText = '$otherName betaalt jou';
       amountText = formatEur(balanceCents.abs());
-      hintText = showReportHint ? 'Tik om een betaling te melden' : null;
+      hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     } else if (balanceCents < 0) {
       lineText = 'Jij betaalt $otherName';
       amountText = formatEur(balanceCents.abs());
-      hintText = showReportHint ? 'Tik om een betaling te melden' : null;
+      hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     } else {
       lineText = 'Jullie zijn in balans';
       amountText = formatEur(0);
-      hintText = showReportHint ? 'Tik om een betaling te melden' : null;
+      hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     }
 
     final titleStyle = Theme.of(
@@ -8593,7 +8595,7 @@ class BalanceCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 4, 0),
+            padding: const EdgeInsets.fromLTRB(16, 10, 4, 8),
             child: Row(
               children: [
                 Expanded(child: Text('Balans', style: titleStyle)),
@@ -8625,7 +8627,7 @@ class BalanceCard extends StatelessWidget {
               ).colorScheme.primary.withValues(alpha: 0.08),
               onTap: onBodyTap,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
