@@ -19,6 +19,7 @@ import 'package:sign_in_button/sign_in_button.dart';
 
 import 'account/account_delete_controller.dart' show kiduFunctionsRegion;
 import 'account/account_delete_info_page.dart';
+import 'balance/household_balance.dart';
 import 'firebase_options.dart';
 import 'formatting/relative_time_nl.dart';
 import 'privacy/reopen_lock_gate.dart';
@@ -7161,73 +7162,20 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 )
                                                 .toList(growable: false);
 
-                                        // Split the balance into two
-                                        // buckets: legacy (no snapshot)
-                                        // keeps the existing half-floor
-                                        // with deterministic remainder
-                                        // rule; snapshot expenses add
-                                        // per-expense
-                                        // (myPaid − myFairShare).
-                                        var legacyTotalCents = 0;
-                                        var legacyMyPaidCents = 0;
-                                        var snapshotBalanceCents = 0;
-                                        for (final d in docs) {
-                                          final e = d.data();
-                                          final amountCents =
-                                              (e['amountCents'] as num?)
-                                                  ?.toInt() ??
-                                              0;
-                                          final createdBy =
-                                              (e['createdBy'] as String?)
-                                                  ?.trim();
-                                          final myPaidForDoc =
-                                              (createdBy == user.uid)
-                                              ? amountCents
-                                              : 0;
-                                          final snap =
-                                              ParentSplitSnapshot.tryReadFromExpense(
-                                                e,
-                                              );
-                                          if (snap == null ||
-                                              !snap.participantUids.contains(
-                                                user.uid,
-                                              )) {
-                                            legacyTotalCents += amountCents;
-                                            legacyMyPaidCents += myPaidForDoc;
-                                          } else {
-                                            final myShare = snap
-                                                .fairShareCentsFor(
-                                                  user.uid,
-                                                  amountCents,
-                                                );
-                                            snapshotBalanceCents +=
-                                                (myPaidForDoc - myShare);
-                                          }
-                                        }
-                                        final legacyOtherPaidCents =
-                                            legacyTotalCents -
-                                            legacyMyPaidCents;
-                                        final legacyHalfFloor =
-                                            legacyTotalCents ~/ 2;
-                                        final legacyRemainder =
-                                            legacyTotalCents % 2;
-                                        final legacyExpectedMy =
-                                            legacyHalfFloor +
-                                            ((legacyRemainder == 1 &&
-                                                    legacyMyPaidCents <
-                                                        legacyOtherPaidCents)
-                                                ? 1
-                                                : 0);
-                                        final rawBalanceCents =
-                                            (legacyMyPaidCents -
-                                                legacyExpectedMy) +
-                                            snapshotBalanceCents;
+                                        final balance = computeHouseholdBalance(
+                                          viewerUid: user.uid,
+                                          expenses: docs.map((d) => d.data()),
+                                          confirmedPaidByViewerCents:
+                                              _confirmedPaidByMe,
+                                          confirmedPaidToViewerCents:
+                                              _confirmedPaidToMe,
+                                          settlementPaidByViewerCents:
+                                              _totalPaidByMe,
+                                          settlementPaidToViewerCents:
+                                              _totalPaidToMe,
+                                        );
                                         final balanceCents =
-                                            rawBalanceCents +
-                                            _totalPaidByMe -
-                                            _totalPaidToMe +
-                                            _confirmedPaidByMe -
-                                            _confirmedPaidToMe;
+                                            balance.balanceCents;
 
                                         String? lastActivityText;
                                         if (docs.isNotEmpty) {
