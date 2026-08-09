@@ -3062,6 +3062,50 @@ class PrivacyPolicyPage extends StatelessWidget {
   }
 }
 
+/// Read-only detail page for balance composition (empty shell in stap 1).
+class BalansopbouwPage extends StatelessWidget {
+  const BalansopbouwPage({super.key});
+
+  static const Color _scaffoldBg = Color(0xFFF7F6F4);
+  static const double _pagePadding = 16;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _scaffoldBg,
+      appBar: AppBar(
+        centerTitle: true,
+        leading: const BackButton(),
+        title: Text(
+          'Balansopbouw',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(_pagePadding),
+              child: Text(
+                'Hier zie je hoe jullie balans is opgebouwd.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: onSurface(context, a62),
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 const String _kLoginNetworkErrorMessage = 'Geen verbinding. Probeer het later opnieuw.';
 const String _kLoginGenericErrorMessage = 'Inloggen niet gelukt';
 
@@ -7117,8 +7161,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 )
                                                 .toList(growable: false);
 
-                                        var totalCents = 0;
-                                        var myPaidCents = 0;
                                         // Split the balance into two
                                         // buckets: legacy (no snapshot)
                                         // keeps the existing half-floor
@@ -7135,7 +7177,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                               (e['amountCents'] as num?)
                                                   ?.toInt() ??
                                               0;
-                                          totalCents += amountCents;
                                           final createdBy =
                                               (e['createdBy'] as String?)
                                                   ?.trim();
@@ -7143,9 +7184,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                               (createdBy == user.uid)
                                               ? amountCents
                                               : 0;
-                                          if (createdBy == user.uid) {
-                                            myPaidCents += amountCents;
-                                          }
                                           final snap =
                                               ParentSplitSnapshot.tryReadFromExpense(
                                                 e,
@@ -7166,8 +7204,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 (myPaidForDoc - myShare);
                                           }
                                         }
-                                        final otherPaidCents =
-                                            totalCents - myPaidCents;
                                         final legacyOtherPaidCents =
                                             legacyTotalCents -
                                             legacyMyPaidCents;
@@ -7192,16 +7228,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                             _totalPaidToMe +
                                             _confirmedPaidByMe -
                                             _confirmedPaidToMe;
-
-                                        final absBalance = balanceCents.abs();
-                                        final pendingInCents =
-                                            (_pendingIncoming?['amountCents']
-                                                    as num?)
-                                                ?.toInt();
-                                        final pendingOutCents =
-                                            (_pendingOutgoing?['amountCents']
-                                                    as num?)
-                                                ?.toInt();
 
                                         String? lastActivityText;
                                         if (docs.isNotEmpty) {
@@ -7266,33 +7292,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 visibleSecondaryMetadata
                                                     ?.notesByExpenseId ??
                                                 const <String, String>{};
-                                            final balanceBreakdownText =
-                                                visibleOtherName == null
-                                                ? null
-                                                : '$myName ${_formatEur(myPaidCents)} • $visibleOtherName ${_formatEur(otherPaidCents)}';
-
-                                            String? visibleStatusText;
-                                            if (pendingInCents != null &&
-                                                pendingInCents > 0) {
-                                              visibleStatusText =
-                                                  '${_formatEur(pendingInCents)} ontvangen? Tik om te bevestigen';
-                                            } else if (pendingOutCents !=
-                                                    null &&
-                                                pendingOutCents > 0) {
-                                              visibleStatusText =
-                                                  '${_formatEur(pendingOutCents)} gemeld · wacht op bevestiging';
-                                            } else if (balanceCents > 0 &&
-                                                visibleOtherName != null) {
-                                              visibleStatusText =
-                                                  '$visibleOtherName betaalt jou ${_formatEur(absBalance)}';
-                                            } else if (balanceCents < 0 &&
-                                                visibleOtherName != null) {
-                                              visibleStatusText =
-                                                  'Jij betaalt $visibleOtherName ${_formatEur(absBalance)}';
-                                            } else if (balanceCents == 0) {
-                                              visibleStatusText =
-                                                  'Jullie zijn in balans';
-                                            }
+                                            final balanceOtherName =
+                                                (visibleOtherName ?? otherName)
+                                                    .trim()
+                                                    .isEmpty
+                                                ? otherName
+                                                : (visibleOtherName ??
+                                                      otherName);
 
                                             return Column(
                                               crossAxisAlignment:
@@ -7314,44 +7320,31 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   ),
                                                   const SizedBox(height: 10),
                                                 ],
-                                                KiduCard(
-                                                  padding: EdgeInsets.zero,
-                                                  child: Material(
-                                                    type: MaterialType
-                                                        .transparency,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          _DashboardPageState
-                                                              ._cardRadius,
-                                                        ),
-                                                    child: InkWell(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            _DashboardPageState
-                                                                ._cardRadius,
-                                                          ),
-                                                      highlightColor:
-                                                          Theme.of(context)
-                                                              .colorScheme
-                                                              .primary
-                                                              .withValues(
-                                                                alpha: 0.10,
-                                                              ),
-                                                      splashColor:
-                                                          Theme.of(context)
-                                                              .colorScheme
-                                                              .primary
-                                                              .withValues(
-                                                                alpha: 0.08,
-                                                              ),
-                                                      // Fase 1 read-only: de
-                                                      // balanskaart mag geen
-                                                      // bottomsheet meer
-                                                      // openen (geen betaling
-                                                      // melden/bevestigen).
-                                                      onTap: !canMutateHousehold
-                                                          ? null
-                                                          : () {
+                                                BalanceCard(
+                                                  balanceCents: balanceCents,
+                                                  otherName: balanceOtherName,
+                                                  hasIncomingPending:
+                                                      _pendingIncoming != null,
+                                                  hasOutgoingPending:
+                                                      _pendingOutgoing != null,
+                                                  formatEur: _formatEur,
+                                                  showReportHint:
+                                                      canMutateHousehold,
+                                                  onInfoPressed: () {
+                                                    Navigator.of(context).push(
+                                                      MaterialPageRoute<void>(
+                                                        builder: (_) =>
+                                                            const BalansopbouwPage(),
+                                                      ),
+                                                    );
+                                                  },
+                                                  // Fase 1 read-only: body mag
+                                                  // geen payment-flow openen;
+                                                  // info blijft wel tappable.
+                                                  onBodyTap:
+                                                      !canMutateHousehold
+                                                      ? null
+                                                      : () {
                                                         if (_pendingIncoming !=
                                                                 null &&
                                                             _pendingIncomingId !=
@@ -7808,400 +7801,257 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           return;
                                                         }
 
+                                                        // Prefill only when
+                                                        // viewer owes; +/0 →
+                                                        // empty amount field.
+                                                        final prefillCents =
+                                                            balanceCents < 0
+                                                            ? balanceCents.abs()
+                                                            : null;
                                                         final amountCtrl =
                                                             TextEditingController(
                                                               text:
-                                                                  '${absBalance ~/ 100},${(absBalance % 100).toString().padLeft(2, '0')}',
+                                                                  prefillCents ==
+                                                                      null
+                                                                  ? ''
+                                                                  : '${prefillCents ~/ 100},${(prefillCents % 100).toString().padLeft(2, '0')}',
                                                             );
                                                         int? enteredCents =
-                                                            absBalance;
-                                                        showModalBottomSheet<
-                                                          void
-                                                        >(
-                                                          context: context,
-                                                          isScrollControlled:
-                                                              true,
-                                                          shape: const RoundedRectangleBorder(
-                                                            borderRadius:
-                                                                BorderRadius.vertical(
-                                                                  top:
-                                                                      Radius.circular(
-                                                                        20,
-                                                                      ),
-                                                                ),
-                                                          ),
-                                                          builder: (sheetCtx) {
-                                                            return StatefulBuilder(
-                                                              builder: (_, setSheetState) {
-                                                                final isValid =
-                                                                    enteredCents !=
-                                                                        null &&
-                                                                    enteredCents! >
-                                                                        0;
-                                                                final bottomInset =
-                                                                    MediaQuery.of(
-                                                                          sheetCtx,
-                                                                        )
-                                                                        .viewInsets
-                                                                        .bottom;
-                                                                return SafeArea(
-                                                                  child: Padding(
-                                                                    padding:
-                                                                        EdgeInsets.fromLTRB(
-                                                                          24,
+                                                            prefillCents;
+                                                          showModalBottomSheet<
+                                                            void
+                                                          >(
+                                                            context: context,
+                                                            isScrollControlled:
+                                                                true,
+                                                            shape: const RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.vertical(
+                                                                    top:
+                                                                        Radius.circular(
                                                                           20,
-                                                                          24,
-                                                                          28 +
-                                                                              bottomInset,
                                                                         ),
-                                                                    child: Column(
-                                                                      mainAxisSize:
-                                                                          MainAxisSize
-                                                                              .min,
-                                                                      crossAxisAlignment:
-                                                                          CrossAxisAlignment
-                                                                              .stretch,
-                                                                      children: [
-                                                                        Center(
-                                                                          child: Container(
-                                                                            width:
-                                                                                36,
-                                                                            height:
-                                                                                4,
-                                                                            decoration: BoxDecoration(
-                                                                              color: Theme.of(
-                                                                                context,
-                                                                              ).colorScheme.outlineVariant,
-                                                                              borderRadius: BorderRadius.circular(
-                                                                                2,
+                                                                  ),
+                                                            ),
+                                                            builder: (sheetCtx) {
+                                                              return StatefulBuilder(
+                                                                builder:
+                                                                    (
+                                                                      _,
+                                                                      setSheetState,
+                                                                    ) {
+                                                                      final isValid =
+                                                                          enteredCents !=
+                                                                              null &&
+                                                                          enteredCents! >
+                                                                              0;
+                                                                      final bottomInset = MediaQuery.of(
+                                                                        sheetCtx,
+                                                                      ).viewInsets.bottom;
+                                                                      return SafeArea(
+                                                                        child: Padding(
+                                                                          padding: EdgeInsets.fromLTRB(
+                                                                            24,
+                                                                            20,
+                                                                            24,
+                                                                            28 +
+                                                                                bottomInset,
+                                                                          ),
+                                                                          child: Column(
+                                                                            mainAxisSize:
+                                                                                MainAxisSize.min,
+                                                                            crossAxisAlignment:
+                                                                                CrossAxisAlignment.stretch,
+                                                                            children: [
+                                                                              Center(
+                                                                                child: Container(
+                                                                                  width: 36,
+                                                                                  height: 4,
+                                                                                  decoration: BoxDecoration(
+                                                                                    color: Theme.of(
+                                                                                      context,
+                                                                                    ).colorScheme.outlineVariant,
+                                                                                    borderRadius: BorderRadius.circular(
+                                                                                      2,
+                                                                                    ),
+                                                                                  ),
+                                                                                ),
                                                                               ),
-                                                                            ),
-                                                                          ),
-                                                                        ),
-                                                                        const SizedBox(
-                                                                          height:
-                                                                              20,
-                                                                        ),
-                                                                        Text(
-                                                                          balanceCents <
-                                                                                  0
-                                                                              ? 'Betaling aan $otherName melden'
-                                                                              : 'Balans',
-                                                                          style:
-                                                                              Theme.of(
-                                                                                context,
-                                                                              ).textTheme.titleMedium?.copyWith(
-                                                                                fontWeight: FontWeight.w700,
+                                                                              const SizedBox(
+                                                                                height: 20,
                                                                               ),
-                                                                        ),
-                                                                        const SizedBox(
-                                                                          height:
-                                                                              16,
-                                                                        ),
-                                                                        if (balanceCents ==
-                                                                            0)
-                                                                          Text(
-                                                                            'Jullie zijn in balans',
-                                                                            style:
-                                                                                Theme.of(
-                                                                                  context,
-                                                                                ).textTheme.bodyMedium?.copyWith(
-                                                                                  color: onSurface(
-                                                                                    context,
-                                                                                    a62,
-                                                                                  ),
-                                                                                  height: 1.4,
+                                                                              Text(
+                                                                                'Betaling aan $otherName melden',
+                                                                                style:
+                                                                                    Theme.of(
+                                                                                      context,
+                                                                                    ).textTheme.titleMedium?.copyWith(
+                                                                                      fontWeight: FontWeight.w700,
+                                                                                    ),
+                                                                              ),
+                                                                              const SizedBox(
+                                                                                height: 16,
+                                                                              ),
+                                                                              TextField(
+                                                                                controller:
+                                                                                    amountCtrl,
+                                                                                keyboardType:
+                                                                                    const TextInputType.numberWithOptions(
+                                                                                  decimal:
+                                                                                      true,
                                                                                 ),
-                                                                          )
-                                                                        else if (balanceCents >
-                                                                            0) ...[
-                                                                          Text(
-                                                                            '$otherName is jou nog ${_formatEur(absBalance)} schuldig',
-                                                                            style:
-                                                                                Theme.of(
-                                                                                  context,
-                                                                                ).textTheme.bodyMedium?.copyWith(
-                                                                                  color: onSurface(
-                                                                                    context,
-                                                                                    a84,
-                                                                                  ),
-                                                                                  height: 1.4,
+                                                                                decoration: kiduCompactInputDecoration(
+                                                                                  context:
+                                                                                      context,
+                                                                                  labelText:
+                                                                                      'Bedrag (Euro)',
+                                                                                  hintText:
+                                                                                      'Bijv. 12,34',
+                                                                                  errorText:
+                                                                                      amountCtrl.text.trim().isNotEmpty &&
+                                                                                          (enteredCents ==
+                                                                                                  null ||
+                                                                                              enteredCents! <=
+                                                                                                  0)
+                                                                                      ? 'Voer een geldig bedrag in'
+                                                                                      : null,
+                                                                                ).copyWith(
+                                                                                  floatingLabelBehavior:
+                                                                                      FloatingLabelBehavior.always,
                                                                                 ),
-                                                                          ),
-                                                                          const SizedBox(
-                                                                            height:
-                                                                                8,
-                                                                          ),
-                                                                          Text(
-                                                                            '$otherName kan een betaling melden vanuit de app.',
-                                                                            style:
-                                                                                Theme.of(
-                                                                                  context,
-                                                                                ).textTheme.bodySmall?.copyWith(
-                                                                                  color: onSurface(
-                                                                                    context,
-                                                                                    a62,
-                                                                                  ),
-                                                                                  height: 1.4,
-                                                                                ),
-                                                                          ),
-                                                                        ] else ...[
-                                                                          TextField(
-                                                                            controller:
-                                                                                amountCtrl,
-                                                                            keyboardType: const TextInputType.numberWithOptions(
-                                                                              decimal: true,
-                                                                            ),
-                                                                            decoration: kiduCompactInputDecoration(
-                                                                              context: context,
-                                                                              labelText: 'Open bedrag',
-                                                                              errorText:
-                                                                                  amountCtrl.text.trim().isNotEmpty &&
-                                                                                      (enteredCents ==
-                                                                                              null ||
-                                                                                          enteredCents! <=
-                                                                                              0)
-                                                                                  ? 'Voer een geldig bedrag in'
-                                                                                  : null,
-                                                                            ).copyWith(
-                                                                              floatingLabelBehavior:
-                                                                                  FloatingLabelBehavior.always,
-                                                                              prefixText: '€ ',
-                                                                            ),
-                                                                            onChanged:
-                                                                                (
-                                                                                  val,
-                                                                                ) {
-                                                                                  setSheetState(
-                                                                                    () {
-                                                                                      enteredCents = _tryParseEurToCents(
-                                                                                        val,
-                                                                                      );
-                                                                                    },
-                                                                                  );
-                                                                                },
-                                                                          ),
-                                                                          const SizedBox(
-                                                                            height:
-                                                                                20,
-                                                                          ),
-                                                                          FilledButton(
-                                                                            style: kiduDialogPrimaryButtonStyle(
-                                                                              sheetCtx,
-                                                                            ),
-                                                                            onPressed:
-                                                                                isValid
-                                                                                ? () {
-                                                                                    final paymentAmountCents = enteredCents!;
-                                                                                    Navigator.of(
-                                                                                      sheetCtx,
-                                                                                    ).pop();
-                                                                                    showDialog<
-                                                                                          bool
-                                                                                        >(
-                                                                                          context: context,
-                                                                                          builder:
-                                                                                              (
-                                                                                                dialogCtx,
-                                                                                              ) => AlertDialog(
-                                                                                                actionsAlignment:
-                                                                                                    MainAxisAlignment
-                                                                                                        .spaceBetween,
-                                                                                                actionsPadding:
-                                                                                                    const EdgeInsets
-                                                                                                        .fromLTRB(
-                                                                                                  16,
-                                                                                                  0,
-                                                                                                  16,
-                                                                                                  12,
-                                                                                                ),
-                                                                                                title:
-                                                                                                    kiduActionDialogTitle(
-                                                                                                  dialogCtx,
-                                                                                                  'Betaling melden',
-                                                                                                ),
-                                                                                                content: Text(
-                                                                                                  'Je meldt een betaling van ${_formatEur(enteredCents!)} aan $otherName. $otherName moet dit nog bevestigen.',
-                                                                                                ),
-                                                                                                actions: [
-                                                                                                  TextButton(
-                                                                                                    onPressed: () =>
-                                                                                                        Navigator.of(
-                                                                                                          dialogCtx,
-                                                                                                        ).pop(
-                                                                                                          false,
-                                                                                                        ),
-                                                                                                    child: const Text(
-                                                                                                      'Annuleren',
-                                                                                                    ),
-                                                                                                  ),
-                                                                                                  FilledButton(
-                                                                                                    style: kiduDialogPrimaryButtonStyle(
-                                                                                                      dialogCtx,
-                                                                                                    ),
-                                                                                                    onPressed: () =>
-                                                                                                        Navigator.of(
-                                                                                                          dialogCtx,
-                                                                                                        ).pop(
-                                                                                                          true,
-                                                                                                        ),
-                                                                                                    child: const Text(
-                                                                                                      'Melden',
-                                                                                                    ),
-                                                                                                  ),
-                                                                                                ],
-                                                                                              ),
-                                                                                        )
-                                                                                        .then(
-                                                                                          (
-                                                                                            confirmed,
-                                                                                          ) async {
-                                                                                            if (confirmed ==
-                                                                                                true) {
-                                                                                              try {
-                                                                                                await FirebaseFirestore.instance
-                                                                                                    .collection(
-                                                                                                      'households/$householdIdStr/payments',
-                                                                                                    )
-                                                                                                    .add(
-                                                                                                      {
-                                                                                                        'amountCents': paymentAmountCents,
-                                                                                                        'currency': 'EUR',
-                                                                                                        'fromUserId': user.uid,
-                                                                                                        'toUserId': otherUid!,
-                                                                                                        'status': 'pending',
-                                                                                                        'createdAt': FieldValue.serverTimestamp(),
-                                                                                                        'createdBy': user.uid,
-                                                                                                        'confirmedAt': null,
-                                                                                                        'confirmedBy': null,
-                                                                                                        'revision': 0,
-                                                                                                      },
-                                                                                                    );
-                                                                                              } catch (
-                                                                                                e
-                                                                                              ) {
-                                                                                                if (kDebugMode) {
-                                                                                                  debugPrint(
-                                                                                                    'Payment write error: $e',
-                                                                                                  );
-                                                                                                }
-                                                                                                _showSnackBar(
-                                                                                                  mapUserFacingError(
-                                                                                                    e,
-                                                                                                    fallback: 'Betaling kon niet worden gemeld.',
-                                                                                                  ),
-                                                                                                );
-                                                                                              }
-                                                                                            }
-                                                                                          },
+                                                                                onChanged: (val) {
+                                                                                  setSheetState(() {
+                                                                                    enteredCents =
+                                                                                        _tryParseEurToCents(
+                                                                                          val,
                                                                                         );
-                                                                                  }
-                                                                                : null,
-                                                                            child: const Text(
-                                                                              'Betaling melden',
-                                                                            ),
+                                                                                  });
+                                                                                },
+                                                                              ),
+                                                                              const SizedBox(
+                                                                                height: 20,
+                                                                              ),
+                                                                              FilledButton(
+                                                                                style: kiduDialogPrimaryButtonStyle(
+                                                                                  sheetCtx,
+                                                                                ),
+                                                                                onPressed: isValid
+                                                                                    ? () {
+                                                                                        final paymentAmountCents = enteredCents!;
+                                                                                        Navigator.of(
+                                                                                          sheetCtx,
+                                                                                        ).pop();
+                                                                                        showDialog<
+                                                                                              bool
+                                                                                            >(
+                                                                                              context: context,
+                                                                                              builder:
+                                                                                                  (
+                                                                                                    dialogCtx,
+                                                                                                  ) => AlertDialog(
+                                                                                                    actionsAlignment: MainAxisAlignment.spaceBetween,
+                                                                                                    actionsPadding: const EdgeInsets.fromLTRB(
+                                                                                                      16,
+                                                                                                      0,
+                                                                                                      16,
+                                                                                                      12,
+                                                                                                    ),
+                                                                                                    title: kiduActionDialogTitle(
+                                                                                                      dialogCtx,
+                                                                                                      'Betaling melden',
+                                                                                                    ),
+                                                                                                    content: Text(
+                                                                                                      'Je meldt een betaling van ${_formatEur(enteredCents!)} aan $otherName. $otherName moet dit nog bevestigen.',
+                                                                                                    ),
+                                                                                                    actions: [
+                                                                                                      TextButton(
+                                                                                                        onPressed: () =>
+                                                                                                            Navigator.of(
+                                                                                                              dialogCtx,
+                                                                                                            ).pop(
+                                                                                                              false,
+                                                                                                            ),
+                                                                                                        child: const Text(
+                                                                                                          'Annuleren',
+                                                                                                        ),
+                                                                                                      ),
+                                                                                                      FilledButton(
+                                                                                                        style: kiduDialogPrimaryButtonStyle(
+                                                                                                          dialogCtx,
+                                                                                                        ),
+                                                                                                        onPressed: () =>
+                                                                                                            Navigator.of(
+                                                                                                              dialogCtx,
+                                                                                                            ).pop(
+                                                                                                              true,
+                                                                                                            ),
+                                                                                                        child: const Text(
+                                                                                                          'Melden',
+                                                                                                        ),
+                                                                                                      ),
+                                                                                                    ],
+                                                                                                  ),
+                                                                                            )
+                                                                                            .then(
+                                                                                              (
+                                                                                                confirmed,
+                                                                                              ) async {
+                                                                                                if (confirmed ==
+                                                                                                    true) {
+                                                                                                  try {
+                                                                                                    await FirebaseFirestore.instance
+                                                                                                        .collection(
+                                                                                                          'households/$householdIdStr/payments',
+                                                                                                        )
+                                                                                                        .add(
+                                                                                                          {
+                                                                                                            'amountCents': paymentAmountCents,
+                                                                                                            'currency': 'EUR',
+                                                                                                            // Always current user → other;
+                                                                                                            // balance direction does not flip.
+                                                                                                            'fromUserId': user.uid,
+                                                                                                            'toUserId': otherUid!,
+                                                                                                            'status': 'pending',
+                                                                                                            'createdAt': FieldValue.serverTimestamp(),
+                                                                                                            'createdBy': user.uid,
+                                                                                                            'confirmedAt': null,
+                                                                                                            'confirmedBy': null,
+                                                                                                            'revision': 0,
+                                                                                                          },
+                                                                                                        );
+                                                                                                  } catch (
+                                                                                                    e
+                                                                                                  ) {
+                                                                                                    if (kDebugMode) {
+                                                                                                      debugPrint(
+                                                                                                        'Payment write error: $e',
+                                                                                                      );
+                                                                                                    }
+                                                                                                    _showSnackBar(
+                                                                                                      mapUserFacingError(
+                                                                                                        e,
+                                                                                                        fallback: 'Betaling kon niet worden gemeld.',
+                                                                                                      ),
+                                                                                                    );
+                                                                                                  }
+                                                                                                }
+                                                                                              },
+                                                                                            );
+                                                                                      }
+                                                                                    : null,
+                                                                                child: const Text(
+                                                                                  'Betaling melden',
+                                                                                ),
+                                                                              ),
+                                                                            ],
                                                                           ),
-                                                                        ],
-                                                                      ],
-                                                                    ),
-                                                                  ),
-                                                                );
-                                                              },
-                                                            );
-                                                          },
-                                                        );
-                                                      },
-                                                      child: Padding(
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              16,
-                                                            ),
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .stretch,
-                                                          children: [
-                                                            Text(
-                                                              'Balans',
-                                                              style: Theme.of(context)
-                                                                  .textTheme
-                                                                  .titleMedium
-                                                                  ?.copyWith(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w700,
-                                                                  ),
-                                                            ),
-                                                            // Compact summary: replace three separate rows.
-                                                            const SizedBox(
-                                                              height: 8,
-                                                            ),
-                                                            _balanceRow(
-                                                              label:
-                                                                  'Totaal samen uitgegeven',
-                                                              value: _formatEur(
-                                                                totalCents,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              height: 8,
-                                                            ),
-                                                            Text(
-                                                              balanceBreakdownText ??
-                                                                  ' ',
-                                                              maxLines: 1,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                              style: Theme.of(context)
-                                                                  .textTheme
-                                                                  .bodySmall
-                                                                  ?.copyWith(
-                                                                    color:
-                                                                        onSurface(
-                                                                          context,
-                                                                          a62,
                                                                         ),
-                                                                    height: 1.3,
-                                                                  ),
-                                                            ),
-                                                            // Tighter section spacing for lower card height.
-                                                            const SizedBox(
-                                                              height: 8,
-                                                            ),
-                                                            Divider(
-                                                              height: 1,
-                                                              color: outlineV(
-                                                                context,
-                                                                a40,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                              height: 8,
-                                                            ),
-                                                            Text(
-                                                              visibleStatusText ??
-                                                                  ' ',
-                                                              style: Theme.of(context)
-                                                                  .textTheme
-                                                                  .bodySmall
-                                                                  ?.copyWith(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w600,
-                                                                    color:
-                                                                        onSurface(
-                                                                          context,
-                                                                          a84,
-                                                                        ),
-                                                                    height: 1.3,
-                                                                  ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
+                                                                      );
+                                                                    },
+                                                              );
+                                                            },
+                                                          );
+                                                        },
                                                 ),
                                                 const SizedBox(
                                                   height: _cardGap,
@@ -8668,15 +8518,147 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-Widget _balanceRow({required String label, required String value}) {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Expanded(child: Text(label, overflow: TextOverflow.ellipsis)),
-      const SizedBox(width: 12),
-      Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-    ],
-  );
+/// Compact dashboard balance card. Info and body taps are fully separated.
+class BalanceCard extends StatelessWidget {
+  const BalanceCard({
+    super.key,
+    required this.balanceCents,
+    required this.otherName,
+    required this.hasIncomingPending,
+    required this.hasOutgoingPending,
+    required this.formatEur,
+    required this.onInfoPressed,
+    this.onBodyTap,
+    this.showReportHint = true,
+  });
+
+  final int balanceCents;
+  final String otherName;
+  final bool hasIncomingPending;
+  final bool hasOutgoingPending;
+  final String Function(int cents) formatEur;
+  final VoidCallback onInfoPressed;
+  final VoidCallback? onBodyTap;
+
+  /// When false (read-only), omit the "Tik om een betaling te melden" hint.
+  final bool showReportHint;
+
+  static const Key infoButtonKey = Key('balance_card_info');
+  static const Key bodyKey = Key('balance_card_body');
+
+  @override
+  Widget build(BuildContext context) {
+    final String lineText;
+    final String? amountText;
+    final String? hintText;
+
+    if (hasIncomingPending) {
+      lineText = 'Bevestig gemelde betaling';
+      amountText = null;
+      hintText = null;
+    } else if (hasOutgoingPending) {
+      lineText = 'Betaling gemeld';
+      amountText = null;
+      hintText = 'Wacht op bevestiging';
+    } else if (balanceCents > 0) {
+      lineText = '$otherName betaalt jou';
+      amountText = formatEur(balanceCents.abs());
+      hintText = showReportHint ? 'Tik om een betaling te melden' : null;
+    } else if (balanceCents < 0) {
+      lineText = 'Jij betaalt $otherName';
+      amountText = formatEur(balanceCents.abs());
+      hintText = showReportHint ? 'Tik om een betaling te melden' : null;
+    } else {
+      lineText = 'Jullie zijn in balans';
+      amountText = formatEur(0);
+      hintText = showReportHint ? 'Tik om een betaling te melden' : null;
+    }
+
+    final titleStyle = Theme.of(
+      context,
+    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+    final lineStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: onSurface(context, a84),
+      height: 1.3,
+    );
+    final hintStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: onSurface(context, a62),
+      height: 1.3,
+    );
+
+    return KiduCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 4, 0),
+            child: Row(
+              children: [
+                Expanded(child: Text('Balans', style: titleStyle)),
+                IconButton(
+                  key: infoButtonKey,
+                  icon: const Icon(Icons.info_outline),
+                  tooltip: 'Uitleg over de balans',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onInfoPressed,
+                ),
+              ],
+            ),
+          ),
+          Material(
+            type: MaterialType.transparency,
+            borderRadius: BorderRadius.circular(
+              _DashboardPageState._cardRadius,
+            ),
+            child: InkWell(
+              key: bodyKey,
+              borderRadius: BorderRadius.circular(
+                _DashboardPageState._cardRadius,
+              ),
+              highlightColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.10),
+              splashColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.08),
+              onTap: onBodyTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lineText,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: lineStyle,
+                          ),
+                        ),
+                        if (amountText != null) ...[
+                          const SizedBox(width: 12),
+                          Text(amountText, style: lineStyle),
+                        ],
+                      ],
+                    ),
+                    if (hintText != null) ...[
+                      const SizedBox(height: 6),
+                      Text(hintText, style: hintStyle),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Actieve kinderen voor [_EditRecurringMasterExpenseDialog] (zelfde semantiek
@@ -12314,20 +12296,6 @@ class _EditPaymentAmountDialogState extends State<_EditPaymentAmountDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Huidig bedrag',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: onSurface(context, a70),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _ExpenseDetailPage._formatEur(widget.currentAmountCents),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
                     TextField(
                       controller: _amountController,
                       focusNode: _amountFocusNode,
@@ -12354,13 +12322,14 @@ class _EditPaymentAmountDialogState extends State<_EditPaymentAmountDialog> {
                       },
                       decoration: kiduCompactInputDecoration(
                         context: context,
-                        labelText: 'Nieuw bedrag (EUR)',
-                        hintText: _amountHasError ? amountErrorHint : null,
+                        labelText: 'Bedrag (Euro)',
+                        hintText: _amountHasError
+                            ? amountErrorHint
+                            : 'Bijv. 12,34',
                       ).copyWith(
                         floatingLabelBehavior: FloatingLabelBehavior.always,
                         hintStyle:
                             _amountHasError ? subtleErrorHintStyle : null,
-                        prefixText: '€ ',
                       ),
                     ),
                     if (_showReasonField) ...[
