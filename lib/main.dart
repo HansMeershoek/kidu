@@ -3064,22 +3064,98 @@ class PrivacyPolicyPage extends StatelessWidget {
 }
 
 /// Read-only detail page for balance composition (empty shell in stap 1).
-class BalansopbouwPage extends StatelessWidget {
-  const BalansopbouwPage({super.key});
+/// Shared credit-direction copy for BalanceCard and Balansopbouw.
+///
+/// [zeroLine] differs: hero uses "Jullie zijn in balans", card outcomes
+/// use the shorter "In balans".
+String balanceCreditLine(
+  int cents,
+  String otherName, {
+  String zeroLine = 'Jullie zijn in balans',
+}) {
+  if (cents > 0) return 'Je hebt tegoed van $otherName';
+  if (cents < 0) return '$otherName heeft tegoed van jou';
+  return zeroLine;
+}
 
-  static const Color _scaffoldBg = Color(0xFFF7F6F4);
-  static const double _pagePadding = 16;
+class BalansopbouwPage extends StatelessWidget {
+  const BalansopbouwPage({
+    super.key,
+    required this.balance,
+    required this.viewerName,
+    required this.otherName,
+    this.hasPending = false,
+  });
+
+  final HouseholdBalanceResult balance;
+  final String viewerName;
+  final String otherName;
+  final bool hasPending;
+
+  static const double _amountColWidth = 88;
 
   @override
   Widget build(BuildContext context) {
+    final viewer = viewerName.trim().isEmpty ? 'Ouder' : viewerName.trim();
+    final other = otherName.trim().isEmpty ? 'Co-parent' : otherName.trim();
+    final paidByViewer =
+        balance.settlementPaidByViewerCents +
+        balance.confirmedPaidByViewerCents;
+    final paidToViewer =
+        balance.settlementPaidToViewerCents +
+        balance.confirmedPaidToViewerCents;
+    final paymentBalanceCents = paidByViewer - paidToViewer;
+
+    final textTheme = Theme.of(context).textTheme;
+    final statusLineStyle = textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: onSurface(context, a84),
+      height: 1.3,
+    );
+    final statusAmountStyle = textTheme.headlineSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: onSurface(context, a84),
+      height: 1.2,
+    );
+    final pendingStyle = textTheme.bodySmall?.copyWith(
+      color: onSurface(context, a62),
+      height: 1.35,
+    );
+    final cardTitleStyle = textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.4,
+    );
+    final mutedStyle = textTheme.bodySmall?.copyWith(
+      color: onSurface(context, a62),
+      height: 1.35,
+    );
+    final tableHeaderStyle = textTheme.bodySmall?.copyWith(
+      color: onSurface(context, a62),
+      fontWeight: FontWeight.w600,
+    );
+    final tableCellStyle = textTheme.bodyMedium?.copyWith(
+      color: onSurface(context, a84),
+      height: 1.3,
+    );
+    final outcomeStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: onSurface(context, a84),
+      height: 1.3,
+    );
+    // Same subtle separator as Logboek list rows / settings groups.
+    final outcomeDivider = Divider(height: 1, color: outlineV(context, a40));
+
+    final statusCents = balance.balanceCents;
+    final statusLine = balanceCreditLine(statusCents, other);
+    final statusAmount = _ExpenseDetailPage._formatEur(statusCents.abs());
+
     return Scaffold(
-      backgroundColor: _scaffoldBg,
       appBar: AppBar(
         centerTitle: true,
         leading: const BackButton(),
         title: Text(
           'Balansopbouw',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          style: textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: 0.4,
           ),
@@ -3090,18 +3166,219 @@ class BalansopbouwPage extends StatelessWidget {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: Padding(
-              padding: const EdgeInsets.all(_pagePadding),
-              child: Text(
-                'Hier zie je hoe jullie balans is opgebouwd.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: onSurface(context, a62),
-                  height: 1.4,
-                ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Semantics(
+                    label: '$statusLine, $statusAmount',
+                    excludeSemantics: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(statusLine, style: statusLineStyle),
+                        const SizedBox(height: 6),
+                        Text(statusAmount, style: statusAmountStyle),
+                      ],
+                    ),
+                  ),
+                  if (hasPending) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Betaling gemeld · telt nog niet mee in de balans',
+                      style: pendingStyle,
+                    ),
+                  ],
+                  const SizedBox(height: 28),
+                  // Material Card — same construction as Uitgave-/Betaling-detail.
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('UITGAVEN', style: cardTitleStyle),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              const Expanded(child: SizedBox.shrink()),
+                              SizedBox(
+                                width: _amountColWidth,
+                                child: Text(
+                                  'Uitgegeven',
+                                  textAlign: TextAlign.right,
+                                  style: tableHeaderStyle,
+                                ),
+                              ),
+                              SizedBox(
+                                width: _amountColWidth,
+                                child: Text(
+                                  'Aandeel',
+                                  textAlign: TextAlign.right,
+                                  style: tableHeaderStyle,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          _expenseParentRow(
+                            name: viewer,
+                            paidCents: balance.paidByViewerCents,
+                            shareCents: balance.fairShareViewerCents,
+                            cellStyle: tableCellStyle,
+                          ),
+                          const SizedBox(height: 8),
+                          _expenseParentRow(
+                            name: other,
+                            paidCents: balance.paidByOtherCents,
+                            shareCents: balance.fairShareOtherCents,
+                            cellStyle: tableCellStyle,
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Het aandeel is gebaseerd op de verdeling '
+                            'per uitgave.',
+                            style: mutedStyle,
+                          ),
+                          const SizedBox(height: 12),
+                          outcomeDivider,
+                          const SizedBox(height: 12),
+                          _creditOutcomeRow(
+                            cents: balance.expenseBalanceCents,
+                            otherName: other,
+                            style: outcomeStyle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('BETALINGEN', style: cardTitleStyle),
+                          const SizedBox(height: 16),
+                          _paymentDirectionRow(
+                            fromName: viewer,
+                            toName: other,
+                            cents: paidByViewer,
+                            cellStyle: tableCellStyle,
+                          ),
+                          const SizedBox(height: 10),
+                          _paymentDirectionRow(
+                            fromName: other,
+                            toName: viewer,
+                            cents: paidToViewer,
+                            cellStyle: tableCellStyle,
+                          ),
+                          const SizedBox(height: 12),
+                          outcomeDivider,
+                          const SizedBox(height: 12),
+                          _creditOutcomeRow(
+                            cents: paymentBalanceCents,
+                            otherName: other,
+                            style: outcomeStyle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _expenseParentRow({
+    required String name,
+    required int paidCents,
+    required int shareCents,
+    required TextStyle? cellStyle,
+  }) {
+    final paid = _ExpenseDetailPage._formatEur(paidCents);
+    final share = _ExpenseDetailPage._formatEur(shareCents);
+    return Semantics(
+      label: '$name, uitgegeven $paid, aandeel $share',
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: cellStyle,
+            ),
+          ),
+          SizedBox(
+            width: _amountColWidth,
+            child: Text(paid, textAlign: TextAlign.right, style: cellStyle),
+          ),
+          SizedBox(
+            width: _amountColWidth,
+            child: Text(share, textAlign: TextAlign.right, style: cellStyle),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentDirectionRow({
+    required String fromName,
+    required String toName,
+    required int cents,
+    required TextStyle? cellStyle,
+  }) {
+    final amount = _ExpenseDetailPage._formatEur(cents);
+    return Semantics(
+      label: '$fromName betaalde $toName $amount',
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$fromName → $toName',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: cellStyle,
+            ),
+          ),
+          Text(amount, style: cellStyle),
+        ],
+      ),
+    );
+  }
+
+  Widget _creditOutcomeRow({
+    required int cents,
+    required String otherName,
+    required TextStyle? style,
+  }) {
+    final line = balanceCreditLine(cents, otherName, zeroLine: 'In balans');
+    final amount = _ExpenseDetailPage._formatEur(cents.abs());
+    return Semantics(
+      label: '$line, $amount',
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              line,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(amount, style: style),
+        ],
       ),
     );
   }
@@ -7279,10 +7556,25 @@ class _DashboardPageState extends State<DashboardPage> {
                                                   showReportHint:
                                                       canMutateHousehold,
                                                   onInfoPressed: () {
+                                                    final viewerLabel =
+                                                        myName.trim().isEmpty
+                                                        ? 'Ouder'
+                                                        : myName.trim();
                                                     Navigator.of(context).push(
                                                       MaterialPageRoute<void>(
                                                         builder: (_) =>
-                                                            const BalansopbouwPage(),
+                                                            BalansopbouwPage(
+                                                          balance: balance,
+                                                          viewerName:
+                                                              viewerLabel,
+                                                          otherName:
+                                                              balanceOtherName,
+                                                          hasPending:
+                                                              _pendingIncoming !=
+                                                                  null ||
+                                                              _pendingOutgoing !=
+                                                                  null,
+                                                        ),
                                                       ),
                                                     );
                                                   },
@@ -8510,17 +8802,9 @@ class BalanceCard extends StatelessWidget {
       lineText = 'Betaling gemeld';
       amountText = null;
       hintText = 'Wacht op bevestiging';
-    } else if (balanceCents > 0) {
-      lineText = 'Je hebt tegoed van $otherName';
-      amountText = formatEur(balanceCents.abs());
-      hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
-    } else if (balanceCents < 0) {
-      lineText = '$otherName heeft tegoed van jou';
-      amountText = formatEur(balanceCents.abs());
-      hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     } else {
-      lineText = 'Jullie zijn in balans';
-      amountText = formatEur(0);
+      lineText = balanceCreditLine(balanceCents, otherName);
+      amountText = formatEur(balanceCents.abs());
       hintText = showReportHint ? 'Klik hier om een betaling te melden' : null;
     }
 

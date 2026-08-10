@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kidu/balance/household_balance.dart';
 import 'package:kidu/main.dart';
 
 String _formatEur(int cents) {
@@ -99,10 +100,7 @@ void main() {
       expect(find.text('Betaling gemeld'), findsOneWidget);
       expect(find.text('Wacht op bevestiging'), findsOneWidget);
       expect(find.text('Klik hier om een betaling te melden'), findsNothing);
-      expect(
-        find.text('Klik hier om de betaling te bevestigen'),
-        findsNothing,
-      );
+      expect(find.text('Klik hier om de betaling te bevestigen'), findsNothing);
     });
 
     testWidgets('incoming pending', (tester) async {
@@ -226,10 +224,7 @@ void main() {
       );
 
       expect(find.text('Klik hier om een betaling te melden'), findsNothing);
-      expect(
-        find.text('Klik hier om de betaling te bevestigen'),
-        findsNothing,
-      );
+      expect(find.text('Klik hier om de betaling te bevestigen'), findsNothing);
 
       await tester.tap(find.byKey(BalanceCard.bodyKey));
       await tester.pump();
@@ -254,21 +249,40 @@ void main() {
               onBodyTap: () {},
             ),
           ),
-          routes: {'/balansopbouw': (_) => const BalansopbouwPage()},
         ),
       );
 
-      // Direct page smoke + info icon presence.
       expect(find.byKey(BalanceCard.infoButtonKey), findsOneWidget);
       expect(find.byIcon(Icons.info_outline), findsOneWidget);
 
-      await tester.pumpWidget(const MaterialApp(home: BalansopbouwPage()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BalansopbouwPage(
+            balance: const HouseholdBalanceResult(
+              totalExpenseCents: 0,
+              paidByViewerCents: 0,
+              paidByOtherCents: 0,
+              fairShareViewerCents: 0,
+              fairShareOtherCents: 0,
+              expenseBalanceCents: 0,
+              confirmedPaidByViewerCents: 0,
+              confirmedPaidToViewerCents: 0,
+              settlementPaidByViewerCents: 0,
+              settlementPaidToViewerCents: 0,
+              balanceCents: 0,
+            ),
+            viewerName: 'Bianca',
+            otherName: 'Frits',
+          ),
+        ),
+      );
       expect(find.text('Balansopbouw'), findsOneWidget);
+      expect(find.text('HUIDIGE BALANS'), findsNothing);
+      expect(find.text('Jullie zijn in balans'), findsOneWidget);
       expect(
         find.text('Hier zie je hoe jullie balans is opgebouwd.'),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.textContaining('€'), findsNothing);
       expect(find.text('Betaling melden'), findsNothing);
     });
   });
