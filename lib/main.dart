@@ -3092,8 +3092,6 @@ class BalansopbouwPage extends StatelessWidget {
   final String otherName;
   final bool hasPending;
 
-  static const double _amountColWidth = 88;
-
   @override
   Widget build(BuildContext context) {
     final viewer = viewerName.trim().isEmpty ? 'Ouder' : viewerName.trim();
@@ -3127,10 +3125,6 @@ class BalansopbouwPage extends StatelessWidget {
     final mutedStyle = textTheme.bodySmall?.copyWith(
       color: onSurface(context, a62),
       height: 1.35,
-    );
-    final tableHeaderStyle = textTheme.bodySmall?.copyWith(
-      color: onSurface(context, a62),
-      fontWeight: FontWeight.w500,
     );
     final tableCellStyle = textTheme.bodyMedium?.copyWith(
       color: onSurface(context, a84),
@@ -3197,25 +3191,19 @@ class BalansopbouwPage extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('UITGAVEN', style: cardTitleStyle),
-                          const SizedBox(height: 16),
                           Row(
                             children: [
-                              const Expanded(child: SizedBox.shrink()),
-                              SizedBox(
-                                width: _amountColWidth,
+                              Expanded(
                                 child: Text(
-                                  'Uitgegeven',
-                                  textAlign: TextAlign.right,
-                                  style: tableHeaderStyle,
+                                  'UITGAVEN',
+                                  style: cardTitleStyle,
                                 ),
                               ),
-                              SizedBox(
-                                width: _amountColWidth,
+                              Expanded(
                                 child: Text(
-                                  'Aandeel',
+                                  'AANDEEL',
                                   textAlign: TextAlign.right,
-                                  style: tableHeaderStyle,
+                                  style: cardTitleStyle,
                                 ),
                               ),
                             ],
@@ -3227,7 +3215,7 @@ class BalansopbouwPage extends StatelessWidget {
                             shareCents: balance.fairShareViewerCents,
                             cellStyle: tableCellStyle,
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           _expenseParentRow(
                             name: other,
                             paidCents: balance.paidByOtherCents,
@@ -3304,25 +3292,45 @@ class BalansopbouwPage extends StatelessWidget {
     final paid = _ExpenseDetailPage._formatEur(paidCents);
     final share = _ExpenseDetailPage._formatEur(shareCents);
     return Semantics(
-      label: '$name, uitgegeven $paid, aandeel $share',
+      label: '$name, uitgaven $paid, aandeel $share',
       excludeSemantics: true,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: cellStyle,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: cellStyle,
+                ),
+                const SizedBox(height: 6),
+                Text(paid, style: cellStyle),
+              ],
             ),
           ),
-          SizedBox(
-            width: _amountColWidth,
-            child: Text(paid, textAlign: TextAlign.right, style: cellStyle),
-          ),
-          SizedBox(
-            width: _amountColWidth,
-            child: Text(share, textAlign: TextAlign.right, style: cellStyle),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: cellStyle,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  share,
+                  textAlign: TextAlign.right,
+                  style: cellStyle,
+                ),
+              ],
+            ),
           ),
         ],
       ),

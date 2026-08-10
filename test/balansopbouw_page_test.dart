@@ -145,8 +145,9 @@ void main() {
         ),
       );
       expect(find.text('UITGAVEN'), findsOneWidget);
-      expect(find.text('Uitgegeven'), findsOneWidget);
-      expect(find.text('Aandeel'), findsOneWidget);
+      expect(find.text('AANDEEL'), findsOneWidget);
+      expect(find.text('Uitgegeven'), findsNothing);
+      expect(find.text('Aandeel'), findsNothing);
       expect(find.text('Bianca'), findsWidgets);
       expect(find.text('Frits'), findsWidgets);
       expect(find.text('€169,00'), findsOneWidget);
@@ -493,10 +494,35 @@ void main() {
           ),
         );
         await _expectNoOverflow(tester);
-        expect(find.text('Uitgegeven'), findsOneWidget);
-        expect(find.text('Aandeel'), findsOneWidget);
+        expect(find.text('UITGAVEN'), findsOneWidget);
+        expect(find.text('AANDEEL'), findsOneWidget);
+        expect(find.text('Uitgegeven'), findsNothing);
       });
     }
+
+    testWidgets('long names do not displace amounts', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          _balance(
+            totalExpenseCents: 71100,
+            paidByViewerCents: 16900,
+            paidByOtherCents: 54200,
+            fairShareViewerCents: 27050,
+            fairShareOtherCents: 44050,
+            expenseBalanceCents: -10150,
+            balanceCents: -10150,
+          ),
+          viewerName: 'Bianca-met-een-erg-lange-achternaam-die-past',
+          otherName: 'Frits-van-de-hele-lange-naam-die-ook-past',
+          size: const Size(360, 844),
+        ),
+      );
+      await _expectNoOverflow(tester);
+      expect(find.text('€169,00'), findsOneWidget);
+      expect(find.text('€542,00'), findsOneWidget);
+      expect(find.text('€270,50'), findsOneWidget);
+      expect(find.text('€440,50'), findsOneWidget);
+    });
 
     testWidgets('elevated textScale no overflow', (tester) async {
       await tester.pumpWidget(
@@ -513,6 +539,8 @@ void main() {
         ),
       );
       await _expectNoOverflow(tester);
+      expect(find.text('UITGAVEN'), findsOneWidget);
+      expect(find.text('AANDEEL'), findsOneWidget);
     });
   });
 
