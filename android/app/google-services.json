@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "64374292159-jv5juoks096qp7gsquqm829pciih6emp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anne.kidu",
+            "certificate_hash": "a0f4fdfefbc734badfbb091bfdcf8f6ad3ec2ea0"
+          }
+        },
+        {
           "client_id": "64374292159-lobqfbhnnf22jksnipkui2qm49coi7ev.apps.googleusercontent.com",
           "client_type": 3
         }
