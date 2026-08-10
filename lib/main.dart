@@ -3208,7 +3208,7 @@ class BalansopbouwPage extends StatelessWidget {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           _expenseParentRow(
                             name: viewer,
                             paidCents: balance.paidByViewerCents,
