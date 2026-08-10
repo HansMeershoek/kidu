@@ -3107,13 +3107,13 @@ class BalansopbouwPage extends StatelessWidget {
     final paymentBalanceCents = paidByViewer - paidToViewer;
 
     final textTheme = Theme.of(context).textTheme;
-    final statusLineStyle = textTheme.titleMedium?.copyWith(
+    final statusLineStyle = textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w600,
       color: onSurface(context, a84),
       height: 1.3,
     );
-    final statusAmountStyle = textTheme.headlineSmall?.copyWith(
-      fontWeight: FontWeight.w700,
+    final statusAmountStyle = textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.w600,
       color: onSurface(context, a84),
       height: 1.2,
     );
@@ -3122,8 +3122,7 @@ class BalansopbouwPage extends StatelessWidget {
       height: 1.35,
     );
     final cardTitleStyle = textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0.4,
+      fontWeight: FontWeight.w600,
     );
     final mutedStyle = textTheme.bodySmall?.copyWith(
       color: onSurface(context, a62),
@@ -3131,7 +3130,7 @@ class BalansopbouwPage extends StatelessWidget {
     );
     final tableHeaderStyle = textTheme.bodySmall?.copyWith(
       color: onSurface(context, a62),
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w500,
     );
     final tableCellStyle = textTheme.bodyMedium?.copyWith(
       color: onSurface(context, a84),
