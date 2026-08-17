@@ -968,6 +968,16 @@ Color onSurface(BuildContext context, double alpha) =>
 Color outlineV(BuildContext context, double alpha) =>
     Theme.of(context).colorScheme.outlineVariant.withValues(alpha: alpha);
 
+bool kiduIsDark(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
+/// Light [light] is returned unchanged. Dark uses [dark] at weak callsites.
+double contrastAlpha(BuildContext context, double light, double dark) =>
+    kiduIsDark(context) ? dark : light;
+
+double kiduSliderInactiveTrackAlpha(BuildContext context) =>
+    contrastAlpha(context, 0.12, 0.28);
+
 /// Compacte, zachte `Notitie delen`-toggle.
 ///
 /// Bewust kleiner en tonaler dan de Material-standaard switch: schaalt licht
@@ -3609,110 +3619,124 @@ class _LoginPageState extends State<LoginPage> {
               padding: const EdgeInsets.only(top: 34, bottom: 38),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 32,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Image.asset('assets/images/kidu_logo.png', width: 180),
-                      const SizedBox(height: 32),
-                      Text(
-                        'Rust in gedeelde kosten',
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: -0.2,
-                              color: onSurface(context, a85),
-                            ) ??
-                            TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: -0.2,
-                              color: onSurface(context, a85),
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 40),
-                      if (_error != null) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.error.withValues(alpha: 0.35),
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onErrorContainer,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
+                child: Theme(
+                  data: buildKiduTheme(),
+                  child: Builder(
+                    builder: (context) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 32,
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                      IgnorePointer(
-                        ignoring: _busy,
-                        child: Opacity(
-                          opacity: _busy ? 0.6 : 1.0,
-                          child: SizedBox(
-                            height: 64,
-                            width: double.infinity,
-                            child: Transform.scale(
-                              scale: 1.08,
-                              alignment: Alignment.center,
-                              child: SignInButton(
-                                Buttons.google,
-                                onPressed: _signInWithGoogle,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/images/kidu_logo.png',
+                              width: 180,
+                            ),
+                            const SizedBox(height: 32),
+                            Text(
+                              'Rust in gedeelde kosten',
+                              style:
+                                  Theme.of(
+                                    context,
+                                  ).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: -0.2,
+                                    color: onSurface(context, a85),
+                                  ) ??
+                                  TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: -0.2,
+                                    color: onSurface(context, a85),
+                                  ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 40),
+                            if (_error != null) ...[
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.errorContainer,
+                                  border: Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.error.withValues(alpha: 0.35),
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  _error!,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onErrorContainer,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            IgnorePointer(
+                              ignoring: _busy,
+                              child: Opacity(
+                                opacity: _busy ? 0.6 : 1.0,
+                                child: SizedBox(
+                                  height: 64,
+                                  width: double.infinity,
+                                  child: Transform.scale(
+                                    scale: 1.08,
+                                    alignment: Alignment.center,
+                                    child: SignInButton(
+                                      Buttons.google,
+                                      onPressed: _signInWithGoogle,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.lock_outline,
-                            size: 16,
-                            color: onSurface(context, a60),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              'Veilig inloggen via Google',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: onSurface(context, a60),
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.lock_outline,
+                                  size: 16,
+                                  color: onSurface(context, a60),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'Veilig inloggen via Google',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: onSurface(context, a60),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -4419,7 +4443,10 @@ class _SettingsPage extends StatelessWidget {
                       'Verbonden met ${(otherName ?? '').trim()}',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: onSurface(context, a32),
+                        color: onSurface(
+                          context,
+                          contrastAlpha(context, a32, a55),
+                        ),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -7403,6 +7430,17 @@ class _DashboardPageState extends State<DashboardPage> {
 
                                     return FloatingActionButton(
                                       heroTag: 'add_expense_fab',
+                                      backgroundColor: addExpenseBusy
+                                          ? Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest
+                                          : null,
+                                      foregroundColor: addExpenseBusy
+                                          ? onSurface(
+                                              context,
+                                              contrastAlpha(context, a62, a70),
+                                            )
+                                          : null,
                                       onPressed: addExpenseBusy
                                           ? null
                                           : () async {
@@ -8591,7 +8629,11 @@ class _DashboardPageState extends State<DashboardPage> {
                                                                     color:
                                                                         outlineV(
                                                                           context,
-                                                                          a40,
+                                                                          contrastAlpha(
+                                                                            context,
+                                                                            a40,
+                                                                            a55,
+                                                                          ),
                                                                         ),
                                                                   ),
                                                               itemBuilder: (context, index) {
@@ -11588,10 +11630,14 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Material(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: cs.surfaceContainerHighest.withValues(
+          alpha: contrastAlpha(context, a45, 0.72),
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: borderRadius,
-          side: BorderSide(color: outlineV(context, a32)),
+          side: BorderSide(
+            color: outlineV(context, contrastAlpha(context, a32, a50)),
+          ),
         ),
         child: InkWell(
           borderRadius: borderRadius,
@@ -11608,7 +11654,10 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                   Icon(
                     Icons.history_outlined,
                     size: 17,
-                    color: onSurface(context, a60),
+                    color: onSurface(
+                      context,
+                      contrastAlpha(context, a60, a70),
+                    ),
                   ),
                   const SizedBox(width: 7),
                   Text(
@@ -11616,7 +11665,10 @@ class _ExpenseDetailPageState extends State<_ExpenseDetailPage> {
                         ? 'Geschiedenis laden…'
                         : 'Wijzigingsgeschiedenis',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: onSurface(context, a60),
+                      color: onSurface(
+                        context,
+                        contrastAlpha(context, a60, a70),
+                      ),
                     ),
                   ),
                 ],
@@ -17698,7 +17750,9 @@ class _KinderenPageState extends State<_KinderenPage> {
             backgroundColor: atMax
                 ? Theme.of(context).colorScheme.surfaceContainerHighest
                 : null,
-            foregroundColor: atMax ? onSurface(context, a62) : null,
+            foregroundColor: atMax
+                ? onSurface(context, contrastAlpha(context, a62, a70))
+                : null,
             child: const Icon(Icons.add),
           );
 
@@ -17729,7 +17783,15 @@ class _KinderenPageState extends State<_KinderenPage> {
                   )
                   .toList();
               if (i > 0) {
-                items.add(Divider(height: 1, color: outlineV(context, a32)));
+                items.add(
+                  Divider(
+                    height: 1,
+                    color: outlineV(
+                      context,
+                      contrastAlpha(context, a32, a50),
+                    ),
+                  ),
+                );
               }
               items.add(
                 ListTile(
@@ -17741,6 +17803,9 @@ class _KinderenPageState extends State<_KinderenPage> {
                         visualDensity: VisualDensity.compact,
                         style: IconButton.styleFrom(
                           foregroundColor: onSurface(context, a50),
+                          disabledForegroundColor: kiduIsDark(context)
+                              ? onSurface(context, a55)
+                              : null,
                         ),
                         icon: const Icon(Icons.edit_outlined, size: 22),
                         tooltip: 'Naam wijzigen',
@@ -17756,6 +17821,9 @@ class _KinderenPageState extends State<_KinderenPage> {
                         visualDensity: VisualDensity.compact,
                         style: IconButton.styleFrom(
                           foregroundColor: onSurface(context, a50),
+                          disabledForegroundColor: kiduIsDark(context)
+                              ? onSurface(context, a55)
+                              : null,
                         ),
                         icon: const Icon(Icons.archive_outlined, size: 22),
                         tooltip: 'Archiveren',
@@ -17787,7 +17855,15 @@ class _KinderenPageState extends State<_KinderenPage> {
               final d = archived[i];
               final name = (d.data()['name'] as String?)?.trim() ?? '?';
               if (i > 0) {
-                items.add(Divider(height: 1, color: outlineV(context, a32)));
+                items.add(
+                  Divider(
+                    height: 1,
+                    color: outlineV(
+                      context,
+                      contrastAlpha(context, a32, a50),
+                    ),
+                  ),
+                );
               }
               items.add(
                 Opacity(
@@ -17804,6 +17880,9 @@ class _KinderenPageState extends State<_KinderenPage> {
                           visualDensity: VisualDensity.compact,
                           style: IconButton.styleFrom(
                             foregroundColor: onSurface(context, a50),
+                            disabledForegroundColor: kiduIsDark(context)
+                                ? onSurface(context, a55)
+                                : null,
                           ),
                           icon: const Icon(Icons.unarchive_outlined, size: 22),
                           tooltip: 'Herstellen',
@@ -18024,8 +18103,13 @@ String _recurringParentLabel({
 /// Subtiele statuskleur voor de kleine indicator-dot in de recurring
 /// lijstregel. Bewust gedempt gekozen zodat `active` niet schreeuwt en
 /// `paused` wel herkenbaar opvalt zonder waarschuwingstoon.
-Color _recurringStatusDotColor(String? status) {
-  if (status == 'paused') return const Color(0xFFB07700); // amber/oranje
+Color _recurringStatusDotColor(BuildContext context, String? status) {
+  if (status == 'paused') {
+    // Slightly lighter amber on dark cards; light stays the current tone.
+    return kiduIsDark(context)
+        ? const Color(0xFFC99200)
+        : const Color(0xFFB07700);
+  }
   return _kSuccessGreen;
 }
 
@@ -18318,7 +18402,9 @@ class _RecurringParentSplitDialogState
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 activeTrackColor: cs.primary.withValues(alpha: 0.58),
-                inactiveTrackColor: cs.onSurface.withValues(alpha: 0.12),
+                inactiveTrackColor: cs.onSurface.withValues(
+                  alpha: kiduSliderInactiveTrackAlpha(context),
+                ),
                 thumbColor: cs.primary.withValues(alpha: 0.72),
                 overlayColor: cs.primary.withValues(alpha: 0.08),
                 trackHeight: 3,
@@ -19643,7 +19729,7 @@ class _RecurringMasterList extends StatelessWidget {
               return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
             },
           );
-    final statusDotColor = _recurringStatusDotColor(status);
+    final statusDotColor = _recurringStatusDotColor(context, status);
 
     final cs = Theme.of(context).colorScheme;
 

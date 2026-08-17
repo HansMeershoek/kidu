@@ -103,7 +103,9 @@ class _HouseholdSplitSettingsPageState
     } else {
       _init();
     }
-    _defaultsSub = _repo.watch(widget.householdId).listen(_onDefaultsFromStream);
+    _defaultsSub = _repo
+        .watch(widget.householdId)
+        .listen(_onDefaultsFromStream);
   }
 
   @override
@@ -342,7 +344,11 @@ class _HouseholdSplitSettingsPageState
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: colorScheme.primary.withValues(alpha: 0.58),
-            inactiveTrackColor: colorScheme.onSurface.withValues(alpha: 0.12),
+            inactiveTrackColor: colorScheme.onSurface.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.28
+                  : 0.12,
+            ),
             thumbColor: colorScheme.primary.withValues(alpha: 0.72),
             overlayColor: colorScheme.primary.withValues(alpha: 0.08),
             trackHeight: 3,

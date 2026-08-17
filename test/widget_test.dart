@@ -83,6 +83,106 @@ void main() {
     expect(find.text('Sign in with Google'), findsOneWidget);
   });
 
+  testWidgets('dark host keeps login card on light theme', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildKiduTheme(),
+        darkTheme: buildKiduDarkTheme(),
+        themeMode: ThemeMode.dark,
+        home: const LoginPage(),
+      ),
+    );
+
+    final scaffoldContext = tester.element(find.byType(Scaffold));
+    expect(Theme.of(scaffoldContext).brightness, Brightness.dark);
+
+    final cardContext = tester.element(find.text('Rust in gedeelde kosten'));
+    expect(Theme.of(cardContext).brightness, Brightness.light);
+  });
+
+  testWidgets('light host keeps login card on light theme', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildKiduTheme(),
+        darkTheme: buildKiduDarkTheme(),
+        themeMode: ThemeMode.light,
+        home: const LoginPage(),
+      ),
+    );
+
+    final scaffoldContext = tester.element(find.byType(Scaffold));
+    expect(Theme.of(scaffoldContext).brightness, Brightness.light);
+
+    final cardContext = tester.element(find.text('Rust in gedeelde kosten'));
+    expect(Theme.of(cardContext).brightness, Brightness.light);
+  });
+
+  testWidgets('contrastAlpha lifts only in dark', (tester) async {
+    late double lightValue;
+    late double darkValue;
+
+    await tester.pumpWidget(
+      Theme(
+        data: buildKiduTheme(),
+        child: Builder(
+          builder: (context) {
+            lightValue = contrastAlpha(context, a32, a55);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    expect(lightValue, a32);
+
+    await tester.pumpWidget(
+      Theme(
+        data: buildKiduDarkTheme(),
+        child: Builder(
+          builder: (context) {
+            darkValue = contrastAlpha(context, a32, a55);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    expect(darkValue, a55);
+    expect(darkValue, greaterThan(lightValue));
+  });
+
+  testWidgets('slider inactive track alpha is stronger in dark', (
+    tester,
+  ) async {
+    late double lightValue;
+    late double darkValue;
+
+    await tester.pumpWidget(
+      Theme(
+        data: buildKiduTheme(),
+        child: Builder(
+          builder: (context) {
+            lightValue = kiduSliderInactiveTrackAlpha(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    expect(lightValue, 0.12);
+
+    await tester.pumpWidget(
+      Theme(
+        data: buildKiduDarkTheme(),
+        child: Builder(
+          builder: (context) {
+            darkValue = kiduSliderInactiveTrackAlpha(context);
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+    expect(darkValue, isNot(0.12));
+    expect(darkValue, greaterThan(lightValue));
+  });
+
   // TODO: enable when pages are decoupled from direct Firebase singleton access or test seams are added.
   testWidgets('ProfileNamePage smoke', (WidgetTester tester) async {
     await tester.pumpWidget(_host(const ProfileNamePage()));
