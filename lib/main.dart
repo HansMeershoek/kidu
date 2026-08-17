@@ -2291,9 +2291,9 @@ class _AuthGateBrandedLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFFF7F6F4),
-      body: Align(
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: const Align(
         alignment: Alignment(0, 0.0),
         child: Image(
           image: AssetImage('assets/images/kidu_icon.png'),
@@ -2309,7 +2309,9 @@ class _AuthGateWhiteHoldScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(backgroundColor: Colors.white);
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    );
   }
 }
 
