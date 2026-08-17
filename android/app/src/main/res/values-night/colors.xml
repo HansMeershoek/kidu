@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Keep launcher/adaptive icon light; ic_launcher.xml references this color. -->
     <color name="kidu_splash_bg">#F7F6F4</color>
+    <!-- Native splash window — matches Flutter dark scaffold (#1A1816). -->
+    <color name="kidu_dark_splash_bg">#1A1816</color>
 </resources>
