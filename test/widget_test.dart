@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kidu/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Widget _host(Widget child) {
   return MaterialApp(home: Scaffold(body: child));
@@ -17,6 +18,62 @@ void main() {
     final theme = buildKiduDarkTheme();
     expect(theme.brightness, Brightness.dark);
     expect(theme.useMaterial3, isTrue);
+  });
+
+  test('parseKiduThemeMode maps stored values and fallbacks', () {
+    expect(parseKiduThemeMode(null), ThemeMode.system);
+    expect(parseKiduThemeMode('system'), ThemeMode.system);
+    expect(parseKiduThemeMode('light'), ThemeMode.light);
+    expect(parseKiduThemeMode('dark'), ThemeMode.dark);
+    expect(parseKiduThemeMode('unknown'), ThemeMode.system);
+  });
+
+  group('theme mode preference', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await applyKiduThemeMode(ThemeMode.system);
+    });
+
+    tearDown(() async {
+      await applyKiduThemeMode(ThemeMode.system);
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    testWidgets('applyKiduThemeMode updates state and persists', (
+      tester,
+    ) async {
+      await applyKiduThemeMode(ThemeMode.light);
+      expect(kiduThemeMode, ThemeMode.light);
+
+      await applyKiduThemeMode(ThemeMode.dark);
+      expect(kiduThemeMode, ThemeMode.dark);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('ui.themeMode'), 'dark');
+    });
+
+    testWidgets('Weergave tile shows value and three choices', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: KiduThemeModeSettingsTile())),
+      );
+
+      expect(find.text('Weergave'), findsOneWidget);
+      expect(find.text('Systeem'), findsOneWidget);
+
+      await tester.tap(find.text('Weergave'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Systeem'), findsWidgets);
+      expect(find.text('Licht'), findsOneWidget);
+      expect(find.text('Donker'), findsOneWidget);
+
+      await tester.tap(find.text('Donker'));
+      await tester.pumpAndSettle();
+
+      expect(kiduThemeMode, ThemeMode.dark);
+      expect(find.text('Donker'), findsOneWidget);
+      expect(find.text('Licht'), findsNothing);
+    });
   });
 
   testWidgets('LoginPage smoke', (WidgetTester tester) async {

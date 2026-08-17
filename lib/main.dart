@@ -1041,8 +1041,7 @@ ThemeData buildKiduTheme() {
   );
 }
 
-/// Warm dark sibling of [buildKiduTheme]. Same seed/brand family; not wired
-/// for users yet (`MaterialApp.themeMode` stays light until Settings exists).
+/// Warm dark sibling of [buildKiduTheme]. Same seed/brand family.
 ThemeData buildKiduDarkTheme() {
   const scaffold = Color(0xFF1A1816);
   const surface = Color(0xFF24211E);
@@ -1064,6 +1063,43 @@ ThemeData buildKiduDarkTheme() {
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: cs.primary),
   );
+}
+
+/// Persistent `ui.themeMode` values: `system`, `light`, `dark`.
+///
+/// Missing, blank, or unknown values fall back to [ThemeMode.system].
+ThemeMode parseKiduThemeMode(String? raw) {
+  switch (raw?.trim()) {
+    case 'light':
+      return ThemeMode.light;
+    case 'dark':
+      return ThemeMode.dark;
+    case 'system':
+    default:
+      return ThemeMode.system;
+  }
+}
+
+String serializeKiduThemeMode(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return 'light';
+    case ThemeMode.dark:
+      return 'dark';
+    case ThemeMode.system:
+      return 'system';
+  }
+}
+
+String kiduThemeModeLabel(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.light:
+      return 'Licht';
+    case ThemeMode.dark:
+      return 'Donker';
+    case ThemeMode.system:
+      return 'Systeem';
+  }
 }
 
 /// Maps exceptions to user-friendly Dutch messages. Does not throw.
@@ -1794,9 +1830,20 @@ final GlobalKey<ScaffoldMessengerState> appScaffoldMessengerKey =
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 const String _screenshotsBlockedPrefsKey = 'privacy.screenshotsBlocked';
+const String _themeModePrefsKey = 'ui.themeMode';
 const MethodChannel _privacyPlatformChannel = MethodChannel('kidu/privacy');
 
 bool _screenshotsBlockedPreferenceCache = false;
+final ValueNotifier<ThemeMode> _kiduThemeModeNotifier = ValueNotifier<ThemeMode>(
+  ThemeMode.system,
+);
+
+ThemeMode get kiduThemeMode => _kiduThemeModeNotifier.value;
+
+Future<void> applyKiduThemeMode(ThemeMode mode) async {
+  _kiduThemeModeNotifier.value = mode;
+  await _saveThemeModePreference(mode);
+}
 
 Future<bool> _loadScreenshotsBlockedPreference() async {
   try {
@@ -1863,6 +1910,35 @@ Future<void> _restoreScreenshotsBlockedPreference() async {
   }
 }
 
+Future<ThemeMode> _loadThemeModePreference() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    return parseKiduThemeMode(prefs.getString(_themeModePrefsKey));
+  } catch (e) {
+    debugPrint('Load theme mode preference error: $e');
+    return ThemeMode.system;
+  }
+}
+
+Future<void> _saveThemeModePreference(ThemeMode mode) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModePrefsKey, serializeKiduThemeMode(mode));
+  } catch (e) {
+    debugPrint('Save theme mode preference error: $e');
+  }
+}
+
+Future<void> _restoreThemeModePreference() async {
+  try {
+    final mode = await _loadThemeModePreference();
+    _kiduThemeModeNotifier.value = mode;
+  } catch (e) {
+    debugPrint('Restore theme mode preference error: $e');
+    _kiduThemeModeNotifier.value = ThemeMode.system;
+  }
+}
+
 PageRoute<T> _reopenLockNoTransitionRoute<T>(Widget child) {
   return PageRouteBuilder<T>(
     pageBuilder: (context, animation, secondaryAnimation) => child,
@@ -1916,6 +1992,7 @@ Future<bool> _hasSignedInUserForReopenLock() async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _restoreScreenshotsBlockedPreference();
+  await _restoreThemeModePreference();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await _googleSignIn.initialize();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -1958,19 +2035,24 @@ class _KiDuAppState extends State<KiDuApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'KiDu',
-      theme: buildKiduTheme(),
-      darkTheme: buildKiduDarkTheme(),
-      themeMode: ThemeMode.light,
-      scaffoldMessengerKey: appScaffoldMessengerKey,
-      navigatorKey: appNavigatorKey,
-      builder: (context, child) => ReopenLockGate(
-        shouldLock: _hasSignedInUserForReopenLock,
-        onLogout: _signOutForReopenLock,
-        child: child ?? const SizedBox.shrink(),
-      ),
-      home: const AuthGate(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: _kiduThemeModeNotifier,
+      builder: (context, themeMode, _) {
+        return MaterialApp(
+          title: 'KiDu',
+          theme: buildKiduTheme(),
+          darkTheme: buildKiduDarkTheme(),
+          themeMode: themeMode,
+          scaffoldMessengerKey: appScaffoldMessengerKey,
+          navigatorKey: appNavigatorKey,
+          builder: (context, child) => ReopenLockGate(
+            shouldLock: _hasSignedInUserForReopenLock,
+            onLogout: _signOutForReopenLock,
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }
@@ -3852,6 +3934,79 @@ class _UitgavenverdelingSettingsTileState
   }
 }
 
+Future<void> showKiduThemeModeDialog(BuildContext context) async {
+  final selected = await showDialog<ThemeMode>(
+    context: context,
+    builder: (ctx) {
+      final current = kiduThemeMode;
+      Widget choice(ThemeMode mode) {
+        final isSelected = mode == current;
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(kiduThemeModeLabel(mode)),
+          trailing: isSelected
+              ? Icon(
+                  Icons.check,
+                  size: 20,
+                  color: Theme.of(ctx).colorScheme.primary,
+                )
+              : null,
+          onTap: () => Navigator.of(ctx).pop(mode),
+        );
+      }
+
+      return AlertDialog(
+        title: kiduActionDialogTitle(ctx, 'Weergave'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            choice(ThemeMode.system),
+            choice(ThemeMode.light),
+            choice(ThemeMode.dark),
+          ],
+        ),
+      );
+    },
+  );
+  if (selected == null) return;
+  await applyKiduThemeMode(selected);
+}
+
+class KiduThemeModeSettingsTile extends StatelessWidget {
+  const KiduThemeModeSettingsTile({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: _kiduThemeModeNotifier,
+      builder: (context, mode, _) {
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          visualDensity: VisualDensity.standard,
+          leading: Icon(
+            Icons.brightness_6_outlined,
+            size: 18,
+            color: onSurface(context, a45),
+          ),
+          title: Text(
+            'Weergave',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: onSurface(context, 0.80),
+            ),
+          ),
+          subtitle: Text(
+            kiduThemeModeLabel(mode),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: onSurface(context, a58),
+            ),
+          ),
+          onTap: () => unawaited(showKiduThemeModeDialog(context)),
+        );
+      },
+    );
+  }
+}
+
 class _SettingsPage extends StatelessWidget {
   const _SettingsPage({
     required this.dashboardMounted,
@@ -4070,6 +4225,16 @@ class _SettingsPage extends StatelessWidget {
                             );
                           },
                         ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Weergave',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: onSurface(context, a70),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const KiduThemeModeSettingsTile(),
                       const SizedBox(height: 16),
                       Text(
                         'Privacy',
