@@ -1041,6 +1041,31 @@ ThemeData buildKiduTheme() {
   );
 }
 
+/// Warm dark sibling of [buildKiduTheme]. Same seed/brand family; not wired
+/// for users yet (`MaterialApp.themeMode` stays light until Settings exists).
+ThemeData buildKiduDarkTheme() {
+  const scaffold = Color(0xFF1A1816);
+  const surface = Color(0xFF24211E);
+  const seed = Color(0xFF2F3E46); // warm/dark slate
+
+  final cs = ColorScheme.fromSeed(
+    seedColor: seed,
+    brightness: Brightness.dark,
+  ).copyWith(surface: surface, surfaceTint: Colors.transparent);
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: cs,
+    scaffoldBackgroundColor: scaffold,
+    appBarTheme: const AppBarTheme(
+      backgroundColor: scaffold,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    progressIndicatorTheme: ProgressIndicatorThemeData(color: cs.primary),
+  );
+}
+
 /// Maps exceptions to user-friendly Dutch messages. Does not throw.
 String mapUserFacingError(
   Object e, {
@@ -1936,6 +1961,8 @@ class _KiDuAppState extends State<KiDuApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'KiDu',
       theme: buildKiduTheme(),
+      darkTheme: buildKiduDarkTheme(),
+      themeMode: ThemeMode.light,
       scaffoldMessengerKey: appScaffoldMessengerKey,
       navigatorKey: appNavigatorKey,
       builder: (context, child) => ReopenLockGate(

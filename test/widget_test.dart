@@ -7,6 +7,18 @@ Widget _host(Widget child) {
 }
 
 void main() {
+  test('buildKiduTheme is light Material 3', () {
+    final theme = buildKiduTheme();
+    expect(theme.brightness, Brightness.light);
+    expect(theme.useMaterial3, isTrue);
+  });
+
+  test('buildKiduDarkTheme is dark Material 3', () {
+    final theme = buildKiduDarkTheme();
+    expect(theme.brightness, Brightness.dark);
+    expect(theme.useMaterial3, isTrue);
+  });
+
   testWidgets('LoginPage smoke', (WidgetTester tester) async {
     await tester.pumpWidget(_host(const LoginPage()));
 
