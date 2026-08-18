@@ -971,6 +971,11 @@ Color outlineV(BuildContext context, double alpha) =>
 bool kiduIsDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
 
+/// Dark-only fill for content-list KiduCards. Light keeps [ColorScheme.surface].
+Color? kiduContentListCardColor(BuildContext context) {
+  return kiduIsDark(context) ? const Color(0xFF282522) : null;
+}
+
 /// Light [light] is returned unchanged. Dark uses [dark] at weak callsites.
 double contrastAlpha(BuildContext context, double light, double dark) =>
     kiduIsDark(context) ? dark : light;
@@ -1060,7 +1065,15 @@ ThemeData buildKiduDarkTheme() {
   final cs = ColorScheme.fromSeed(
     seedColor: seed,
     brightness: Brightness.dark,
-  ).copyWith(surface: surface, surfaceTint: Colors.transparent);
+  ).copyWith(
+    surface: surface,
+    surfaceTint: Colors.transparent,
+    surfaceContainerLowest: const Color(0xFF161412),
+    surfaceContainerLow: const Color(0xFF2B2825),
+    surfaceContainer: const Color(0xFF322F2C),
+    surfaceContainerHigh: const Color(0xFF3A3734),
+    surfaceContainerHighest: const Color(0xFF3F3C39),
+  );
 
   return ThemeData(
     useMaterial3: true,
@@ -1311,9 +1324,7 @@ class _PrivateNoteDialogContentState extends State<_PrivateNoteDialogContent> {
     );
     final deleteButton = TextButton(
       style: TextButton.styleFrom(
-        foregroundColor: Theme.of(
-          context,
-        ).colorScheme.error.withValues(alpha: 0.85),
+        foregroundColor: kiduDestructiveForeground(context, 0.85),
       ),
       onPressed: () => _safePop(PrivateNoteDialogDelete()),
       child: const Text('Verwijderen'),
@@ -8538,6 +8549,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                                 Flexible(
                                                   fit: FlexFit.loose,
                                                   child: KiduCard(
+                                                        backgroundColor:
+                                                            kiduContentListCardColor(
+                                                              context,
+                                                            ),
                                                         padding:
                                                             const EdgeInsets.symmetric(
                                                               horizontal: 16,
@@ -16775,6 +16790,9 @@ class _LogboekPageState extends State<_LogboekPage>
                             width: double.infinity,
                             height: cardHeight,
                             child: KiduCard(
+                              backgroundColor: kiduContentListCardColor(
+                                context,
+                              ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 12,
@@ -16794,6 +16812,9 @@ class _LogboekPageState extends State<_LogboekPage>
                             width: double.infinity,
                             height: cardHeight,
                             child: KiduCard(
+                              backgroundColor: kiduContentListCardColor(
+                                context,
+                              ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 12,
@@ -16813,6 +16834,9 @@ class _LogboekPageState extends State<_LogboekPage>
                             width: double.infinity,
                             height: cardHeight,
                             child: KiduCard(
+                              backgroundColor: kiduContentListCardColor(
+                                context,
+                              ),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                                 vertical: 12,
@@ -17631,8 +17655,7 @@ class _KinderenPageState extends State<_KinderenPage> {
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Theme.of(ctx).colorScheme.error
-                  .withValues(alpha: 0.85),
+              foregroundColor: kiduDestructiveForeground(ctx, 0.85),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),
@@ -17893,9 +17916,10 @@ class _KinderenPageState extends State<_KinderenPage> {
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           style: IconButton.styleFrom(
-                            foregroundColor: Theme.of(
+                            foregroundColor: kiduDestructiveForeground(
                               context,
-                            ).colorScheme.error.withValues(alpha: 0.78),
+                              0.78,
+                            ),
                           ),
                           icon: const Icon(Icons.delete_outline, size: 22),
                           tooltip: 'Definitief verwijderen',
@@ -19974,7 +19998,7 @@ class _RecurringMasterDetailPageState
         final pauseResumeIcon = isPaused
             ? Icons.play_arrow_outlined
             : Icons.pause_outlined;
-        final softError = sheetTheme.colorScheme.error.withValues(alpha: 0.70);
+        final softError = kiduDestructiveForeground(sheetContext, 0.70);
 
         return SafeArea(
           child: Padding(
@@ -20257,8 +20281,7 @@ class _RecurringMasterDetailPageState
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Theme.of(ctx).colorScheme.error
-                  .withValues(alpha: 0.85),
+              foregroundColor: kiduDestructiveForeground(ctx, 0.85),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Verwijderen'),

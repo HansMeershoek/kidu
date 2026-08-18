@@ -69,10 +69,25 @@ InputDecoration kiduCompactInputDecoration({
 
 /// Softer [FilledButton] style for KiDu action-dialog primary actions.
 ///
-/// Tonal base ([secondaryContainer]) with a subtle blend toward
-/// [onSecondaryContainer] for more presence without full primary fill.
+/// Light keeps the tonal [secondaryContainer] blend. Dark uses a dedicated
+/// action fill so primary confirms stay visible on warm surfaces.
 ButtonStyle kiduDialogPrimaryButtonStyle(BuildContext context) {
+  return _kiduPrimaryActionButtonStyle(context);
+}
+
+/// Softer [FilledButton] style for KiDu form-card primary actions.
+ButtonStyle kiduFormPrimaryButtonStyle(BuildContext context) {
+  return _kiduPrimaryActionButtonStyle(context);
+}
+
+ButtonStyle _kiduPrimaryActionButtonStyle(BuildContext context) {
   final cs = Theme.of(context).colorScheme;
+  if (cs.brightness == Brightness.dark) {
+    return FilledButton.styleFrom(
+      backgroundColor: const Color(0xFF3B6476),
+      foregroundColor: const Color(0xFFD4ECF5),
+    );
+  }
   final background = Color.alphaBlend(
     cs.onSecondaryContainer.withValues(alpha: 0.10),
     cs.secondaryContainer,
@@ -83,15 +98,28 @@ ButtonStyle kiduDialogPrimaryButtonStyle(BuildContext context) {
   );
 }
 
-/// Softer [FilledButton] style for KiDu form-card primary actions.
-ButtonStyle kiduFormPrimaryButtonStyle(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  final background = Color.alphaBlend(
-    cs.onSecondaryContainer.withValues(alpha: 0.10),
-    cs.secondaryContainer,
-  );
-  return FilledButton.styleFrom(
-    backgroundColor: background,
-    foregroundColor: cs.onSecondaryContainer,
-  );
+/// Extra dark-mode alpha on top of a destructive light-path alpha.
+const double kiduDestructiveDarkAlphaLift = 0.18;
+
+/// Dark-only destructive user-action foreground. Not [ColorScheme.error].
+const Color kiduDestructiveDarkForeground = Color(0xFFD87878);
+
+/// Destructive-action alpha. Light keeps [lightAlpha]; dark lifts it.
+double kiduDestructiveAlpha(BuildContext context, double lightAlpha) {
+  if (Theme.of(context).brightness != Brightness.dark) return lightAlpha;
+  final lifted = lightAlpha + kiduDestructiveDarkAlphaLift;
+  return lifted > 1.0 ? 1.0 : lifted;
+}
+
+/// Destructive user-action foreground (delete buttons/icons).
+///
+/// Light uses [ColorScheme.error] at [lightAlpha]. Dark uses
+/// [kiduDestructiveDarkForeground] at the lifted alpha. Validation and
+/// generic error copy should keep using the scheme token directly.
+Color kiduDestructiveForeground(BuildContext context, double lightAlpha) {
+  final alpha = kiduDestructiveAlpha(context, lightAlpha);
+  final base = Theme.of(context).brightness == Brightness.dark
+      ? kiduDestructiveDarkForeground
+      : Theme.of(context).colorScheme.error;
+  return base.withValues(alpha: alpha);
 }
